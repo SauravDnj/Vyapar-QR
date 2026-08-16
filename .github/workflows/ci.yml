@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 env:
-  DATABASE_URL: "postgresql://postgres:qrhub_dev_pw@localhost:5432/qrhub_dev"
+  DATABASE_URL: "mysql://root:qrhub_dev_pw@localhost:3306/qrhub_dev"
   REDIS_URL: "redis://localhost:6379"
   JWT_ACCESS_SECRET: "ci-access-secret"
   JWT_REFRESH_SECRET: "ci-refresh-secret"
@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgres:16-alpine
+      mysql:
+        image: mysql:8.4
         env:
-          POSTGRES_PASSWORD: qrhub_dev_pw
-          POSTGRES_DB: qrhub_dev
+          MYSQL_ROOT_PASSWORD: qrhub_dev_pw
+          MYSQL_DATABASE: qrhub_dev
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "mysqladmin ping -h localhost -pqrhub_dev_pw"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10

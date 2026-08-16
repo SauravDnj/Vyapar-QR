@@ -64,10 +64,10 @@ export class ReportsService {
 
     const rows = await this.prisma.$queryRaw<RevenueRow[]>(
       Prisma.sql`
-        SELECT TO_CHAR(issued_at, 'YYYY-MM') AS month, SUM(amount) AS total
+        SELECT DATE_FORMAT(issued_at, '%Y-%m') AS month, SUM(amount) AS total
         FROM invoices
         WHERE status = 'paid' AND issued_at >= ${since}
-        GROUP BY TO_CHAR(issued_at, 'YYYY-MM')
+        GROUP BY DATE_FORMAT(issued_at, '%Y-%m')
         ORDER BY month ASC
       `,
     );

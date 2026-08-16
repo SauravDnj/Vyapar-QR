@@ -19,7 +19,7 @@ export class AdminAnalyticsService {
 
     const rows = await this.prisma.$queryRaw<TimeseriesRow[]>(
       Prisma.sql`
-        SELECT DATE(created_at) AS day, event_type AS "eventType", COUNT(*) AS total
+        SELECT DATE(created_at) AS day, event_type AS eventType, COUNT(*) AS total
         FROM analytics_events
         WHERE created_at >= ${since}
         GROUP BY DATE(created_at), event_type
