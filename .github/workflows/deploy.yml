@@ -1,0 +1,56 @@
+name: Deploy
+
+# Runs after CI succeeds on main. No Docker: apps/admin and apps/landing
+# deploy to Vercel (their own cloud build, driven by each app's vercel.json),
+# apps/api deploys to a VPS via SSH, running there under PM2 behind Nginx
+# (see deploy/scripts/deploy-api.sh and deploy/nginx/qrhub-api.conf).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch: {}
+
+jobs:
+  deploy-vercel-admin:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy apps/admin to Vercel
+        working-directory: apps/admin
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_ADMIN }}
+        run: npx vercel deploy --prod --token="$VERCEL_TOKEN" --yes
+
+  deploy-vercel-landing:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy apps/landing to Vercel
+        working-directory: apps/landing
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_LANDING }}
+        run: npx vercel deploy --prod --token="$VERCEL_TOKEN" --yes
+
+  deploy-api-vps:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run deploy-api.sh on the VPS over SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/deploy_key
+          echo "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "APP_DIR='${VPS_APP_DIR:-\$HOME/qrhub}' bash '${VPS_APP_DIR:-\$HOME/qrhub}/deploy/scripts/deploy-api.sh'"

@@ -1,0 +1,10 @@
+{
+  "name": "@qrhub/config",
+  "private": true,
+  "version": "0.0.0",
+  "files": [
+    "tsconfig.base.json",
+    "prettier.json",
+    "eslint"
+  ]
+}

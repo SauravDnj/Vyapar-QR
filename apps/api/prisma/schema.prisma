@@ -1,0 +1,843 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  super_admin
+  client_admin
+  client_staff
+  agency_admin
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum ClientStatus {
+  pending
+  active
+  suspended
+  rejected
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+}
+
+enum SubscriptionStatus {
+  pending
+  active
+  past_due
+  cancelled
+  expired
+}
+
+enum InvoiceStatus {
+  pending
+  paid
+  failed
+}
+
+enum LandingPageStatus {
+  draft
+  published
+}
+
+enum PaymentMethodType {
+  gpay
+  phonepe
+  paytm
+  other
+}
+
+enum SocialPlatform {
+  whatsapp
+  instagram
+  facebook
+}
+
+enum LeadSource {
+  contact_form
+  whatsapp_click
+  qr_scan
+}
+
+enum LeadStatus {
+  new
+  contacted
+  converted
+  lost
+}
+
+enum QrCodeType {
+  master
+  promo
+}
+
+enum AnalyticsEventType {
+  page_view
+  button_click
+  qr_scan
+}
+
+enum ClientStaffStatus {
+  invited
+  active
+}
+
+enum AgencyStatus {
+  pending
+  active
+  suspended
+}
+
+enum WhatsappMessageDirection {
+  inbound
+  outbound
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id                 String     @id @default(uuid())
+  email              String     @unique
+  passwordHash       String     @map("password_hash")
+  role               UserRole
+  status             UserStatus @default(active)
+  hashedRefreshToken String?    @map("hashed_refresh_token") @db.Text
+  createdAt          DateTime   @default(now()) @map("created_at")
+
+  client          Client?
+  auditLogs       AuditLog[]
+  staffMembership ClientStaffMember?
+  agency          Agency?
+
+  @@map("users")
+}
+
+model Client {
+  id                     String       @id @default(uuid())
+  userId                 String       @unique @map("user_id")
+  businessName           String       @map("business_name")
+  slug                   String       @unique
+  status                 ClientStatus @default(pending)
+  themeId                String?      @map("theme_id")
+  trialEndsAt            DateTime?    @map("trial_ends_at")
+  /**
+   * P3-01: hostname the client has pointed at this platform. Verified via a
+   * DNS TXT record (see CustomDomainService) before it's used for routing.
+   */
+  customDomain           String?      @unique @map("custom_domain")
+  customDomainVerifiedAt DateTime?    @map("custom_domain_verified_at")
+  /**
+   * P4-05: agency that referred/manages this client, set at signup via the
+   * agency's referral slug. Null for clients who signed up directly.
+   */
+  agencyId               String?      @map("agency_id")
+  createdAt              DateTime     @default(now()) @map("created_at")
+  updatedAt              DateTime     @updatedAt @map("updated_at")
+
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme                 Theme?                 @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  agency                Agency?                @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  landingPage           LandingPage?
+  subscriptions         Subscription[]
+  invoices              Invoice[]
+  paymentMethods        PaymentMethod[]
+  socialLinks           SocialLink[]
+  galleryImages         GalleryImage[]
+  locations             Location[]
+  googleReviewConfig    GoogleReviewConfig?
+  reviewsCache          ReviewCache[]
+  reviewFunnelResponses ReviewFunnelResponse[]
+  leads                 Lead[]
+  testimonials          Testimonial[]
+  loyaltyProgram        LoyaltyProgram?
+  loyaltyCards          LoyaltyCard[]
+  coupons               Coupon[]
+  bookingSlots          BookingSlot[]
+  menuCategories        MenuCategory[]
+  menuItems             MenuItem[]
+  orders                Order[]
+  qrCodes               QrCode[]
+  analyticsEvents       AnalyticsEvent[]
+  staffMembers          ClientStaffMember[]
+  webhooks              OutboundWebhook[]
+  whatsappMessages      WhatsappMessage[]
+  whatsappSettings      WhatsappSettings?
+
+  @@index([agencyId])
+  @@map("clients")
+}
+
+model Plan {
+  id                  String       @id @default(uuid())
+  name                String
+  price               Decimal      @db.Decimal(10, 2)
+  billingCycle        BillingCycle @map("billing_cycle")
+  featuresJson        Json         @map("features_json")
+  maxThemes           Int          @map("max_themes")
+  customDomainAllowed Boolean      @default(false) @map("custom_domain_allowed")
+  isArchived          Boolean      @default(false) @map("is_archived")
+  razorpayPlanId      String?      @map("razorpay_plan_id")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                    String             @id @default(uuid())
+  clientId              String             @map("client_id")
+  planId                String             @map("plan_id")
+  status                SubscriptionStatus @default(pending)
+  gatewaySubscriptionId String?            @map("gateway_subscription_id")
+  currentPeriodEnd      DateTime?          @map("current_period_end")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  plan     Plan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices Invoice[]
+
+  @@index([clientId])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  subscriptionId String        @map("subscription_id")
+  amount         Decimal       @db.Decimal(10, 2)
+  status         InvoiceStatus @default(pending)
+  gatewayRef     String?       @map("gateway_ref")
+  issuedAt       DateTime      @default(now()) @map("issued_at")
+
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("invoices")
+}
+
+model Theme {
+  id              String   @id @default(uuid())
+  name            String
+  category        String
+  previewImageUrl String?  @map("preview_image_url") @db.Text
+  schemaJson      Json     @map("schema_json")
+  isPremium       Boolean  @default(false) @map("is_premium")
+  /**
+   * Archived themes stay intact for clients already using them but drop
+   * out of the catalog offered to new/onboarding clients.
+   */
+  isArchived      Boolean  @default(false) @map("is_archived")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  clients      Client[]
+  landingPages LandingPage[]
+
+  @@map("themes")
+}
+
+model LandingPage {
+  id          String            @id @default(uuid())
+  clientId    String            @unique @map("client_id")
+  themeId     String?           @map("theme_id")
+  contentJson Json              @map("content_json")
+  seoMeta     Json?             @map("seo_meta")
+  status      LandingPageStatus @default(draft)
+  /**
+   * Client-chosen accent color override (hex, e.g. "#0e7c66"), null = use
+   * the theme's own default palette. Themes read this via a CSS custom
+   * property rather than hardcoding one accent color per theme.
+   */
+  accentColor String?           @map("accent_color")
+  publishedAt DateTime?         @map("published_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  client       Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  theme        Theme?                   @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  translations LandingPageTranslation[]
+
+  @@map("landing_pages")
+}
+
+/**
+ * P3-04: per-locale override of `LandingPage.contentJson`. Only fields the
+ * client has actually translated are stored — the renderer falls back to
+ * the default-locale `contentJson` for anything missing, so a partial
+ * translation never blanks out a section.
+ */
+model LandingPageTranslation {
+  id            String   @id @default(uuid())
+  landingPageId String   @map("landing_page_id")
+  locale        String
+  contentJson   Json     @map("content_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+
+  @@unique([landingPageId, locale])
+  @@map("landing_page_translations")
+}
+
+model PaymentMethod {
+  id           String            @id @default(uuid())
+  clientId     String            @map("client_id")
+  type         PaymentMethodType
+  qrImageUrl   String?           @map("qr_image_url") @db.Text
+  upiId        String?           @map("upi_id")
+  displayOrder Int               @default(0) @map("display_order")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("payment_methods")
+}
+
+model SocialLink {
+  id           String         @id @default(uuid())
+  clientId     String         @map("client_id")
+  platform     SocialPlatform
+  value        String
+  displayOrder Int            @default(0) @map("display_order")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("social_links")
+}
+
+/**
+ * P5-08: a client's physical locations/branches, shown as a list on their
+ * single landing page (not separate pages per location). Each location can
+ * still get its own trackable QR code via `QrCode` (type `promo`, labeled
+ * with the location's name) — see `QrService`.
+ */
+model Location {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  name         String
+  address      String   @db.Text
+  phone        String?
+  hours        String?
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("locations")
+}
+
+/**
+ * P5-06: a client's photo gallery, shown on their landing page. Same
+ * relational shape as PaymentMethod/SocialLink (an ordered list of rows,
+ * not crammed into content_json's single-string-per-field shape).
+ */
+model GalleryImage {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  imageUrl     String   @map("image_url") @db.Text
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("gallery_images")
+}
+
+model GoogleReviewConfig {
+  id                     String    @id @default(uuid())
+  clientId               String    @unique @map("client_id")
+  sheetId                String?   @map("sheet_id")
+  sheetRange             String?   @map("sheet_range")
+  /**
+   * Sheet column letters for each field, e.g. {"reviewerName":"A","rating":"B","comment":"C","reviewDate":"D"}.
+   * Defaults to A-D when unset.
+   */
+  columnMapping          Json?     @map("column_mapping")
+  googlePlaceId          String?   @map("google_place_id")
+  reviewLink             String?   @map("review_link") @db.Text
+  avgRatingCached        Decimal?  @map("avg_rating_cached") @db.Decimal(2, 1)
+  lastSyncedAt           DateTime? @map("last_synced_at")
+  /**
+   * P11-01: where 1–3★ smart-funnel feedback gets pushed as a WhatsApp
+   * alert (with country code, e.g. "+919876543210") — separate from
+   * `SocialLink`'s public WhatsApp button, since the owner's private alert
+   * number isn't necessarily the same number customers message publicly.
+   * Feedback is always emailed to the owner too, regardless of this field,
+   * since WhatsApp delivery needs `WhatsappService.isConfigured`.
+   */
+  feedbackWhatsappNumber String?   @map("feedback_whatsapp_number")
+
+  /**
+   * Spreadsheet that private 1–3★ feedback gets appended to as a new row
+   * (name, rating, comment, date). Defaults to `sheetId` when unset, so a
+   * client with one sheet doesn't have to enter the ID twice.
+   */
+  feedbackSheetId  String? @map("feedback_sheet_id")
+  /**
+   * Tab/sheet name within the feedback spreadsheet, e.g. "Feedback".
+   */
+  feedbackSheetTab String? @map("feedback_sheet_tab")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("google_review_configs")
+}
+
+model ReviewCache {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  reviewerName String   @map("reviewer_name")
+  rating       Int
+  comment      String?  @db.Text
+  reviewDate   DateTime @map("review_date")
+  /**
+   * P13-01: AI-drafted reply text, generated on demand and cached so the
+   * owner isn't re-charged/re-waiting for a regenerate on every page view.
+   */
+  aiReplyDraft String?  @map("ai_reply_draft") @db.Text
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("reviews_cache")
+}
+
+model ReviewFunnelResponse {
+  id             String   @id @default(uuid())
+  clientId       String   @map("client_id")
+  ratingGiven    Int      @map("rating_given")
+  routedToGoogle Boolean  @map("routed_to_google")
+  feedbackText   String?  @map("feedback_text") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("review_funnel_responses")
+}
+
+model Lead {
+  id             String     @id @default(uuid())
+  clientId       String     @map("client_id")
+  name           String
+  phone          String
+  source         LeadSource
+  status         LeadStatus @default(new)
+  notes          String?    @db.Text
+  tags           Json       @default("[]")
+  /**
+   * P13-02: set once an automated WhatsApp follow-up nudge has gone out for
+   * this lead, so the daily sweep never sends a second one.
+   */
+  followUpSentAt DateTime?  @map("follow_up_sent_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("leads")
+}
+
+/**
+ * P10-02: a redeemable discount code. Redemption is staff-verified (like
+ * loyalty stamps, not self-serve) — a customer shows the code, staff
+ * enters it in the dashboard, `CouponsService.redeem` checks it's still
+ * valid and marks one use.
+ */
+model Coupon {
+  id              String    @id @default(uuid())
+  clientId        String    @map("client_id")
+  code            String
+  description     String
+  discountText    String    @map("discount_text")
+  expiresAt       DateTime? @map("expires_at")
+  maxRedemptions  Int?      @map("max_redemptions")
+  redemptionCount Int       @default(0) @map("redemption_count")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, code])
+  @@map("coupons")
+}
+
+/**
+ * P10-04: an explicit, client-created appointment slot — no recurring
+ * availability rules, the client just adds the specific times they're
+ * free (optionally via a bulk range-generator in the API). A customer
+ * books directly into the row (name/phone/notes), same account-free
+ * identity model as `Lead`.
+ */
+model BookingSlot {
+  id              String    @id @default(uuid())
+  clientId        String    @map("client_id")
+  startsAt        DateTime  @map("starts_at")
+  durationMinutes Int       @default(30) @map("duration_minutes")
+  isBooked        Boolean   @default(false) @map("is_booked")
+  customerName    String?   @map("customer_name")
+  customerPhone   String?   @map("customer_phone")
+  notes           String?   @db.Text
+  /**
+   * P13-03: set once a WhatsApp reminder has gone out for this booking,
+   * so the frequent sweep never sends a duplicate.
+   */
+  reminderSentAt  DateTime? @map("reminder_sent_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, startsAt])
+  @@map("booking_slots")
+}
+
+/**
+ * P8-03: end-customer-submitted quotes for a client-curated testimonial
+ * wall — distinct from `GoogleReviewConfig`/`ReviewCache` (a synced Sheet)
+ * and `ReviewFunnelResponse` (the private low-rating feedback funnel).
+ * Submissions start unapproved; only the client can choose which show
+ * publicly.
+ */
+model Testimonial {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  authorName   String   @map("author_name")
+  quote        String   @db.Text
+  rating       Int?
+  isApproved   Boolean  @default(false) @map("is_approved")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("testimonials")
+}
+
+/**
+ * P8-04: one stamp-card loyalty program per client — configures how many
+ * stamps earn the reward. `LoyaltyCard` rows are created lazily, keyed by
+ * phone number (same lightweight, account-free identity model as `Lead`).
+ */
+model LoyaltyProgram {
+  id             String   @id @default(uuid())
+  clientId       String   @unique @map("client_id")
+  stampsRequired Int      @default(9) @map("stamps_required")
+  rewardText     String   @map("reward_text")
+  isActive       Boolean  @default(false) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("loyalty_programs")
+}
+
+model LoyaltyCard {
+  id              String   @id @default(uuid())
+  clientId        String   @map("client_id")
+  customerPhone   String   @map("customer_phone")
+  stampCount      Int      @default(0) @map("stamp_count")
+  redemptionCount Int      @default(0) @map("redemption_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, customerPhone])
+  @@map("loyalty_cards")
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  ready
+  completed
+  cancelled
+}
+
+/**
+ * A client's orderable menu, grouped into categories. Same relational-list
+ * shape as GalleryImage/PaymentMethod (clientId + displayOrder) rather than
+ * crammed into LandingPage.contentJson — content_json is flat-string-only.
+ */
+model MenuCategory {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  name         String
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  client Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items  MenuItem[]
+
+  @@index([clientId])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id           String   @id @default(uuid())
+  clientId     String   @map("client_id")
+  categoryId   String   @map("category_id")
+  name         String
+  description  String?  @db.Text
+  priceRupees  Decimal  @map("price_rupees") @db.Decimal(10, 2)
+  imageUrl     String?  @map("image_url") @db.Text
+  isAvailable  Boolean  @default(true) @map("is_available")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  client   Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  category MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+/**
+ * A WhatsApp-ordering order placed from the public landing page. `itemsJson`
+ * is a point-in-time snapshot ([{menuItemId,name,unitPrice,quantity}]) —
+ * never re-joined against MenuItem later, so an order stays legible after a
+ * price change or item deletion. `totalAmount` is always server-computed
+ * from `MenuItem.priceRupees` at order time and never trusted from the
+ * client — see MenuService.placeOrder.
+ */
+model Order {
+  id            String      @id @default(uuid())
+  clientId      String      @map("client_id")
+  customerName  String      @map("customer_name")
+  customerPhone String      @map("customer_phone")
+  itemsJson     Json        @map("items_json")
+  totalAmount   Decimal     @map("total_amount") @db.Decimal(10, 2)
+  status        OrderStatus @default(pending)
+  notes         String?     @db.Text
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, status])
+  @@index([clientId, createdAt])
+  @@map("orders")
+}
+
+model QrCode {
+  id              String     @id @default(uuid())
+  clientId        String     @map("client_id")
+  type            QrCodeType @default(master)
+  /**
+   * P5-07: client-facing name for a `promo` QR (e.g. "Table 5", "10% off
+   * flyer", "Downtown branch") — null for the one `master` QR, which has no
+   * name of its own (it just is the business's page).
+   */
+  label           String?
+  targetUrl       String     @map("target_url")
+  imageUrl        String?    @map("image_url") @db.Text
+  svgImageUrl     String?    @map("svg_image_url") @db.Text
+  scanCount       Int        @default(0) @map("scan_count")
+  /**
+   * P8-01: custom QR styling. `foregroundColor`/`backgroundColor` are hex
+   * strings applied to both PNG and SVG output. `logoEnabled` splices the
+   * client's own hero logo into the SVG output only (center-image PNG
+   * compositing needs a native image library like sharp, which this
+   * workspace has disabled — see `pnpm-workspace.yaml`'s `allowBuilds`).
+   */
+  foregroundColor String?    @map("foreground_color")
+  backgroundColor String?    @map("background_color")
+  logoEnabled     Boolean    @default(false) @map("logo_enabled")
+  /**
+   * P9-01: "smart redirect" — promo QR codes only. When `redirectUrl` is
+   * set, the QR encodes a link to `GET /public/qr/:id/go` (a server-side
+   * redirect handler) instead of the landing page directly, so a scan can
+   * be logged and checked against `expiresAt`/`maxScans` before sending
+   * the visitor on. Unset on every QR created before this feature, and on
+   * every plain landing-page QR since — those keep encoding the landing
+   * page URL directly, exactly as before.
+   */
+  redirectUrl     String?    @map("redirect_url") @db.Text
+  expiresAt       DateTime?  @map("expires_at")
+  maxScans        Int?       @map("max_scans")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("qr_codes")
+}
+
+model AnalyticsEvent {
+  id        String             @id @default(uuid())
+  clientId  String             @map("client_id")
+  eventType AnalyticsEventType @map("event_type")
+  metaJson  Json?              @map("meta_json")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, eventType, createdAt])
+  @@map("analytics_events")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?  @map("actor_id")
+  action    String
+  entity    String
+  entityId  String   @map("entity_id")
+  metaJson  Json?    @map("meta_json")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model Setting {
+  key   String @id
+  value Json
+
+  @@map("settings")
+}
+
+/**
+ * P4-01: a `client_staff` User invited by a client_admin onto their Client.
+ * Deliberately a separate join table rather than widening `Client.userId`
+ * to many-to-many — `Client.userId` stays the single owning account,
+ * `ClientScopeGuard` additionally checks this table for staff.
+ */
+model ClientStaffMember {
+  id              String            @id @default(uuid())
+  clientId        String            @map("client_id")
+  userId          String?           @unique @map("user_id")
+  invitedEmail    String            @map("invited_email")
+  status          ClientStaffStatus @default(invited)
+  /**
+   * P4-06: per-staff-member access grants (leads/reviews/analytics/billing/
+   * domains). Null means "full access" — keeps every staff member invited
+   * before this field existed behaved exactly as before. See
+   * `StaffPermissions` in @qrhub/types for the shape.
+   */
+  permissionsJson Json?             @map("permissions_json")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@map("client_staff_members")
+}
+
+/**
+ * P4-05: an agency/reseller account that owns a portfolio of clients under
+ * a referral slug, e.g. shared as `/register?agency=<slug>`. Super Admin
+ * approves new agencies before their referral link goes live, mirroring
+ * how `Client` signups are approved.
+ */
+model Agency {
+  id        String       @id @default(uuid())
+  userId    String       @unique @map("user_id")
+  name      String
+  slug      String       @unique
+  status    AgencyStatus @default(pending)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clients Client[]
+
+  @@map("agencies")
+}
+
+/**
+ * P4-04: a client-configured endpoint that gets a signed POST on lead/
+ * review/subscription events (see WebhooksService for the dispatch list).
+ */
+model OutboundWebhook {
+  id         String   @id @default(uuid())
+  clientId   String   @map("client_id")
+  url        String   @db.Text
+  secret     String
+  eventTypes Json     @map("event_types")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("outbound_webhooks")
+}
+
+/**
+ * P12-01: a single message in a WhatsApp conversation with an end customer,
+ * sent/received through the platform's one shared Meta Cloud API number
+ * (see `WhatsappService`/`whatsapp-config.provider.ts`). `clientId` is
+ * nullable — an inbound message is routed to whichever client this phone
+ * number most recently exchanged a message with; a phone number with no
+ * prior history on this number can't be routed to any client and is logged
+ * with `clientId: null` for visibility rather than silently dropped.
+ */
+model WhatsappMessage {
+  id            String                   @id @default(uuid())
+  clientId      String?                  @map("client_id")
+  phone         String
+  direction     WhatsappMessageDirection
+  body          String                   @db.Text
+  isAiGenerated Boolean                  @default(false) @map("is_ai_generated")
+  /**
+   * P13-04: set on an inbound message the AI chatbot judged it couldn't
+   * safely answer (angry/complex/explicitly asks for a person) — surfaced
+   * in the notifications feed instead of getting an AI auto-reply.
+   */
+  needsHuman    Boolean                  @default(false) @map("needs_human")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, phone, createdAt])
+  @@map("whatsapp_messages")
+}
+
+/**
+ * P12-01: per-client opt-in for the shared WhatsApp number — `isEnabled`
+ * gates manual sends (CRM "Send WhatsApp"/"Request review" actions),
+ * `aiChatbotEnabled` additionally gates the AI auto-reply on inbound
+ * messages routed to this client (see `WhatsappService.handleInbound`).
+ * `systemPromptOverride` lets a client add business-specific instructions
+ * (e.g. "always mention we're closed on Mondays") on top of the
+ * auto-generated business-context prompt.
+ */
+model WhatsappSettings {
+  id                   String   @id @default(uuid())
+  clientId             String   @unique @map("client_id")
+  isEnabled            Boolean  @default(false) @map("is_enabled")
+  aiChatbotEnabled     Boolean  @default(false) @map("ai_chatbot_enabled")
+  systemPromptOverride String?  @map("system_prompt_override") @db.Text
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("whatsapp_settings")
+}

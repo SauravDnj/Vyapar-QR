@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tasklist //FI \"PID eq 16088\")",
+      "Bash(pnpm typecheck *)",
+      "Bash(echo \"EXIT_CODE:$?\")",
+      "Read(//tmp/**)",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(powershell -Command \"Get-Item 'C:\\\\Users\\\\Admin\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\g--Saurav-Waloop-QR-Code-Code-Base\\\\51dbfb5e-db83-456a-859b-a32c0cf378da\\\\tasks\\\\b22l00sj7.output' | Select-Object Length,LastWriteTime\")",
+      "Bash(pnpm --filter api db:seed)",
+      "Bash(curl -s \"http://localhost:3001/dashboard/analytics\")",
+      "Bash(netstat -ano)",
+      "Bash(pnpm install *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(pnpm --filter api exec prisma db push)",
+      "Bash(mysql -u root -pEthos@123 -D qrhub_dev -e ' *)",
+      "Bash(taskkill //PID 13196 //F)",
+      "Bash(.tools/redis/redis-server.exe .tools/redis/redis.windows.conf)",
+      "Bash(.tools/redis/redis-cli.exe ping *)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s http://localhost:4100/public/landing/sunrise-cafe -o /tmp/sunrise.json)",
+      "Bash(pnpm --filter @qrhub/ui typecheck)",
+      "Bash(npx turbo *)"
+    ]
+  }
+}

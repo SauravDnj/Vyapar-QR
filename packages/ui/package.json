@@ -1,0 +1,24 @@
+{
+  "name": "@qrhub/ui",
+  "private": true,
+  "version": "0.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "dependencies": {
+    "@qrhub/types": "workspace:*",
+    "framer-motion": "^13.1.0"
+  },
+  "devDependencies": {
+    "@qrhub/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.2"
+  }
+}

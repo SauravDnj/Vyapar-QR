@@ -1,0 +1,155 @@
+@import 'tailwindcss';
+@source '../../../../packages/ui/src';
+
+/* ── QRHub design system tokens ──────────────────────────────────────────
+ * Brand palette: Meta blue (primary), WhatsApp green (success), Facebook
+ * blue (info) — the three platforms this product integrates with day to
+ * day, used as the accent trio instead of a generic single-tone brand
+ * color. Light is the default; dark applies automatically from the OS
+ * preference but can be pinned either way via [data-theme] (see
+ * ThemeToggle), so a system-dark browser doesn't force dark on a visitor
+ * who wants the light/professional look. */
+:root {
+  --background: #ffffff;
+  --foreground: #14181f;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border-color: #e3e7ee;
+  --muted: #667085;
+
+  --accent: #0866ff;
+  --accent-hover: #0553d6;
+  --accent-foreground: #ffffff;
+
+  --success: #1fa855;
+  --success-bg: #e7f9ef;
+  --warning: #b45309;
+  --warning-bg: #fef3c7;
+  --danger: #c0271c;
+  --danger-bg: #fee2e2;
+  --info: #1877f2;
+  --info-bg: #e8f1fe;
+
+  --whatsapp: #25d366;
+  --whatsapp-hover: #1fb959;
+  --facebook: #1877f2;
+  --facebook-hover: #0f5fd1;
+  --instagram: #d6249f;
+  --instagram-hover: #b81d85;
+
+  --shadow-card: 0 1px 2px 0 rgb(20 24 31 / 0.05), 0 2px 8px 0 rgb(20 24 31 / 0.06);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border-color: var(--border-color);
+  --color-muted: var(--muted);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  --color-whatsapp: var(--whatsapp);
+  --color-whatsapp-hover: var(--whatsapp-hover);
+  --color-facebook: var(--facebook);
+  --color-facebook-hover: var(--facebook-hover);
+  --color-instagram: var(--instagram);
+  --color-instagram-hover: var(--instagram-hover);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Consolas', 'Liberation Mono', Menlo, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-card: var(--shadow-card);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --background: #0b0f16;
+    --foreground: #eaedf3;
+    --surface: #121722;
+    --surface-raised: #171d2b;
+    --border-color: #262e3e;
+    --muted: #93a0b8;
+
+    --accent: #4c8dff;
+    --accent-hover: #6fa3ff;
+    --accent-foreground: #051022;
+
+    --success: #34d399;
+    --success-bg: #113328;
+    --warning: #fbbf24;
+    --warning-bg: #3a2a0a;
+    --danger: #f37272;
+    --danger-bg: #3a1414;
+    --info: #5b9bf5;
+    --info-bg: #0f2545;
+
+    --whatsapp: #2fd66f;
+    --whatsapp-hover: #4de08a;
+    --facebook: #5b9bf5;
+    --facebook-hover: #7fb0f7;
+    --instagram: #e651b3;
+    --instagram-hover: #ec78c2;
+
+    --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 2px 10px 0 rgb(0 0 0 / 0.45);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --background: #0b0f16;
+  --foreground: #eaedf3;
+  --surface: #121722;
+  --surface-raised: #171d2b;
+  --border-color: #262e3e;
+  --muted: #93a0b8;
+
+  --accent: #4c8dff;
+  --accent-hover: #6fa3ff;
+  --accent-foreground: #051022;
+
+  --success: #34d399;
+  --success-bg: #113328;
+  --warning: #fbbf24;
+  --warning-bg: #3a2a0a;
+  --danger: #f37272;
+  --danger-bg: #3a1414;
+  --info: #5b9bf5;
+  --info-bg: #0f2545;
+
+  --whatsapp: #2fd66f;
+  --whatsapp-hover: #4de08a;
+  --facebook: #5b9bf5;
+  --facebook-hover: #7fb0f7;
+  --instagram: #e651b3;
+  --instagram-hover: #ec78c2;
+
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.35), 0 2px 10px 0 rgb(0 0 0 / 0.45);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
