@@ -1,12 +1,10 @@
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
 import * as bcrypt from 'bcrypt';
 
-import { parseMysqlUrl } from '../src/prisma/mysql-connection';
-
 const prisma = new PrismaClient({
-  adapter: new PrismaMariaDb(parseMysqlUrl(process.env.DATABASE_URL ?? '')),
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL ?? '' }),
 });
 
 const themeSchemaJson = DEFAULT_THEME_SCHEMA as unknown as Prisma.InputJsonValue;

@@ -253,7 +253,7 @@ export class QrService {
         WHERE client_id = ${clientId}
           AND event_type = 'qr_scan'
           AND created_at >= ${since}
-          AND JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.qrId')) = ${id}
+          AND meta_json->>'qrId' = ${id}
         GROUP BY DATE(created_at)
       `,
     );

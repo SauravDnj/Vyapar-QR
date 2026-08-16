@@ -111,7 +111,7 @@ export class AnalyticsService {
         WHERE client_id = ${clientId}
           AND event_type = 'button_click'
           AND created_at >= ${since}
-          AND JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.label')) = 'whatsapp'
+          AND meta_json->>'label' = 'whatsapp'
       `,
     );
     return Number(rows[0]?.total ?? 0);
@@ -123,7 +123,7 @@ export class AnalyticsService {
 
     const rows = await this.prisma.$queryRaw<TimeseriesRow[]>(
       Prisma.sql`
-        SELECT DATE(created_at) AS day, event_type AS eventType, COUNT(*) AS total
+        SELECT DATE(created_at) AS day, event_type AS "eventType", COUNT(*) AS total
         FROM analytics_events
         WHERE client_id = ${clientId} AND created_at >= ${since}
         GROUP BY DATE(created_at), event_type
