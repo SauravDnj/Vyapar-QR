@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 env:
-  DATABASE_URL: "mysql://root:qrhub_dev_pw@localhost:3306/qrhub_dev"
+  DATABASE_URL: "postgresql://postgres:qrhub_dev_pw@localhost:5432/qrhub_dev"
   REDIS_URL: "redis://localhost:6379"
   JWT_ACCESS_SECRET: "ci-access-secret"
   JWT_REFRESH_SECRET: "ci-refresh-secret"
@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mysql:
-        image: mysql:8.4
+      postgres:
+        image: postgres:16-alpine
         env:
-          MYSQL_ROOT_PASSWORD: qrhub_dev_pw
-          MYSQL_DATABASE: qrhub_dev
+          POSTGRES_PASSWORD: qrhub_dev_pw
+          POSTGRES_DB: qrhub_dev
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd "mysqladmin ping -h localhost -pqrhub_dev_pw"
+          --health-cmd "pg_isready -U postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -47,7 +47,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
