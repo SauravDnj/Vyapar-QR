@@ -59,8 +59,12 @@ export class OnboardingService {
     if (!raw) {
       return null;
     }
-    const [tagline, ...rest] = raw.split('\n').filter((line) => line.trim().length > 0);
-    return { tagline: tagline ?? '', description: rest.join(' ').trim() };
+    const lines = raw.split('\n').filter((line) => line.trim().length > 0);
+    if (lines.length === 0) {
+      return null;
+    }
+    const [tagline, ...rest] = lines;
+    return { tagline, description: rest.join(' ').trim() };
   }
 
   async getStatus(userId: string) {

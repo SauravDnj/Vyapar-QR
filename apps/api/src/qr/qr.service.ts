@@ -84,7 +84,7 @@ export class QrService {
       imageUrl = await this.storageService.save(pngBuffer, '.png');
 
       let svgString = await QRCode.toString(targetUrl, { type: 'svg', width: QR_PIXEL_WIDTH, color: { dark, light }, errorCorrectionLevel });
-      if (useLogo) {
+      if (useLogo && logoUrl) {
         const logoBlock = `<rect x="41%" y="41%" width="18%" height="18%" fill="${light}"/><image href="${logoUrl}" x="42.5%" y="42.5%" width="15%" height="15%" preserveAspectRatio="xMidYMid slice"/>`;
         svgString = svgString.replace('</svg>', `${logoBlock}</svg>`);
       }
@@ -115,7 +115,7 @@ export class QrService {
     const resolvedStyle: QrStyle = {
       foregroundColor: style?.foregroundColor !== undefined ? style.foregroundColor : existing?.foregroundColor,
       backgroundColor: style?.backgroundColor !== undefined ? style.backgroundColor : existing?.backgroundColor,
-      logoEnabled: style?.logoEnabled !== undefined ? style.logoEnabled : existing?.logoEnabled,
+      logoEnabled: style?.logoEnabled ?? existing?.logoEnabled,
     };
 
     const targetUrl = `${this.landingAppUrl}/site/${client.slug}?src=qr`;
@@ -450,7 +450,7 @@ export class QrService {
     const resolvedStyle: QrStyle = {
       foregroundColor: style.foregroundColor !== undefined ? style.foregroundColor : qrCode.foregroundColor,
       backgroundColor: style.backgroundColor !== undefined ? style.backgroundColor : qrCode.backgroundColor,
-      logoEnabled: style.logoEnabled !== undefined ? style.logoEnabled : qrCode.logoEnabled,
+      logoEnabled: style.logoEnabled ?? qrCode.logoEnabled,
     };
     const logoUrl = resolvedStyle.logoEnabled ? await this.resolveLogoUrl(clientId) : null;
     const { imageUrl, svgImageUrl } = await this.buildQrImages(qrCode.targetUrl, resolvedStyle, logoUrl);

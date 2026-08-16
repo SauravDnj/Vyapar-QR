@@ -39,7 +39,6 @@ export function PwaInstall({ businessName }: { businessName: string }) {
     // (`isIos: false`, `isDismissed: true`) have already hydrated cleanly.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsIos(ios);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDismissed(isStandalone || dismissed);
 
     function handleBeforeInstallPrompt(event: Event) {
