@@ -37,7 +37,7 @@ export function BookingSlotsWidget({ slug }: { slug?: string }) {
   }
 
   async function handleBook() {
-    if (!selectedId || !name.trim() || !phone.trim()) return;
+    if (!slug || !selectedId || !name.trim() || !phone.trim()) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -68,7 +68,9 @@ export function BookingSlotsWidget({ slug }: { slug?: string }) {
           <button
             key={slot.id}
             type="button"
-            onClick={() => setSelectedId(slot.id)}
+            onClick={() => {
+              setSelectedId(slot.id);
+            }}
             className={`rounded-md border px-3 py-1.5 text-sm ${selectedId === slot.id ? 'border-current bg-current/10' : 'border-current/30'}`}
           >
             {new Date(slot.startsAt).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}
@@ -78,8 +80,22 @@ export function BookingSlotsWidget({ slug }: { slug?: string }) {
 
       {selectedId ? (
         <div className="flex flex-col gap-2">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="rounded border px-3 py-2 text-sm" />
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" className="rounded border px-3 py-2 text-sm" />
+          <input
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+            }}
+            placeholder="Your name"
+            className="rounded border px-3 py-2 text-sm"
+          />
+          <input
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+            }}
+            placeholder="Phone number"
+            className="rounded border px-3 py-2 text-sm"
+          />
           <button
             onClick={() => void handleBook()}
             disabled={isSubmitting || !name.trim() || !phone.trim()}

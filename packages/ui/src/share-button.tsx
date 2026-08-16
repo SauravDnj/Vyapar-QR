@@ -11,7 +11,7 @@ export function ShareButton({ businessName }: { businessName: string }) {
 
   async function handleShare() {
     const url = window.location.href;
-    if (navigator.share) {
+    if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title: businessName, url });
       } catch {
