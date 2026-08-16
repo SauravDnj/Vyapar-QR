@@ -31,7 +31,15 @@ export function PwaInstall({ businessName }: { businessName: string }) {
     const dismissed = localStorage.getItem(DISMISSED_KEY) === 'true';
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !(window as { MSStream?: unknown }).MSStream;
 
+    // Deliberately set post-mount, not via a lazy useState initializer: these
+    // values depend on `window`/`navigator`, which don't exist during SSR —
+    // computing them eagerly would make the server-rendered and first
+    // client-rendered output diverge (a real hydration mismatch), whereas
+    // setting them here only runs client-side, after the SSR-safe defaults
+    // (`isIos: false`, `isDismissed: true`) have already hydrated cleanly.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsIos(ios);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDismissed(isStandalone || dismissed);
 
     function handleBeforeInstallPrompt(event: Event) {
