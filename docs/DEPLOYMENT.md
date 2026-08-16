@@ -83,26 +83,56 @@ Fewer moving parts, zero extra cost, and it's what `deploy/scripts/deploy-api.sh
 and `docs/DEPLOYMENT.md`'s original setup already assume. Installed as part
 of the VPS setup in Step 3 below — nothing extra to do here.
 
-### Option B: a managed MySQL host (separate from the VPS)
+### Option B: provision the database "through Vercel" (PlanetScale, via the Vercel Marketplace)
 
-Worth it if you want automated backups/scaling without managing MySQL
-yourself. Any managed MySQL works since it's just a `DATABASE_URL` — two
-good options:
+**Important context first:** Vercel doesn't host MySQL itself — its own
+first-party Postgres offering was discontinued. What people mean by
+"database on Vercel" today is the **Vercel Marketplace**: you provision it
+from the Vercel dashboard and it's billed through your Vercel account, but
+a partner company actually runs it. For MySQL, that partner is
+**PlanetScale**. This is the closest real equivalent to "deploy the
+database on Vercel."
 
-- **PlanetScale** (serverless MySQL, generous free tier, listed in the
-  [Vercel Marketplace](https://vercel.com/marketplace) if you want to
-  provision it from the Vercel dashboard) — create a database, get its
-  connection string from Dashboard → your DB → Connect → Prisma.
-- **DigitalOcean / AWS RDS / Aiven Managed MySQL** — create an 8.x instance,
-  allow inbound connections from your VPS's IP, copy the connection string.
+Since `apps/api` runs on the VPS (not as a Vercel Function — see the intro
+above for why), this database doesn't need to be "connected" to your
+`apps/admin`/`apps/landing` Vercel projects the way Marketplace docs usually
+describe for a Vercel-functions app. You just need the connection string,
+which you'll paste into the VPS's `apps/api/.env` in Step 3.
 
-Either way you end up with one connection string, e.g.:
-```
-DATABASE_URL="mysql://user:password@your-db-host:3306/qrhub_prod?sslaccept=strict"
-```
-Use that instead of the local `mysql://root:...@localhost:3306/qrhub_dev`
-value in Step 3's `.env`. (PlanetScale/most managed hosts require SSL —
-add `?sslaccept=strict` or your provider's equivalent param.)
+**Steps:**
+
+1. In the [Vercel dashboard](https://vercel.com/dashboard), open any
+   project (or your team) → **Storage** tab → **Browse Marketplace** (or go
+   straight to [vercel.com/marketplace](https://vercel.com/marketplace?category=storage)).
+2. Find **PlanetScale**, click **Install** / **Add Integration**, choose a
+   plan (the Hobby tier is free — 1 database, 5GB storage, capped
+   monthly reads/writes, fine for getting started), and create a database
+   (pick a region close to your VPS, not close to Vercel's edge — your API
+   is the one querying it, not a Vercel Function).
+3. **Before running any migration**, go to that database's settings in the
+   PlanetScale dashboard and check whether **Foreign Key Constraints** is
+   enabled. PlanetScale disables real FK constraints by default (a Vitess
+   quirk) — QRHub's Prisma schema relies on real foreign keys and does
+   **not** set `relationMode = "prisma"`, so `prisma migrate deploy` will
+   fail with a "Foreign key constraints are not allowed" error on a
+   database that doesn't have them turned on. Enable that setting for this
+   database first.
+4. Get the connection string: database page → **Connect** → select
+   **Prisma** as the framework → copy the shown value, e.g.:
+   ```
+   DATABASE_URL="mysql://xxxxxxxx:pscale_pw_xxxxxxxx@aws.connect.psdb.cloud/qrhub_prod?sslaccept=strict"
+   ```
+5. Use that as `DATABASE_URL` in Step 3's `apps/api/.env` on the VPS,
+   instead of the local `mysql://root:...@localhost:3306/qrhub_dev` value —
+   and skip the "install/create MySQL" lines in Step 3 entirely, since
+   there's nothing to install locally.
+
+**Alternative managed hosts** (same idea, no Vercel Marketplace involved,
+no FK caveat since they're real MySQL, not Vitess): DigitalOcean Managed
+MySQL, AWS RDS, Aiven — create an 8.x instance, allow inbound connections
+from your VPS's IP, copy the connection string. Same `DATABASE_URL` format
+either way (add `?sslaccept=strict` or your provider's equivalent SSL
+param if it requires SSL).
 
 ---
 
