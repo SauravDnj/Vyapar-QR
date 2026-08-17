@@ -13,7 +13,9 @@ import { ReviewsService } from '../reviews/reviews.service';
 import { TestimonialsService } from '../testimonials/testimonials.service';
 import { TranslationsService } from '../translations/translations.service';
 import { WalletService } from '../wallet/wallet.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
+import type { ClaimPaymentDto } from './dto/claim-payment.dto';
 import type { CaptureEventDto } from '../analytics/dto/capture-event.dto';
 import type { BookSlotDto } from '../bookings/dto/book-slot.dto';
 import type { CreateLeadDto } from '../leads/dto/create-lead.dto';
@@ -74,6 +76,7 @@ export class PublicService {
     private readonly bookingsService: BookingsService,
     private readonly menuService: MenuService,
     private readonly walletService: WalletService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   resolveCustomDomain(hostname: string): Promise<{ slug: string }> {
@@ -130,6 +133,44 @@ export class PublicService {
 
   draftCustomerReview(slug: string, dto: DraftCustomerReviewDto) {
     return this.reviewsService.draftCustomerReview(slug, dto);
+  }
+
+  /** A customer taps "I've paid" after being sent to their UPI app. There's
+   * no payment gateway behind a raw `upi://pay` deep-link, so this is
+   * self-reported, not a verified receipt — the WhatsApp alert to the
+   * owner says so explicitly, so it never gets mistaken for confirmed
+   * money in the bank. */
+  async claimPayment(slug: string, dto: ClaimPaymentDto): Promise<{ notified: boolean }> {
+    if (dto.website) {
+      // Honeypot tripped — same silent-success convention as every other public form.
+      return { notified: false };
+    }
+
+    const client = await this.prisma.client.findUnique({
+      where: { slug },
+      include: { googleReviewConfig: true },
+    });
+    if (!client) {
+      return { notified: false };
+    }
+
+    await this.prisma.analyticsEvent.create({
+      data: {
+        clientId: client.id,
+        eventType: 'button_click',
+        metaJson: { label: 'payment_claimed', amount: dto.amount, method: dto.method ?? null },
+      },
+    });
+
+    const whatsappNumber = client.googleReviewConfig?.feedbackWhatsappNumber ?? null;
+    let notified = false;
+    if (whatsappNumber) {
+      const methodLabel = dto.method ? ` via ${dto.method}` : '';
+      const message = `${client.businessName}: a customer marked a ₹${dto.amount.toFixed(2)} UPI payment as PAID${methodLabel}. This is self-reported, not a verified receipt — please confirm it actually landed in your UPI app before treating it as confirmed.`;
+      notified = await this.whatsappService.sendText(whatsappNumber, message);
+    }
+
+    return { notified };
   }
 
   submitTestimonial(slug: string, dto: SubmitTestimonialDto): Promise<void> {

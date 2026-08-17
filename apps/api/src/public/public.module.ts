@@ -12,6 +12,7 @@ import { ReviewsModule } from '../reviews/reviews.module';
 import { TestimonialsModule } from '../testimonials/testimonials.module';
 import { TranslationsModule } from '../translations/translations.module';
 import { WalletModule } from '../wallet/wallet.module';
+import { WhatsappModule } from '../whatsapp/whatsapp.module';
 
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
@@ -30,6 +31,7 @@ import { PublicService } from './public.service';
     BookingsModule,
     MenuModule,
     WalletModule,
+    WhatsappModule,
   ],
   controllers: [PublicController],
   providers: [PublicService],

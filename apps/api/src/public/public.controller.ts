@@ -10,6 +10,7 @@ import { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto
 import { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
 
+import { ClaimPaymentDto } from './dto/claim-payment.dto';
 import { PublicService } from './public.service';
 
 import type { Response } from 'express';
@@ -57,6 +58,12 @@ export class PublicController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   draftCustomerReview(@Param('slug') slug: string, @Body() dto: DraftCustomerReviewDto) {
     return this.publicService.draftCustomerReview(slug, dto);
+  }
+
+  @Post('landing/:slug/payment/claim')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  claimPayment(@Param('slug') slug: string, @Body() dto: ClaimPaymentDto) {
+    return this.publicService.claimPayment(slug, dto);
   }
 
   @Post('landing/:slug/event')
