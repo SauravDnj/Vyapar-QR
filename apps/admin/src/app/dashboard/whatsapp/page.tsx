@@ -115,7 +115,25 @@ function BroadcastPanel({ accessToken }: { accessToken: string }) {
   );
 }
 
-const EMPTY_SETTINGS: WhatsappSettings = { isEnabled: false, aiChatbotEnabled: false, systemPromptOverride: null };
+const EMPTY_SETTINGS: WhatsappSettings = { isEnabled: false, aiChatbotEnabled: false, systemPromptOverride: null, sendMode: 'auto' };
+
+const SEND_MODE_OPTIONS: { value: WhatsappSettings['sendMode']; label: string; hint: string }[] = [
+  {
+    value: 'auto',
+    label: 'Auto (recommended)',
+    hint: 'Uses the Meta API when it’s connected; otherwise falls back to a WhatsApp link the customer/you send manually.',
+  },
+  {
+    value: 'api',
+    label: 'Meta API only',
+    hint: 'Only ever tries the connected Meta API. Requires WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID set on the server.',
+  },
+  {
+    value: 'url',
+    label: 'WhatsApp link only',
+    hint: 'Always opens a wa.me link for a human to send — even if the Meta API is connected. No credentials ever needed.',
+  },
+];
 
 function SettingsPanel({ accessToken }: { accessToken: string }) {
   const [settings, setSettings] = useState<WhatsappSettings>(EMPTY_SETTINGS);
@@ -169,15 +187,42 @@ function SettingsPanel({ accessToken }: { accessToken: string }) {
         Enable WhatsApp for this business
       </label>
 
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="font-medium">How should messages actually get sent?</p>
+        {SEND_MODE_OPTIONS.map((option) => (
+          <label key={option.value} className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="sendMode"
+              disabled={!settings.isEnabled}
+              checked={settings.sendMode === option.value}
+              onChange={() => setSettings({ ...settings, sendMode: option.value })}
+              className="mt-1"
+            />
+            <span>
+              <span className="block font-medium">{option.label}</span>
+              <span className="block text-xs text-muted">{option.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          disabled={!settings.isEnabled}
+          disabled={!settings.isEnabled || settings.sendMode === 'url'}
           checked={settings.aiChatbotEnabled}
           onChange={(e) => setSettings({ ...settings, aiChatbotEnabled: e.target.checked })}
         />
         Auto-reply with AI chatbot when a customer messages
       </label>
+      {settings.sendMode === 'url' ? (
+        <p className="-mt-2 text-xs text-muted">
+          Not available in &quot;WhatsApp link only&quot; mode — a wa.me link is one-way (opens a draft for a human to
+          send), so there&apos;s no way for us to receive a customer&apos;s reply to auto-answer it. The chatbot needs
+          the Meta API connected.
+        </p>
+      ) : null}
 
       <label className="flex flex-col gap-1 text-sm">
         Custom instructions for the AI (optional)

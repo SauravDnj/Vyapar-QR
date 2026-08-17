@@ -1,9 +1,12 @@
 import { ApiError, apiFetch } from './api-client';
 
+export type WhatsappSendMode = 'auto' | 'api' | 'url';
+
 export interface WhatsappSettings {
   isEnabled: boolean;
   aiChatbotEnabled: boolean;
   systemPromptOverride: string | null;
+  sendMode: WhatsappSendMode;
 }
 
 export interface WhatsappMessage {

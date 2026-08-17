@@ -34,6 +34,7 @@ export class WhatsappController {
       isEnabled: dto.isEnabled,
       aiChatbotEnabled: dto.aiChatbotEnabled,
       systemPromptOverride: dto.systemPromptOverride ?? null,
+      sendMode: dto.sendMode ?? 'auto',
     });
   }
 

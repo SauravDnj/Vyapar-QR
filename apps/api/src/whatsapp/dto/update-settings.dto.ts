@@ -1,4 +1,6 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+
+const SEND_MODES = ['auto', 'api', 'url'] as const;
 
 export class UpdateWhatsappSettingsDto {
   @IsBoolean()
@@ -10,4 +12,8 @@ export class UpdateWhatsappSettingsDto {
   @IsOptional()
   @IsString()
   systemPromptOverride?: string | null;
+
+  @IsOptional()
+  @IsIn(SEND_MODES)
+  sendMode?: (typeof SEND_MODES)[number];
 }

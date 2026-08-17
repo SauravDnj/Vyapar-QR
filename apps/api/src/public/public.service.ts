@@ -139,11 +139,16 @@ export class PublicService {
    * no payment gateway behind a raw `upi://pay` deep-link, so this is
    * self-reported, not a verified receipt — the WhatsApp alert to the
    * owner says so explicitly, so it never gets mistaken for confirmed
-   * money in the bank. */
-  async claimPayment(slug: string, dto: ClaimPaymentDto): Promise<{ notified: boolean }> {
+   * money in the bank. Goes through `WhatsappService.resolveSend` so the
+   * owner's auto/api/url send-mode toggle applies here too: when the
+   * Cloud API isn't configured (or the owner has it set to `url`),
+   * `whatsappUrl` comes back populated so the *customer's own device* can
+   * open WhatsApp and send the confirmation themselves — no credentials
+   * needed for that path at all. */
+  async claimPayment(slug: string, dto: ClaimPaymentDto): Promise<{ notified: boolean; whatsappUrl: string | null }> {
     if (dto.website) {
       // Honeypot tripped — same silent-success convention as every other public form.
-      return { notified: false };
+      return { notified: false, whatsappUrl: null };
     }
 
     const client = await this.prisma.client.findUnique({
@@ -151,7 +156,7 @@ export class PublicService {
       include: { googleReviewConfig: true },
     });
     if (!client) {
-      return { notified: false };
+      return { notified: false, whatsappUrl: null };
     }
 
     await this.prisma.analyticsEvent.create({
@@ -163,14 +168,15 @@ export class PublicService {
     });
 
     const whatsappNumber = client.googleReviewConfig?.feedbackWhatsappNumber ?? null;
-    let notified = false;
-    if (whatsappNumber) {
-      const methodLabel = dto.method ? ` via ${dto.method}` : '';
-      const message = `${client.businessName}: a customer marked a ₹${dto.amount.toFixed(2)} UPI payment as PAID${methodLabel}. This is self-reported, not a verified receipt — please confirm it actually landed in your UPI app before treating it as confirmed.`;
-      notified = await this.whatsappService.sendText(whatsappNumber, message);
+    if (!whatsappNumber) {
+      return { notified: false, whatsappUrl: null };
     }
 
-    return { notified };
+    const methodLabel = dto.method ? ` via ${dto.method}` : '';
+    const message = `${client.businessName}: a customer marked a ₹${dto.amount.toFixed(2)} UPI payment as PAID${methodLabel}. This is self-reported, not a verified receipt — please confirm it actually landed in your UPI app before treating it as confirmed.`;
+    const result = await this.whatsappService.resolveSend(client.id, whatsappNumber, message);
+
+    return { notified: result.sent, whatsappUrl: result.url };
   }
 
   submitTestimonial(slug: string, dto: SubmitTestimonialDto): Promise<void> {

@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappAiService } from './whatsapp-ai.service';
 import { WHATSAPP_CONFIG, type WhatsappConfig } from './whatsapp-config.provider';
 
-import type { LeadStatus, WhatsappMessage, WhatsappSettings } from '@prisma/client';
+import type { LeadStatus, WhatsappMessage, WhatsappSendMode, WhatsappSettings } from '@prisma/client';
 
 const GRAPH_API_VERSION = 'v20.0';
 const CONVERSATION_SCAN_LIMIT = 500;
@@ -14,13 +14,27 @@ export interface WhatsappSettingsResult {
   isEnabled: boolean;
   aiChatbotEnabled: boolean;
   systemPromptOverride: string | null;
+  sendMode: WhatsappSendMode;
 }
 
 const DEFAULT_SETTINGS: WhatsappSettingsResult = {
   isEnabled: false,
   aiChatbotEnabled: false,
   systemPromptOverride: null,
+  sendMode: 'auto',
 };
+
+export interface ResolvedSend {
+  /** True only when the Meta Cloud API actually sent it — a real,
+   * automatic delivery with no human action needed. */
+  sent: boolean;
+  /** A `wa.me` link to hand to whoever should send this themselves
+   * (customer or owner) — populated whenever `sent` is false, or when
+   * `sendMode` is `'url'` even if the Cloud API is configured. Opening it
+   * launches WhatsApp with the message pre-filled; the human still taps
+   * Send. */
+  url: string | null;
+}
 
 @Injectable()
 export class WhatsappService {
@@ -115,8 +129,49 @@ export class WhatsappService {
   async getSettings(clientId: string): Promise<WhatsappSettingsResult> {
     const settings = await this.prisma.whatsappSettings.findUnique({ where: { clientId } });
     return settings
-      ? { isEnabled: settings.isEnabled, aiChatbotEnabled: settings.aiChatbotEnabled, systemPromptOverride: settings.systemPromptOverride }
+      ? {
+          isEnabled: settings.isEnabled,
+          aiChatbotEnabled: settings.aiChatbotEnabled,
+          systemPromptOverride: settings.systemPromptOverride,
+          sendMode: settings.sendMode,
+        }
       : DEFAULT_SETTINGS;
+  }
+
+  /** `https://wa.me/<digits>?text=<encoded message>` — opens WhatsApp
+   * (app or web) with the message pre-filled, on whichever device opens
+   * it. No credentials, no API — the human who opens it still has to tap
+   * Send themselves, so this can never be used to power an automated
+   * chatbot (there's no way for us to read what they send back). */
+  private buildWaMeLink(phone: string, message: string): string {
+    const digits = phone.replace(/[^\d]/g, '');
+    return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  }
+
+  /** The single place every "notify someone over WhatsApp" call in this
+   * codebase should go through, so the auto/api/url toggle (per-client,
+   * `WhatsappSettings.sendMode`) behaves identically everywhere. `auto`
+   * (default) sends via the Cloud API when configured, falling back to a
+   * `wa.me` link when it isn't or when the send fails; `api` only ever
+   * tries the Cloud API (still returns a fallback link on failure, since
+   * a working link beats nothing); `url` always returns a link, skipping
+   * the API entirely even if it's configured. `clientId: null` (no
+   * per-client settings row possible, e.g. before onboarding writes one)
+   * behaves like `auto`. */
+  async resolveSend(clientId: string | null, to: string, message: string): Promise<ResolvedSend> {
+    const mode = clientId ? (await this.getSettings(clientId)).sendMode : 'auto';
+    const url = this.buildWaMeLink(to, message);
+
+    if (mode === 'url') {
+      return { sent: false, url };
+    }
+
+    if (!this.isConfigured) {
+      return { sent: false, url };
+    }
+
+    const sent = await this.sendText(to, message);
+    return sent ? { sent: true, url: null } : { sent: false, url };
   }
 
   upsertSettings(clientId: string, dto: WhatsappSettingsResult): Promise<WhatsappSettings> {

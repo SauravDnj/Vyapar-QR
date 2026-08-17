@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -9,10 +10,17 @@ const LOW_RATING_THRESHOLD = 3;
 
 export interface NotificationItem {
   id: string;
-  type: 'lead' | 'testimonial' | 'low_rating_feedback' | 'whatsapp_needs_human' | 'order';
+  type: 'lead' | 'testimonial' | 'low_rating_feedback' | 'whatsapp_needs_human' | 'order' | 'payment_claimed';
   message: string;
   createdAt: string;
   link: string;
+}
+
+interface PaymentClaimRow {
+  id: string;
+  amount: string | null;
+  method: string | null;
+  created_at: Date;
 }
 
 /** A derived, read-only activity feed — deliberately not a stateful
@@ -26,7 +34,7 @@ export class NotificationsService {
   async getRecent(clientId: string): Promise<NotificationItem[]> {
     const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
-    const [leads, testimonials, feedback, whatsappHandoffs, orders] = await Promise.all([
+    const [leads, testimonials, feedback, whatsappHandoffs, orders, paymentClaims] = await Promise.all([
       this.prisma.lead.findMany({ where: { clientId, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: PER_SOURCE_LIMIT }),
       this.prisma.testimonial.findMany({
         where: { clientId, createdAt: { gte: since }, isApproved: false },
@@ -48,6 +56,21 @@ export class NotificationsService {
         orderBy: { createdAt: 'desc' },
         take: PER_SOURCE_LIMIT,
       }),
+      this.prisma.$queryRaw<PaymentClaimRow[]>(
+        Prisma.sql`
+          SELECT id,
+                 JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.amount')) AS amount,
+                 JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.method')) AS method,
+                 created_at
+          FROM analytics_events
+          WHERE client_id = ${clientId}
+            AND event_type = 'button_click'
+            AND JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.label')) = 'payment_claimed'
+            AND created_at >= ${since}
+          ORDER BY created_at DESC
+          LIMIT ${PER_SOURCE_LIMIT}
+        `,
+      ),
     ]);
 
     const items: NotificationItem[] = [
@@ -85,6 +108,13 @@ export class NotificationsService {
         message: `New order from ${order.customerName} (₹${order.totalAmount.toString()})`,
         createdAt: order.createdAt.toISOString(),
         link: '/dashboard/orders',
+      })),
+      ...paymentClaims.map((claim) => ({
+        id: `payment-claim-${claim.id}`,
+        type: 'payment_claimed' as const,
+        message: `Customer marked ₹${claim.amount ?? '?'} as paid${claim.method ? ` via ${claim.method}` : ''} (self-reported, not verified)`,
+        createdAt: claim.created_at.toISOString(),
+        link: '/dashboard/analytics',
       })),
     ];
 

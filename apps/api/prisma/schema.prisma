@@ -106,6 +106,18 @@ enum WhatsappMessageDirection {
   outbound
 }
 
+/** How outbound WhatsApp alerts/CRM actions actually get delivered.
+ * `auto` (default) uses the Meta Cloud API when configured, falling back
+ * to a `wa.me` link (opened by a human, no credentials needed) when it
+ * isn't. `api` forces the Cloud API only. `url` always uses a `wa.me`
+ * link even if the Cloud API is configured — some businesses prefer
+ * sending manually. See `WhatsappService.resolveSend`. */
+enum WhatsappSendMode {
+  auto
+  api
+  url
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────────────────────────────────
@@ -829,13 +841,14 @@ model WhatsappMessage {
  * auto-generated business-context prompt.
  */
 model WhatsappSettings {
-  id                   String   @id @default(uuid())
-  clientId             String   @unique @map("client_id")
-  isEnabled            Boolean  @default(false) @map("is_enabled")
-  aiChatbotEnabled     Boolean  @default(false) @map("ai_chatbot_enabled")
-  systemPromptOverride String?  @map("system_prompt_override") @db.Text
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  id                   String           @id @default(uuid())
+  clientId             String           @unique @map("client_id")
+  isEnabled            Boolean          @default(false) @map("is_enabled")
+  aiChatbotEnabled     Boolean          @default(false) @map("ai_chatbot_enabled")
+  systemPromptOverride String?          @map("system_prompt_override") @db.Text
+  sendMode             WhatsappSendMode @default(auto) @map("send_mode")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 

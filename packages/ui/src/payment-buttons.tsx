@@ -51,10 +51,10 @@ async function claimPayment(slug: string, amount: number, method: PaymentMethodT
   if (!response.ok) {
     throw new Error('Request failed');
   }
-  return (await response.json()) as { notified: boolean };
+  return (await response.json()) as { notified: boolean; whatsappUrl: string | null };
 }
 
-type ClaimState = 'idle' | 'sending' | 'sent' | 'error';
+type ClaimState = 'idle' | 'sending' | 'sent' | 'needs-manual-send' | 'error';
 
 function AmountPayCard({
   slug,
@@ -71,6 +71,7 @@ function AmountPayCard({
   const [amount, setAmount] = useState('');
   const [hasOpened, setHasOpened] = useState(false);
   const [claimState, setClaimState] = useState<ClaimState>('idle');
+  const [manualSendUrl, setManualSendUrl] = useState<string | null>(null);
 
   function handlePay() {
     trackClick(slug, method);
@@ -84,8 +85,15 @@ function AmountPayCard({
     if (!Number.isFinite(parsed) || parsed <= 0) return;
     setClaimState('sending');
     try {
-      await claimPayment(slug, parsed, method);
-      setClaimState('sent');
+      const result = await claimPayment(slug, parsed, method);
+      if (result.notified) {
+        setClaimState('sent');
+      } else if (result.whatsappUrl) {
+        setManualSendUrl(result.whatsappUrl);
+        setClaimState('needs-manual-send');
+      } else {
+        setClaimState('sent');
+      }
     } catch {
       setClaimState('error');
     }
@@ -123,6 +131,20 @@ function AmountPayCard({
         <div className="flex flex-col gap-1 border-t pt-2">
           {claimState === 'sent' ? (
             <p className="text-center text-sm text-emerald-700">Thanks! We&apos;ve let {businessName} know.</p>
+          ) : claimState === 'needs-manual-send' && manualSendUrl ? (
+            <>
+              <a
+                href={manualSendUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white"
+              >
+                📱 Open WhatsApp to send confirmation
+              </a>
+              <p className="text-center text-[11px] text-gray-400">
+                Opens your WhatsApp with a message ready — just tap send to let {businessName} know.
+              </p>
+            </>
           ) : (
             <>
               <button
