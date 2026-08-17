@@ -6,6 +6,7 @@ import { BookSlotDto } from '../bookings/dto/book-slot.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CreateLeadDto } from '../leads/dto/create-lead.dto';
 import { PlaceOrderDto } from '../menu/dto/place-order.dto';
+import { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto';
 import { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
 
@@ -50,6 +51,12 @@ export class PublicController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   submitReviewFunnel(@Param('slug') slug: string, @Body() dto: SubmitFunnelDto) {
     return this.publicService.submitReviewFunnel(slug, dto);
+  }
+
+  @Post('landing/:slug/review-funnel/draft')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  draftCustomerReview(@Param('slug') slug: string, @Body() dto: DraftCustomerReviewDto) {
+    return this.publicService.draftCustomerReview(slug, dto);
   }
 
   @Post('landing/:slug/event')

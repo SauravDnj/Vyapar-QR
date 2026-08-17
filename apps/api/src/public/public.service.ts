@@ -18,6 +18,7 @@ import type { CaptureEventDto } from '../analytics/dto/capture-event.dto';
 import type { BookSlotDto } from '../bookings/dto/book-slot.dto';
 import type { CreateLeadDto } from '../leads/dto/create-lead.dto';
 import type { PlaceOrderDto } from '../menu/dto/place-order.dto';
+import type { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto';
 import type { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import type { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
 import type { PlanFeatures, ThemeContent } from '@qrhub/types';
@@ -125,6 +126,10 @@ export class PublicService {
 
   submitReviewFunnel(slug: string, dto: SubmitFunnelDto) {
     return this.reviewsService.submitFunnelResponse(slug, dto);
+  }
+
+  draftCustomerReview(slug: string, dto: DraftCustomerReviewDto) {
+    return this.reviewsService.draftCustomerReview(slug, dto);
   }
 
   submitTestimonial(slug: string, dto: SubmitTestimonialDto): Promise<void> {

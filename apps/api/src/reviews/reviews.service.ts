@@ -11,6 +11,7 @@ import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { DEFAULT_COLUMN_MAPPING, GoogleSheetsService, type ColumnMapping, type SheetReviewRow } from './google-sheets.service';
 import { PlacesApiService } from './places-api.service';
 
+import type { DraftCustomerReviewDto } from './dto/draft-customer-review.dto';
 import type { SaveReviewConfigDto } from './dto/save-review-config.dto';
 import type { SubmitFunnelDto } from './dto/submit-funnel.dto';
 import type { GoogleReviewConfig } from '@prisma/client';
@@ -251,6 +252,43 @@ export class ReviewsService {
     const lowRatingPercent = totalResponses > 0 ? 100 - highRatingPercent : 0;
 
     return { totalResponses, highRatingCount, lowRatingCount, highRatingPercent, lowRatingPercent };
+  }
+
+  /** Helps a customer who's already rated 4-5★ write their public Google
+   * review — never posts anywhere itself (no API lets any app submit a
+   * review on a customer's behalf; only their own logged-in Google account
+   * can do that). Grounded in the business's real name and whatever the
+   * customer typed themselves, so it doesn't invent specifics they never
+   * mentioned — stays warm-but-generic when `notes` is blank. Stateless,
+   * nothing written to the database. */
+  async draftCustomerReview(slug: string, dto: DraftCustomerReviewDto): Promise<{ draft: string | null }> {
+    if (dto.website) {
+      // Honeypot tripped — same silent-success convention as every other public form.
+      return { draft: null };
+    }
+
+    const client = await this.prisma.client.findUnique({ where: { slug }, select: { businessName: true } });
+    if (!client) {
+      return { draft: null };
+    }
+
+    const draft = await this.groqService.chatComplete(
+      [
+        {
+          role: 'system',
+          content:
+            'You write short, natural-sounding public Google reviews as if written by a real happy customer — 2-4 sentences, no markdown, no hashtags, no exclamation-mark overload. Only mention specific details the customer actually gave you; if they gave none, keep it warm but general rather than inventing specifics (e.g. "great service" is fine, a made-up staff name is not).',
+        },
+        {
+          role: 'user',
+          content: `Business: ${client.businessName}\nRating I'm giving: ${String(dto.rating)}/5\nWhat I liked (may be blank): ${dto.notes ?? '(nothing specific mentioned)'}`,
+        },
+      ],
+      200,
+      0.7,
+    );
+
+    return { draft };
   }
 
   async submitFunnelResponse(
