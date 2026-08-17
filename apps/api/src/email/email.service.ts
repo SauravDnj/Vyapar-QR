@@ -69,17 +69,26 @@ export class EmailService {
     await this.dispatch(to, subject, html, `invite link: ${inviteUrl}`);
   }
 
+  /** Best-effort, same "log and move on" contract as every other optional
+   * integration in this codebase (WhatsApp, SMS, Google Sheets) — a broken
+   * or misconfigured SMTP transport must never fail the real operation
+   * (e.g. a Super Admin's client-approval action) that triggered this
+   * email as a side effect. */
   private async dispatch(to: string, subject: string, html: string, devDetail?: string): Promise<void> {
     if (!this.transport) {
       this.logger.warn(`SMTP not configured — email not sent. To: ${to}, Subject: "${subject}"${devDetail ? ` (${devDetail})` : ''}`);
       return;
     }
 
-    await this.transport.sendMail({
-      from: this.configService.get<string>('SMTP_FROM') ?? 'QRHub <no-reply@qrhub.local>',
-      to,
-      subject,
-      html,
-    });
+    try {
+      await this.transport.sendMail({
+        from: this.configService.get<string>('SMTP_FROM') ?? 'QRHub <no-reply@qrhub.local>',
+        to,
+        subject,
+        html,
+      });
+    } catch (error) {
+      this.logger.error(`Email send failed. To: ${to}, Subject: "${subject}"`, error instanceof Error ? error.stack : undefined);
+    }
   }
 }
