@@ -79,18 +79,35 @@ describe('local file driver', () => {
 
 /**
  * The Blob driver can't be exercised against real Vercel Blob without an
- * account token, so the SDK is mocked. That still pins down the parts most
- * likely to be wrong: the key layout, overwrite-in-place options, and the
- * cache-busting read that stops a CDN-stale response resurrecting deleted rows.
+ * account token, so the SDK is mocked. What matters here is the read-after-
+ * write behaviour: Blob's CDN can serve a *stale 200* for a pathname that was
+ * just overwritten, which broke registration in production ("No User found"
+ * on the update immediately following the create).
  */
 describe('vercel blob driver', () => {
   const put = jest.fn();
   const list = jest.fn();
+  const URL_ = 'https://blob.example/jsondb/user.json';
+
+  /** `list` reports Blob's authoritative state; `undefined` = not present. */
+  function remoteAt(uploadedAt?: string) {
+    list.mockImplementation(({ prefix }: { prefix: string }) =>
+      Promise.resolve({
+        blobs:
+          uploadedAt && prefix.startsWith('jsondb/user')
+            ? [{ pathname: 'jsondb/user.json', url: URL_, uploadedAt }]
+            : uploadedAt
+              ? [{ pathname: 'jsondb/user.json', url: URL_, uploadedAt }]
+              : [],
+      }),
+    );
+  }
 
   beforeEach(() => {
     jest.resetModules();
     put.mockReset();
     list.mockReset();
+    put.mockResolvedValue({ url: URL_ });
     jest.doMock('@vercel/blob', () => ({ put, list }), { virtual: true });
   });
 
@@ -108,7 +125,7 @@ describe('vercel blob driver', () => {
   }
 
   it('writes to a stable, overwritable path', async () => {
-    put.mockResolvedValue({ url: 'https://blob.example/jsondb/user.json' });
+    remoteAt('2026-01-01T00:00:00.000Z');
     const driver = makeDriver();
 
     await driver.write('user', [{ id: '1' }]);
@@ -126,24 +143,63 @@ describe('vercel blob driver', () => {
   });
 
   it('returns null when the collection does not exist yet', async () => {
-    list.mockResolvedValue({ blobs: [] });
+    remoteAt(undefined);
     const driver = makeDriver();
 
     await expect(driver.read('user')).resolves.toBeNull();
   });
 
-  it('reads with caching disabled so writes are read back correctly', async () => {
-    const url = 'https://blob.example/jsondb/user.json';
-    list.mockResolvedValue({ blobs: [{ pathname: 'jsondb/user.json', url }] });
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([{ id: '1' }]) });
+  it('serves its own write without touching the CDN', async () => {
+    // The regression test for the production bug: a stale CDN body must never
+    // be able to mask a write this instance just made.
+    remoteAt('2026-01-01T00:00:00.000Z');
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{ id: 'STALE' }]),
+    });
     global.fetch = fetchMock;
 
     const driver = makeDriver();
-    await expect(driver.read('user')).resolves.toEqual([{ id: '1' }]);
+    await driver.write('user', [{ id: 'fresh' }]);
 
-    expect(fetchMock).toHaveBeenCalledWith(url, { cache: 'no-store' });
+    await expect(driver.read('user')).resolves.toEqual([{ id: 'fresh' }]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetches when another writer has published something newer', async () => {
+    remoteAt('2026-01-01T00:00:00.000Z');
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([{ id: 'from-other-instance' }]),
+    });
+    global.fetch = fetchMock;
+
+    const driver = makeDriver();
+    await driver.write('user', [{ id: 'ours' }]);
+
+    // Someone else overwrote the collection after our write.
+    remoteAt('2026-06-01T00:00:00.000Z');
+    await expect(driver.read('user')).resolves.toEqual([{ id: 'from-other-instance' }]);
+
+    // …and the request must defeat the CDN cache.
+    const [calledUrl, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl.startsWith(`${URL_}?_=`)).toBe(true);
+    expect(opts).toEqual({ cache: 'no-store' });
+  });
+
+  it('falls back to its own copy when the CDN keeps failing', async () => {
+    remoteAt('2026-01-01T00:00:00.000Z');
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: false, status: 403 });
+
+    const driver = makeDriver();
+    await driver.write('user', [{ id: 'ours' }]);
+
+    remoteAt('2026-06-01T00:00:00.000Z');
+    await expect(driver.read('user')).resolves.toEqual([{ id: 'ours' }]);
   });
 
   it('strips the prefix when listing collections', async () => {

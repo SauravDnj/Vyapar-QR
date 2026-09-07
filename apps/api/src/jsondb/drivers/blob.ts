@@ -2,6 +2,12 @@ import { loadBlobSdk } from './blob-sdk';
 
 import type { JsonDbDriver } from './types';
 
+interface LocalCopy {
+  rows: unknown[];
+  /** Blob's own `uploadedAt` for the write this instance made, in ms. */
+  uploadedAt: number;
+}
+
 /**
  * Stores the same one-JSON-file-per-model layout in Vercel Blob.
  *
@@ -10,20 +16,28 @@ import type { JsonDbDriver } from './types';
  * be the write store there. Blob keeps the JSON-file model intact while
  * actually persisting, and is available on Vercel's free tier.
  *
- * `@vercel/blob` is imported lazily so local/VPS deploys that never select
- * this driver don't need the dependency resolved at boot.
+ * **Read-after-write.** Blob content is served through a CDN that can return a
+ * *stale 200* for a pathname that was just overwritten. That is fatal for a
+ * database: registration created a user, and the very next update failed with
+ * "No User found" because the read came back without it. Retrying does not
+ * help, since the stale response is a success.
+ *
+ * So reads do not trust the CDN blindly. `list()` goes to the Blob API rather
+ * than the CDN and always reports the true `uploadedAt`, which is used to
+ * decide:
+ *
+ *   - nothing newer than this instance's own write exists → serve the copy we
+ *     wrote, which is authoritative;
+ *   - something newer exists (another instance wrote) → fetch it, with a
+ *     cache-busting query string so the CDN cannot serve an older body.
  */
 export class VercelBlobDriver implements JsonDbDriver {
   readonly name = 'blob';
 
-  /** Blob URLs are content-addressed; cache the mapping to avoid re-listing. */
-  private urls = new Map<string, string>();
+  /** What this instance last wrote, per collection. See the class comment. */
+  private local = new Map<string, LocalCopy>();
 
-  /**
-   * The last rows this instance wrote, per collection. Used only when the CDN
-   * fails to serve a just-written file — see `read`.
-   */
-  private lastWritten = new Map<string, unknown[]>();
+  private static readonly FETCH_RETRIES = 4;
 
   constructor(
     private readonly prefix = 'jsondb',
@@ -34,65 +48,64 @@ export class VercelBlobDriver implements JsonDbDriver {
     return `${this.prefix}/${collection}.json`;
   }
 
-  private async resolveUrl(collection: string): Promise<string | null> {
-    const cached = this.urls.get(collection);
-    if (cached) return cached;
+  /** Current remote state from the Blob API — never from the CDN. */
+  private async describe(
+    collection: string,
+  ): Promise<{ url: string; uploadedAt: number } | null> {
     const { list } = loadBlobSdk();
-    const { blobs } = await list({ prefix: this.key(collection), token: this.token });
-    const hit = blobs.find((b) => b.pathname === this.key(collection));
+    const key = this.key(collection);
+    const { blobs } = await list({ prefix: key, token: this.token });
+    const hit = blobs.find((b) => b.pathname === key);
     if (!hit) return null;
-    this.urls.set(collection, hit.url);
-    return hit.url;
+    return { url: hit.url, uploadedAt: new Date(hit.uploadedAt).getTime() };
   }
 
-  /**
-   * Blob is served through a CDN that is only eventually consistent with a
-   * just-completed write: a read issued immediately after `put` can come back
-   * 403 or 404 for a second or so. Every mutation re-reads its collection
-   * before applying, so that window is hit constantly rather than rarely —
-   * hence the retry, which also re-resolves the URL in case the cached one
-   * went stale.
-   */
-  private static readonly READ_RETRIES = 5;
-
-  async read(collection: string): Promise<unknown[] | null> {
+  private async fetchBody(url: string): Promise<unknown[] | null> {
     let lastStatus = 0;
 
-    for (let attempt = 0; attempt < VercelBlobDriver.READ_RETRIES; attempt++) {
+    for (let attempt = 0; attempt < VercelBlobDriver.FETCH_RETRIES; attempt++) {
       if (attempt > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
-        // Drop the cached URL so the next pass asks Blob where the file is.
-        this.urls.delete(collection);
+        await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** (attempt - 1)));
       }
-
-      const url = await this.resolveUrl(collection);
-      // Genuinely absent: the collection has never been written.
-      if (!url) return attempt === 0 ? null : (this.lastWritten.get(collection) ?? null);
-
-      // `cache: 'no-store'` matters: a stale CDN read after a write would
-      // silently resurrect deleted rows.
-      const res = await fetch(url, { cache: 'no-store' });
+      // A unique query string gives the CDN a cache key it cannot already
+      // hold, forcing it to go to origin.
+      const res = await fetch(`${url}?_=${String(Date.now())}-${String(attempt)}`, {
+        cache: 'no-store',
+      });
       if (res.ok) return (await res.json()) as unknown[];
       lastStatus = res.status;
-
-      // 403/404 here means "written, not visible yet" — worth retrying.
-      // Anything else (429, 5xx) is also transient enough to retry.
     }
 
-    // The CDN never caught up. If this process wrote the collection, its own
-    // copy is authoritative and newer than anything Blob would have served.
-    const local = this.lastWritten.get(collection);
-    if (local) return local;
-
     throw new Error(
-      `Blob read failed for ${collection} after ${String(VercelBlobDriver.READ_RETRIES)} attempts ` +
+      `Blob read failed for ${url} after ${String(VercelBlobDriver.FETCH_RETRIES)} attempts ` +
         `(last status ${String(lastStatus)})`,
     );
   }
 
+  async read(collection: string): Promise<unknown[] | null> {
+    const remote = await this.describe(collection);
+    const local = this.local.get(collection);
+
+    if (!remote) {
+      // Never written, or the API hasn't registered our write yet — our own
+      // copy is still the better answer than "empty".
+      return local ? local.rows : null;
+    }
+
+    // Nothing has landed since this instance's write, so skip the CDN entirely.
+    if (local && remote.uploadedAt <= local.uploadedAt) return local.rows;
+
+    try {
+      return await this.fetchBody(remote.url);
+    } catch (error) {
+      if (local) return local.rows;
+      throw error;
+    }
+  }
+
   async write(collection: string, rows: unknown[]): Promise<void> {
     const { put } = loadBlobSdk();
-    const result = await put(this.key(collection), JSON.stringify(rows, null, 2), {
+    await put(this.key(collection), JSON.stringify(rows, null, 2), {
       access: 'public',
       token: this.token,
       contentType: 'application/json',
@@ -100,8 +113,15 @@ export class VercelBlobDriver implements JsonDbDriver {
       allowOverwrite: true,
       addRandomSuffix: false,
     });
-    this.urls.set(collection, result.url);
-    this.lastWritten.set(collection, rows);
+
+    // Take `uploadedAt` from Blob rather than the local clock, so the
+    // comparison in `read` is between two server-side timestamps and cannot be
+    // thrown off by clock skew.
+    const remote = await this.describe(collection);
+    this.local.set(collection, {
+      rows,
+      uploadedAt: remote?.uploadedAt ?? Date.now(),
+    });
   }
 
   async list(): Promise<string[]> {
