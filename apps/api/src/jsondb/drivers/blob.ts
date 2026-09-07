@@ -19,6 +19,12 @@ export class VercelBlobDriver implements JsonDbDriver {
   /** Blob URLs are content-addressed; cache the mapping to avoid re-listing. */
   private urls = new Map<string, string>();
 
+  /**
+   * The last rows this instance wrote, per collection. Used only when the CDN
+   * fails to serve a just-written file — see `read`.
+   */
+  private lastWritten = new Map<string, unknown[]>();
+
   constructor(
     private readonly prefix = 'jsondb',
     private readonly token = process.env.BLOB_READ_WRITE_TOKEN,
@@ -39,17 +45,49 @@ export class VercelBlobDriver implements JsonDbDriver {
     return hit.url;
   }
 
+  /**
+   * Blob is served through a CDN that is only eventually consistent with a
+   * just-completed write: a read issued immediately after `put` can come back
+   * 403 or 404 for a second or so. Every mutation re-reads its collection
+   * before applying, so that window is hit constantly rather than rarely —
+   * hence the retry, which also re-resolves the URL in case the cached one
+   * went stale.
+   */
+  private static readonly READ_RETRIES = 5;
+
   async read(collection: string): Promise<unknown[] | null> {
-    const url = await this.resolveUrl(collection);
-    if (!url) return null;
-    // `cache: 'no-store'` matters: Blob sits behind a CDN, and a stale read
-    // after a write would silently resurrect deleted rows.
-    const res = await fetch(url, { cache: 'no-store' });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      throw new Error(`Blob read failed for ${collection}: ${String(res.status)}`);
+    let lastStatus = 0;
+
+    for (let attempt = 0; attempt < VercelBlobDriver.READ_RETRIES; attempt++) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
+        // Drop the cached URL so the next pass asks Blob where the file is.
+        this.urls.delete(collection);
+      }
+
+      const url = await this.resolveUrl(collection);
+      // Genuinely absent: the collection has never been written.
+      if (!url) return attempt === 0 ? null : (this.lastWritten.get(collection) ?? null);
+
+      // `cache: 'no-store'` matters: a stale CDN read after a write would
+      // silently resurrect deleted rows.
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) return (await res.json()) as unknown[];
+      lastStatus = res.status;
+
+      // 403/404 here means "written, not visible yet" — worth retrying.
+      // Anything else (429, 5xx) is also transient enough to retry.
     }
-    return (await res.json()) as unknown[];
+
+    // The CDN never caught up. If this process wrote the collection, its own
+    // copy is authoritative and newer than anything Blob would have served.
+    const local = this.lastWritten.get(collection);
+    if (local) return local;
+
+    throw new Error(
+      `Blob read failed for ${collection} after ${String(VercelBlobDriver.READ_RETRIES)} attempts ` +
+        `(last status ${String(lastStatus)})`,
+    );
   }
 
   async write(collection: string, rows: unknown[]): Promise<void> {
@@ -63,6 +101,7 @@ export class VercelBlobDriver implements JsonDbDriver {
       addRandomSuffix: false,
     });
     this.urls.set(collection, result.url);
+    this.lastWritten.set(collection, rows);
   }
 
   async list(): Promise<string[]> {

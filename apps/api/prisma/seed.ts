@@ -121,4 +121,8 @@ main()
   })
   .finally(() => {
     void prisma.$disconnect();
+    // The blob driver's HTTP client keeps sockets alive, which holds the event
+    // loop open long after the work is done. Exit explicitly so this doesn't
+    // hang a terminal or a CI step.
+    process.exit(process.exitCode ?? 0);
   });
