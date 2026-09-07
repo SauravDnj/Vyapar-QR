@@ -74,8 +74,44 @@ export class CronController {
     }
   }
 
+  /** Every sweep, in one request. See `runAll` for why this exists. */
+  private static readonly ALL_JOBS = [
+    'grace-period',
+    'lead-follow-up',
+    'booking-reminder',
+    'review-sync',
+    'weekly-digest',
+  ];
+
+  /**
+   * Runs every sweep in sequence.
+   *
+   * Vercel's Hobby plan allows a small number of cron jobs and runs them at
+   * most once a day, which the five separate schedules exceed. One daily job
+   * that fans out keeps all of them running on Hobby. A failure in one sweep
+   * is recorded and the rest still run — otherwise an outage in, say, the
+   * Google Reviews API would also stop billing suspensions.
+   *
+   * On Pro, split this back into the five individual entries in `vercel.json`
+   * to get each sweep on its own schedule.
+   */
+  private async runAll(): Promise<Record<string, unknown>> {
+    const results: Record<string, unknown> = {};
+    for (const job of CronController.ALL_JOBS) {
+      try {
+        results[job] = await this.dispatch(job);
+      } catch (error) {
+        this.logger.error(`Cron job "${job}" failed: ${String(error)}`);
+        results[job] = { error: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    return results;
+  }
+
   private async dispatch(job: string): Promise<unknown> {
     switch (job) {
+      case 'all':
+        return this.runAll();
       case 'grace-period': {
         const days = Number(process.env.BILLING_GRACE_PERIOD_DAYS ?? '7');
         return { suspended: await this.billing.suspendOverdueClients(days) };
