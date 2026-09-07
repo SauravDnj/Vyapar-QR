@@ -18,3 +18,8 @@ dump.rdb
 # Local JSON database (the `local` JSONDB_DRIVER writes one file per model).
 # Real data, not fixtures — seed it with `pnpm --filter api db:seed`.
 apps/api/data
+
+# Scratch files that may hold generated credentials — never commit.
+*.seed-password.tmp
+.seed-password.tmp
+.env.production.local
