@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { Icon } from './icon';
 
 import type { PaymentMethodType, PublicPaymentMethod } from '@qrhub/types';
 
@@ -13,18 +15,39 @@ const APP_LABEL: Record<PaymentMethodType, string> = {
   other: 'UPI',
 };
 
-/** Bare app schemes — used only to open the app so the visitor can scan the
- * QR image on-screen themselves (no UPI ID is available in this branch, so
- * there's nothing to deep-link with). The path-specific `tez://upi/pay`,
- * `phonepe://pay`, `paytmmp://pay` forms expect real UPI query params
- * (`pa`/`pn`/`cu`) and are for the one-tap case below instead, where a real
- * `upi://pay?...` link is used (works with any installed UPI app, not just
- * one specific one). */
+/**
+ * Bare app schemes — used only to open the app so the visitor can scan the
+ * on-screen QR themselves (no UPI ID is available in that branch, so there's
+ * nothing to deep-link with). The path-specific `tez://upi/pay` forms expect
+ * real UPI query params and are for the one-tap case, which uses a generic
+ * `upi://pay?...` link so any installed UPI app can handle it.
+ */
 const APP_SCHEME: Partial<Record<PaymentMethodType, string>> = {
   gpay: 'tez://',
   phonepe: 'phonepe://',
   paytm: 'paytmmp://',
 };
+
+/**
+ * Theme-aware styling.
+ *
+ * These read the custom properties `TokenTheme` sets, with fallbacks so the
+ * component still looks right inside the thirteen bespoke themes (which don't
+ * set them) and in the admin preview. Previously every button was hardcoded
+ * `bg-emerald-600`, so a business's pay button was green no matter what its
+ * theme's brand colour was.
+ */
+const ACCENT_BUTTON = {
+  backgroundColor: 'var(--t-accent, #047857)',
+  color: 'var(--t-accent-text, #ffffff)',
+  borderRadius: 'var(--t-radius, 10px)',
+};
+const CARD = {
+  borderColor: 'var(--t-border, #e5e7eb)',
+  borderRadius: 'var(--t-radius, 10px)',
+};
+/** `--t-muted` is contrast-verified against every catalog surface. */
+const MUTED = { color: 'var(--t-muted, #4b5563)' };
 
 function upiLink(upiId: string, businessName: string, amount?: string): string {
   const base = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(businessName)}&cu=INR`;
@@ -61,22 +84,43 @@ function AmountPayCard({
   businessName,
   method,
   upiId,
+  qrImageUrl,
 }: {
   slug?: string;
   businessName: string;
   method: PaymentMethodType;
   upiId: string;
+  qrImageUrl?: string | null;
 }) {
   const label = APP_LABEL[method];
   const [amount, setAmount] = useState('');
   const [hasOpened, setHasOpened] = useState(false);
+  const [noAppFound, setNoAppFound] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [claimState, setClaimState] = useState<ClaimState>('idle');
   const [manualSendUrl, setManualSendUrl] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   function handlePay() {
     trackClick(slug, method);
     setHasOpened(true);
+    setNoAppFound(false);
     window.location.href = upiLink(upiId, businessName, amount);
+
+    // A `upi://` link does nothing at all on a desktop browser — the click
+    // silently fails and the visitor assumes the page is broken. If the tab is
+    // still visible shortly after, no UPI app took the link, so show something
+    // that actually works: the QR to scan and the UPI ID to copy.
+    timer.current = setTimeout(() => {
+      if (document.visibilityState === 'visible') setNoAppFound(true);
+    }, 1200);
   }
 
   async function handleClaimPaid() {
@@ -99,50 +143,112 @@ function AmountPayCard({
     }
   }
 
+  async function copyUpiId() {
+    try {
+      await navigator.clipboard.writeText(upiId);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
+    } catch {
+      // Clipboard can be blocked; the ID is displayed as selectable text too.
+    }
+  }
+
+  const amountValid = Number.isFinite(Number(amount)) && Number(amount) > 0;
+  const inputId = `amount-${method}`;
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-4">
-      <p className="text-sm font-medium">Pay with {label}</p>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">₹</span>
-        <input
-          type="number"
-          inputMode="decimal"
-          min="1"
-          step="0.01"
-          value={amount}
-          onChange={(event) => {
-            setAmount(event.target.value);
-            setHasOpened(false);
-            setClaimState('idle');
-          }}
-          placeholder="Amount"
-          className="w-full rounded border px-3 py-2 text-sm"
-        />
+    <div className="flex flex-col gap-3 border p-4" style={CARD}>
+      <p className="text-sm font-semibold">Pay with {label}</p>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor={inputId} className="text-xs font-medium" style={MUTED}>
+          Amount (optional)
+        </label>
+        <div className="flex items-center gap-2">
+          <span aria-hidden="true" style={MUTED}>
+            ₹
+          </span>
+          <input
+            id={inputId}
+            type="number"
+            inputMode="decimal"
+            min="1"
+            step="0.01"
+            value={amount}
+            onChange={(event) => {
+              setAmount(event.target.value);
+              setHasOpened(false);
+              setNoAppFound(false);
+              setClaimState('idle');
+            }}
+            placeholder="Leave blank to enter it in the app"
+            className="min-h-11 w-full border px-3 py-2 text-sm"
+            style={CARD}
+          />
+        </div>
       </div>
+
       <button
         type="button"
         onClick={handlePay}
-        className="flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-3 font-medium text-white transition hover:bg-emerald-700"
+        className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-6 py-3 font-medium transition-opacity duration-200 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={ACCENT_BUTTON}
       >
         Pay {amount ? `₹${amount}` : ''} with {label}
       </button>
 
+      {noAppFound ? (
+        <div className="flex flex-col items-center gap-3 border-t pt-3" style={{ borderColor: 'var(--t-border, #e5e7eb)' }}>
+          <p className="text-center text-sm" style={MUTED}>
+            No UPI app opened — you&apos;re probably on a computer. Scan this with your
+            phone, or copy the UPI ID.
+          </p>
+          {qrImageUrl ? (
+            <img src={qrImageUrl} alt={`${label} payment QR code`} className="size-44 object-contain" />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void copyUpiId()}
+            className="flex min-h-11 cursor-pointer items-center gap-2 border px-4 py-2 text-sm font-medium transition-opacity duration-200 hover:opacity-80"
+            style={CARD}
+          >
+            <Icon name={copied ? 'check' : 'share'} className="size-4" aria-hidden="true" />
+            <span className="font-mono">{upiId}</span>
+          </button>
+          <span aria-live="polite" className="sr-only">
+            {copied ? 'UPI ID copied' : ''}
+          </span>
+          {copied ? (
+            <p className="text-xs" style={MUTED}>
+              Copied
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {hasOpened ? (
-        <div className="flex flex-col gap-1 border-t pt-2">
+        <div className="flex flex-col gap-1.5 border-t pt-3" style={{ borderColor: 'var(--t-border, #e5e7eb)' }}>
           {claimState === 'sent' ? (
-            <p className="text-center text-sm text-emerald-700">Thanks! We&apos;ve let {businessName} know.</p>
+            <p className="flex items-center justify-center gap-2 text-center text-sm font-medium">
+              <Icon name="check" className="size-4" />
+              Thanks — we&apos;ve let {businessName} know.
+            </p>
           ) : claimState === 'needs-manual-send' && manualSendUrl ? (
             <>
               <a
                 href={manualSendUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white"
+                className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-opacity duration-200 hover:opacity-90"
+                style={ACCENT_BUTTON}
               >
-                📱 Open WhatsApp to send confirmation
+                <Icon name="external" className="size-4" />
+                Open WhatsApp to confirm
               </a>
-              <p className="text-center text-[11px] text-gray-400">
-                Opens your WhatsApp with a message ready — just tap send to let {businessName} know.
+              <p className="text-center text-xs" style={MUTED}>
+                Opens WhatsApp with the message ready — just tap send.
               </p>
             </>
           ) : (
@@ -150,15 +256,22 @@ function AmountPayCard({
               <button
                 type="button"
                 onClick={() => void handleClaimPaid()}
-                disabled={claimState === 'sending'}
-                className="text-center text-sm font-medium text-emerald-700 underline disabled:opacity-50"
+                disabled={claimState === 'sending' || !amountValid}
+                title={amountValid ? undefined : 'Enter the amount you paid first'}
+                className="flex min-h-11 cursor-pointer items-center justify-center gap-2 text-center text-sm font-medium underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {claimState === 'sending' ? 'Letting them know…' : "✅ I've paid — notify " + businessName}
+                <Icon name="check" className="size-4" />
+                {claimState === 'sending' ? 'Letting them know…' : `I've paid — notify ${businessName}`}
               </button>
-              <p className="text-center text-[11px] text-gray-400">
-                This just tells {businessName} you paid — it&apos;s not a verified receipt. Keep your UPI app&apos;s confirmation for that.
+              <p className="text-center text-xs" style={MUTED}>
+                This only tells {businessName} you paid — it is not a verified receipt.
+                Keep your UPI app&apos;s confirmation for that.
               </p>
-              {claimState === 'error' ? <p className="text-center text-xs text-red-600">Couldn&apos;t send that — try again.</p> : null}
+              {claimState === 'error' ? (
+                <p className="text-center text-xs font-medium text-red-700" role="alert">
+                  Couldn&apos;t send that — please try again.
+                </p>
+              ) : null}
             </>
           )}
         </div>
@@ -187,26 +300,39 @@ export function PaymentButtons({
         const label = APP_LABEL[method.type];
 
         if (method.upiId) {
-          return <AmountPayCard key={method.id} slug={slug} businessName={businessName} method={method.type} upiId={method.upiId} />;
+          return (
+            <AmountPayCard
+              key={method.id}
+              slug={slug}
+              businessName={businessName}
+              method={method.type}
+              upiId={method.upiId}
+              qrImageUrl={method.qrImageUrl}
+            />
+          );
         }
 
         if (method.qrImageUrl) {
           const scheme = APP_SCHEME[method.type];
           return (
-            <div key={method.id} className="flex flex-col items-center gap-2 rounded-lg border p-4">
-              <img src={method.qrImageUrl} alt={`${label} QR code`} className="h-48 w-48 object-contain" />
+            <div key={method.id} className="flex flex-col items-center gap-3 border p-4" style={CARD}>
+              <img src={method.qrImageUrl} alt={`${label} payment QR code`} className="size-48 object-contain" />
+              <p className="text-sm" style={MUTED}>
+                Scan this with {label}
+              </p>
               {scheme ? (
                 <a
                   href={scheme}
                   onClick={() => {
                     trackClick(slug, method.type);
                   }}
-                  className="text-sm font-medium text-emerald-700 underline md:hidden"
+                  className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium transition-opacity duration-200 hover:opacity-90 md:hidden"
+                  style={ACCENT_BUTTON}
                 >
+                  <Icon name="external" className="size-4" />
                   Open {label}
                 </a>
               ) : null}
-              <p className="text-xs text-gray-500">Scan the QR above with {label}</p>
             </div>
           );
         }
