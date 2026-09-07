@@ -15,3 +15,6 @@ export * from './coupons-list';
 export * from './menu-order';
 export * from './booking-slots-widget';
 export * from './themes/registry';
+export { TokenTheme } from './themes/token-theme';
+export { Icon } from './icon';
+export type { IconName } from './icon';

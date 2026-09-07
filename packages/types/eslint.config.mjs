@@ -5,7 +5,9 @@ import { typescriptStrict } from '@qrhub/config/eslint/typescript.mjs';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'eslint.config.mjs'] },
+  // `scripts/` is plain Node tooling outside the src tsconfig, so the
+  // type-aware rules have no project for it.
+  { ignores: ['dist', 'eslint.config.mjs', 'scripts'] },
   ...typescriptStrict,
   ...importOrder,
   prettierConfig,

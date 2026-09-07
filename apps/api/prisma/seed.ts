@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
+import { DEFAULT_THEME_SCHEMA, THEME_CATALOG } from '@qrhub/types';
 import * as bcrypt from 'bcrypt';
 
 import { JsonDbClient } from '../src/jsondb';
@@ -75,6 +75,9 @@ async function main() {
     }
   }
 
+  // The thirteen original bespoke themes, plus the generated token catalog.
+  // Both are seeded from one place so the picker and the renderer can never
+  // disagree about what exists.
   const themes = [
     { name: 'Minimal', category: 'General' },
     { name: 'Bold', category: 'General' },
@@ -89,6 +92,7 @@ async function main() {
     { name: 'Nest', category: 'Real Estate' },
     { name: 'Aperture', category: 'Photography & Creative' },
     { name: 'Academy', category: 'Education & Coaching' },
+    ...THEME_CATALOG.map((theme) => ({ name: theme.name, category: theme.category })),
   ];
 
   for (const theme of themes) {
