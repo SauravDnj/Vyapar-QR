@@ -79,36 +79,49 @@ describe('local file driver', () => {
 
 /**
  * The Blob driver can't be exercised against real Vercel Blob without an
- * account token, so the SDK is mocked. What matters here is the read-after-
- * write behaviour: Blob's CDN can serve a *stale 200* for a pathname that was
- * just overwritten, which broke registration in production ("No User found"
- * on the update immediately following the create).
+ * account token, so the SDK is mocked. What matters is that reads are always
+ * fresh: Blob's CDN serves a stale 200 for an overwritten pathname, and a
+ * cache-busting query string does not defeat it. In production that produced
+ * two distinct failures — "No User found" on an update right after a create,
+ * and a duplicate account when a second instance read a stale body — which is
+ * why every write publishes a new immutable version.
  */
 describe('vercel blob driver', () => {
   const put = jest.fn();
   const list = jest.fn();
-  const URL_ = 'https://blob.example/jsondb/user.json';
+  const del = jest.fn();
 
-  /** `list` reports Blob's authoritative state; `undefined` = not present. */
-  function remoteAt(uploadedAt?: string) {
-    list.mockImplementation(({ prefix }: { prefix: string }) =>
-      Promise.resolve({
-        blobs:
-          uploadedAt && prefix.startsWith('jsondb/user')
-            ? [{ pathname: 'jsondb/user.json', url: URL_, uploadedAt }]
-            : uploadedAt
-              ? [{ pathname: 'jsondb/user.json', url: URL_, uploadedAt }]
-              : [],
-      }),
-    );
-  }
+  /** Models the store: pathname -> uploadedAt, filtered by prefix like Blob. */
+  let store: { pathname: string; url: string; uploadedAt: string }[] = [];
+  /** Pathnames in write order — `put.mock.calls` is untyped. */
+  let written: string[] = [];
 
   beforeEach(() => {
     jest.resetModules();
     put.mockReset();
     list.mockReset();
-    put.mockResolvedValue({ url: URL_ });
-    jest.doMock('@vercel/blob', () => ({ put, list }), { virtual: true });
+    del.mockReset();
+    store = [];
+    written = [];
+
+    put.mockImplementation((pathname: string) => {
+      written.push(pathname);
+      store.push({
+        pathname,
+        url: `https://blob.example/${pathname}`,
+        uploadedAt: new Date(1_800_000_000_000 + store.length * 1000).toISOString(),
+      });
+      return Promise.resolve({ url: `https://blob.example/${pathname}` });
+    });
+    list.mockImplementation(({ prefix }: { prefix: string }) =>
+      Promise.resolve({ blobs: store.filter((b) => b.pathname.startsWith(prefix)) }),
+    );
+    del.mockImplementation((urls: string[]) => {
+      store = store.filter((b) => !urls.includes(b.url));
+      return Promise.resolve();
+    });
+
+    jest.doMock('@vercel/blob', () => ({ put, list, del }), { virtual: true });
   });
 
   afterEach(() => {
@@ -124,90 +137,84 @@ describe('vercel blob driver', () => {
     return new VercelBlobDriver('jsondb', 'test-token');
   }
 
-  it('writes to a stable, overwritable path', async () => {
-    remoteAt('2026-01-01T00:00:00.000Z');
-    const driver = makeDriver();
-
-    await driver.write('user', [{ id: '1' }]);
-
-    expect(put).toHaveBeenCalledWith(
-      'jsondb/user.json',
-      JSON.stringify([{ id: '1' }], null, 2),
-      expect.objectContaining({
-        access: 'public',
-        token: 'test-token',
-        allowOverwrite: true,
-        addRandomSuffix: false,
+  /** Serves whatever the mocked store currently holds at that URL. */
+  function serveStore(bodies: Record<string, unknown[] | undefined>) {
+    global.fetch = jest.fn((url: string) =>
+      Promise.resolve({
+        ok: bodies[url] !== undefined,
+        status: bodies[url] !== undefined ? 200 : 404,
+        json: () => Promise.resolve(bodies[url]),
       }),
+    ) as unknown as typeof fetch;
+  }
+
+  it('returns null when the collection does not exist yet', async () => {
+    serveStore({});
+    await expect(makeDriver().read('user')).resolves.toBeNull();
+  });
+
+  it('writes each version to a new, unique path', async () => {
+    const driver = makeDriver();
+    await driver.write('user', [{ id: '1' }]);
+    await driver.write('user', [{ id: '2' }]);
+
+    expect(written).toHaveLength(2);
+    expect(written[0]).not.toBe(written[1]);
+    for (const p of written) expect(p.startsWith('jsondb/user/')).toBe(true);
+  });
+
+  it('reads the newest version, so a fresh instance never sees stale data', async () => {
+    // The regression test: instance A writes twice; instance B, with no local
+    // state, must read the newer body.
+    const a = makeDriver();
+    await a.write('user', [{ id: 'old' }]);
+    await a.write('user', [{ id: 'new' }]);
+
+    const [older, newer] = written;
+    serveStore({
+      [`https://blob.example/${older}`]: [{ id: 'old' }],
+      [`https://blob.example/${newer}`]: [{ id: 'new' }],
+    });
+
+    await expect(makeDriver().read('user')).resolves.toEqual([{ id: 'new' }]);
+  });
+
+  it('prunes superseded versions', async () => {
+    const driver = makeDriver();
+    for (let i = 0; i < 5; i++) await driver.write('user', [{ id: String(i) }]);
+
+    const remaining = store.filter((b) => b.pathname.startsWith('jsondb/user/'));
+    expect(remaining.length).toBeLessThanOrEqual(2);
+  });
+
+  it('does not confuse collections sharing a name prefix', async () => {
+    const driver = makeDriver();
+    await driver.write('client', [{ id: 'c' }]);
+    await driver.write('clientStaffMember', [{ id: 's' }]);
+
+    const clientPaths = store.filter((b) => b.pathname.startsWith('jsondb/client/'));
+    expect(clientPaths).toHaveLength(1);
+    await expect(driver.list()).resolves.toEqual(
+      expect.arrayContaining(['client', 'clientStaffMember']),
     );
   });
 
-  it('returns null when the collection does not exist yet', async () => {
-    remoteAt(undefined);
-    const driver = makeDriver();
-
-    await expect(driver.read('user')).resolves.toBeNull();
-  });
-
-  it('serves its own write without touching the CDN', async () => {
-    // The regression test for the production bug: a stale CDN body must never
-    // be able to mask a write this instance just made.
-    remoteAt('2026-01-01T00:00:00.000Z');
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve([{ id: 'STALE' }]),
+  it('reads data written by the pre-versioning layout', async () => {
+    store.push({
+      pathname: 'jsondb/user.json',
+      url: 'https://blob.example/jsondb/user.json',
+      uploadedAt: new Date(1_700_000_000_000).toISOString(),
     });
-    global.fetch = fetchMock;
+    serveStore({ 'https://blob.example/jsondb/user.json': [{ id: 'legacy' }] });
 
-    const driver = makeDriver();
-    await driver.write('user', [{ id: 'fresh' }]);
-
-    await expect(driver.read('user')).resolves.toEqual([{ id: 'fresh' }]);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('fetches when another writer has published something newer', async () => {
-    remoteAt('2026-01-01T00:00:00.000Z');
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve([{ id: 'from-other-instance' }]),
-    });
-    global.fetch = fetchMock;
-
-    const driver = makeDriver();
-    await driver.write('user', [{ id: 'ours' }]);
-
-    // Someone else overwrote the collection after our write.
-    remoteAt('2026-06-01T00:00:00.000Z');
-    await expect(driver.read('user')).resolves.toEqual([{ id: 'from-other-instance' }]);
-
-    // …and the request must defeat the CDN cache.
-    const [calledUrl, opts] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(calledUrl.startsWith(`${URL_}?_=`)).toBe(true);
-    expect(opts).toEqual({ cache: 'no-store' });
+    await expect(makeDriver().read('user')).resolves.toEqual([{ id: 'legacy' }]);
   });
 
   it('falls back to its own copy when the CDN keeps failing', async () => {
-    remoteAt('2026-01-01T00:00:00.000Z');
-    global.fetch = jest
-      .fn()
-      .mockResolvedValue({ ok: false, status: 403 });
-
     const driver = makeDriver();
     await driver.write('user', [{ id: 'ours' }]);
+    serveStore({});
 
-    remoteAt('2026-06-01T00:00:00.000Z');
     await expect(driver.read('user')).resolves.toEqual([{ id: 'ours' }]);
-  });
-
-  it('strips the prefix when listing collections', async () => {
-    list.mockResolvedValue({
-      blobs: [{ pathname: 'jsondb/user.json' }, { pathname: 'jsondb/plan.json' }],
-    });
-    const driver = makeDriver();
-
-    await expect(driver.list()).resolves.toEqual(['user', 'plan']);
   });
 });
