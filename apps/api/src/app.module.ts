@@ -1,9 +1,7 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import Redis from 'ioredis';
 
 import { AdminModule } from './admin/admin.module';
 import { AgencyModule } from './agency/agency.module';
@@ -16,10 +14,11 @@ import { BillingModule } from './billing/billing.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
-import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { CouponsModule } from './coupons/coupons.module';
 import { DigestModule } from './digest/digest.module';
 import { DomainsModule } from './domains/domains.module';
+import { bullRootImports, createThrottlerStorage } from './jobs/jobs.config';
+import { JobsModule } from './jobs/jobs.module';
 import { LeadsModule } from './leads/leads.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { MenuModule } from './menu/menu.module';
@@ -42,13 +41,12 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 60 }],
-      storage: new RedisThrottlerStorage(),
+      // Redis-backed where a REDIS_URL exists, in-memory otherwise (Vercel).
+      storage: createThrottlerStorage(),
     }),
-    BullModule.forRoot({
-      // BullMQ requires this exact setting on the shared connection for its
-      // blocking commands to work correctly.
-      connection: new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null }),
-    }),
+    // Empty when Redis is absent — the recurring sweeps then run via Vercel
+    // Cron against JobsModule's HTTP endpoints instead of a BullMQ scheduler.
+    ...bullRootImports(),
     PrismaModule,
     AuditLogModule,
     AuthModule,
@@ -75,6 +73,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     WhatsappModule,
     PublicModule,
     AgencyModule,
+    JobsModule,
   ],
   controllers: [AppController],
   providers: [

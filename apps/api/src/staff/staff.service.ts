@@ -7,7 +7,7 @@ import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { AuthUser } from '../auth/auth.service';
-import type { ClientStaffMember, Prisma } from '@prisma/client';
+import type { ClientStaffMember, Prisma } from '../jsondb';
 import type { StaffPermissions } from '@qrhub/types';
 
 const STAFF_INVITE_PURPOSE = 'staff_invite';

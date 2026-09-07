@@ -1,20 +1,33 @@
-# QRHub — Full Production Deployment Guide
+# QRHub — VPS Production Deployment Guide
 
-This is the complete, step-by-step path to a live production deployment:
-**Vercel** for the two Next.js apps, a **database** for MySQL, and a **VPS**
-for the NestJS API. No Docker anywhere in this path.
+> ### ⚠️ This guide is no longer the default path
+>
+> **QRHub no longer uses MySQL.** The data layer is now JSON documents —
+> one file per model — served by the engine in
+> [`apps/api/src/jsondb`](../apps/api/src/jsondb/README.md). Every step below
+> that installs, configures or migrates MySQL **no longer applies**, and
+> `DATABASE_URL` is no longer read by the application.
+>
+> **For the current, recommended deploy — all three apps on Vercel, no
+> database server at all — see [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md).**
+>
+> This guide is kept because the VPS path still works and remains the better
+> choice when you want a long-lived process: BullMQ job scheduling instead of
+> Vercel Cron, globally exact rate limits via Redis, and no serverless write
+> concurrency caveats. To follow it now, ignore every MySQL step and instead
+> set `JSONDB_DRIVER=local` with `JSONDB_DIR` pointing at a persistent
+> directory on the VPS (back that directory up — it *is* the database).
 
-**Read this first — why the API and database aren't "on Vercel":** Vercel
-runs serverless functions with a request-scoped lifetime. QRHub's API is a
-long-running NestJS process with BullMQ background workers (grace-period
-sweeps, review sync, booking reminders, digest emails, lead follow-ups) that
-need to keep running between requests — that doesn't fit Vercel's model.
-Vercel also has no built-in MySQL hosting (this schema is MySQL, not
-Postgres). So the split is: **Vercel hosts the two frontends** (`apps/admin`,
-`apps/landing`), and **a VPS hosts the API + MySQL + Redis** together. This
-was an explicit decision made earlier in this project, not a limitation of
-this guide — see §2 below if you want the database on its own managed host
-instead of the same VPS.
+This is the step-by-step path to a live deployment with **Vercel** for the two
+Next.js apps and a **VPS** for the NestJS API. No Docker anywhere in this path.
+
+**Why the API isn't on Vercel in *this* guide:** a long-running NestJS process
+with BullMQ background workers (grace-period sweeps, review sync, booking
+reminders, digest emails, lead follow-ups) keeps running between requests,
+which doesn't fit a request-scoped serverless function. That constraint has
+since been addressed — those sweeps are also exposed as HTTP endpoints driven
+by Vercel Cron — which is what makes the all-Vercel path in
+[`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md) possible.
 
 ---
 

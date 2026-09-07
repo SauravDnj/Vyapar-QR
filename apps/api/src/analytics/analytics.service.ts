@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import type { Prisma } from '../jsondb';
 import type { CaptureEventDto } from './dto/capture-event.dto';
 
 const SUMMARY_WINDOW_DAYS = 7;
@@ -49,6 +49,35 @@ function buildEmptyBuckets(days: number): Map<string, TimeseriesPoint> {
   return buckets;
 }
 
+/**
+ * Reads `metaJson.label`, which is stored as a JSON value but was historically
+ * queried via MySQL's `JSON_UNQUOTE(JSON_EXTRACT(...))`.
+ */
+export function readLabel(metaJson: unknown): string | null {
+  if (!metaJson || typeof metaJson !== 'object' || Array.isArray(metaJson)) return null;
+  const label = (metaJson as Record<string, unknown>).label;
+  return typeof label === 'string' ? label : null;
+}
+
+/**
+ * In-memory replacement for `GROUP BY DATE(created_at), event_type`. Returns
+ * the same `TimeseriesRow` shape the raw query produced, so the bucketing
+ * below is unchanged.
+ */
+export function bucketByDayAndType(
+  events: { createdAt: Date | string; eventType: string }[],
+): TimeseriesRow[] {
+  const totals = new Map<string, TimeseriesRow>();
+  for (const event of events) {
+    const day = toDateKey(event.createdAt);
+    const key = `${day}|${event.eventType}`;
+    const existing = totals.get(key);
+    if (existing) existing.total = (existing.total) + 1n;
+    else totals.set(key, { day, eventType: event.eventType, total: 1n });
+  }
+  return [...totals.values()].sort((a, b) => toDateKey(a.day).localeCompare(toDateKey(b.day)));
+}
+
 /** Shared by `AnalyticsService` (per-client) and `AdminAnalyticsService`
  * (platform-wide) — both run the same `DATE(created_at)` raw-SQL grouping
  * and just need it bucketed into a zero-filled, ordered daily series. */
@@ -85,7 +114,7 @@ export class AnalyticsService {
     const since = new Date(Date.now() - SUMMARY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
     const [counts, whatsappClicks] = await Promise.all([
-      this.prisma.analyticsEvent.groupBy({
+      this.prisma.analyticsEvent.groupBy<{ eventType: string; _count: { _all: number } }>({
         by: ['eventType'],
         where: { clientId, createdAt: { gte: since } },
         _count: { _all: true },
@@ -104,34 +133,31 @@ export class AnalyticsService {
   }
 
   private async countWhatsappClicks(clientId: string, since: Date): Promise<number> {
-    const rows = await this.prisma.$queryRaw<{ total: bigint }[]>(
-      Prisma.sql`
-        SELECT COUNT(*) AS total
-        FROM analytics_events
-        WHERE client_id = ${clientId}
-          AND event_type = 'button_click'
-          AND created_at >= ${since}
-          AND JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.label')) = 'whatsapp'
-      `,
-    );
-    return Number(rows[0]?.total ?? 0);
+    // `metaJson` is a JSON column, so this filtered on JSON_EXTRACT in SQL.
+    // The JSON engine has no expression filters — narrow on the indexed
+    // columns first, then match the label in memory.
+    const rows = await this.prisma.analyticsEvent.findMany({
+      where: {
+        clientId,
+        eventType: 'button_click',
+        createdAt: { gte: since },
+      },
+      select: { metaJson: true },
+    });
+
+    return rows.filter((row) => readLabel(row.metaJson) === 'whatsapp').length;
   }
 
   /** Daily-bucketed event counts for the last `days` days, for chart display. */
   async getTimeseries(clientId: string, days: number): Promise<TimeseriesPoint[]> {
     const since = new Date(Date.now() - days * MS_PER_DAY);
 
-    const rows = await this.prisma.$queryRaw<TimeseriesRow[]>(
-      Prisma.sql`
-        SELECT DATE(created_at) AS day, event_type AS eventType, COUNT(*) AS total
-        FROM analytics_events
-        WHERE client_id = ${clientId} AND created_at >= ${since}
-        GROUP BY DATE(created_at), event_type
-        ORDER BY day ASC
-      `,
-    );
+    const events = await this.prisma.analyticsEvent.findMany({
+      where: { clientId, createdAt: { gte: since } },
+      select: { createdAt: true, eventType: true },
+    });
 
-    return fillTimeseriesBuckets(rows, days);
+    return fillTimeseriesBuckets(bucketByDayAndType(events), days);
   }
 
   /** Scan → View → Engaged → Reviewed conversion funnel over the last

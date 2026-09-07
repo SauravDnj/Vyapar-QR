@@ -7,10 +7,10 @@ import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappAiService } from '../whatsapp/whatsapp-ai.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
+import type { Lead, Prisma } from '../jsondb';
 import type { CreateLeadDto } from './dto/create-lead.dto';
 import type { ListLeadsQueryDto } from './dto/list-leads-query.dto';
 import type { UpdateLeadDto } from './dto/update-lead.dto';
-import type { Lead, Prisma } from '@prisma/client';
 
 /** P13-02: how long a `new` lead sits untouched before the daily sweep
  * nudges them once via WhatsApp. */

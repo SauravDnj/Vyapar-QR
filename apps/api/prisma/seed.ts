@@ -1,21 +1,30 @@
 import 'dotenv/config';
 
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
-import { Prisma, PrismaClient } from '@prisma/client';
 import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
 import * as bcrypt from 'bcrypt';
 
-import { parseMysqlUrl } from '../src/prisma/mysql-connection';
+import { JsonDbClient } from '../src/jsondb';
 
-const prisma = new PrismaClient({
-  adapter: new PrismaMariaDb(parseMysqlUrl(process.env.DATABASE_URL ?? '')),
-});
+import type { Prisma } from '../src/jsondb';
+
+// Writes through whichever driver JSONDB_DRIVER selects, so the same command
+// seeds a local `data/jsondb/` directory or a Vercel Blob store.
+const prisma = new JsonDbClient();
 
 const themeSchemaJson = DEFAULT_THEME_SCHEMA as unknown as Prisma.InputJsonValue;
 
 async function main() {
-  const superAdminEmail = 'admin@qrhub.local';
-  const superAdminPassword = 'ChangeMe123!';
+  // Overridable so a real deploy doesn't ship with a published default
+  // password. The fallback stays for local development.
+  const superAdminEmail = process.env.SEED_SUPER_ADMIN_EMAIL ?? 'admin@qrhub.local';
+  const superAdminPassword = process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'ChangeMe123!';
+
+  if (!process.env.SEED_SUPER_ADMIN_PASSWORD && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Refusing to seed a production database with the default super-admin password. ' +
+        'Set SEED_SUPER_ADMIN_EMAIL and SEED_SUPER_ADMIN_PASSWORD.',
+    );
+  }
 
   await prisma.user.upsert({
     where: { email: superAdminEmail },
@@ -99,6 +108,7 @@ async function main() {
   }
 
   console.log('Seed complete:');
+  console.log(`  Storage driver: ${prisma.store.driverName}`);
   console.log(`  Super Admin: ${superAdminEmail} / ${superAdminPassword}`);
   console.log(`  Plans: ${plans.map((p) => p.name).join(', ')}`);
   console.log(`  Themes: ${themes.map((t) => t.name).join(', ')}`);

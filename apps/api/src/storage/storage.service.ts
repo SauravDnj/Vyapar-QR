@@ -2,33 +2,81 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+import { loadBlobSdk } from '../jsondb/drivers/blob-sdk';
 
 export const UPLOADS_DIR = join(process.cwd(), 'uploads');
 
-/** Local-disk file storage for dev, behind the same shape an S3/MinIO-backed
- * implementation would have — swapping the body of `save` is all that's
- * needed to move to real object storage later. */
+/**
+ * File storage for logos, payment-QR images and generated QR codes, behind a
+ * `save(buffer, ext) -> url` / `readByUrl(url)` shape.
+ *
+ * Two backends, chosen by `STORAGE_DRIVER` (default: Vercel Blob when running
+ * on Vercel, local disk otherwise):
+ *
+ *   `local` — writes under `uploads/`, served back by `/uploads/*`. Fine for
+ *             dev and for a VPS with a persistent disk.
+ *   `blob`  — Vercel Blob. Required on Vercel: the serverless filesystem is
+ *             read-only apart from `/tmp`, which is per-instance and wiped, so
+ *             a locally-written upload would 404 on the very next request.
+ */
 @Injectable()
 export class StorageService {
-  constructor(private readonly configService: ConfigService) {}
+  private readonly logger = new Logger(StorageService.name);
+  private readonly driver: 'local' | 'blob';
 
-  async save(buffer: Buffer, extension: string): Promise<string> {
-    await mkdir(UPLOADS_DIR, { recursive: true });
-    const filename = `${randomUUID()}${extension}`;
-    await writeFile(join(UPLOADS_DIR, filename), buffer);
-
-    const apiUrl = this.configService.get<string>('API_PUBLIC_URL') ?? `http://localhost:${process.env.PORT ?? '4100'}`;
-    return `${apiUrl}/uploads/${filename}`;
+  constructor(private readonly configService: ConfigService) {
+    const configured = this.configService.get<string>('STORAGE_DRIVER');
+    this.driver =
+      (configured as 'local' | 'blob' | undefined) ??
+      (process.env.VERCEL ? 'blob' : 'local');
   }
 
-  /** Reads a previously-`save`d file back off disk given the URL `save`
-   * returned. Returns `null` for URLs it didn't create (e.g. once this is
-   * swapped for real S3/MinIO, old local URLs simply won't resolve). */
+  private get apiUrl(): string {
+    return (
+      this.configService.get<string>('API_PUBLIC_URL') ??
+      `http://localhost:${process.env.PORT ?? '4100'}`
+    );
+  }
+
+  async save(buffer: Buffer, extension: string): Promise<string> {
+    const filename = `${randomUUID()}${extension}`;
+
+    if (this.driver === 'blob') {
+      const { put } = loadBlobSdk();
+      const { url } = await put(`uploads/${filename}`, buffer, {
+        access: 'public',
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false,
+      });
+      return url;
+    }
+
+    await mkdir(UPLOADS_DIR, { recursive: true });
+    await writeFile(join(UPLOADS_DIR, filename), buffer);
+    return `${this.apiUrl}/uploads/${filename}`;
+  }
+
+  /**
+   * Reads a previously-`save`d file back given the URL `save` returned.
+   * Returns `null` for URLs this service didn't create.
+   */
   async readByUrl(url: string): Promise<Buffer | null> {
-    const apiUrl = this.configService.get<string>('API_PUBLIC_URL') ?? `http://localhost:${process.env.PORT ?? '4100'}`;
-    const prefix = `${apiUrl}/uploads/`;
+    if (this.driver === 'blob') {
+      // Blob URLs are absolute and public; fetch rather than hit the filesystem.
+      try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) return null;
+        return Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        this.logger.warn(`Failed to read blob ${url}: ${String(error)}`);
+        return null;
+      }
+    }
+
+    const prefix = `${this.apiUrl}/uploads/`;
     if (!url.startsWith(prefix)) {
       return null;
     }

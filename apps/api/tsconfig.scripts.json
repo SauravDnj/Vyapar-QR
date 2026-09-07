@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // ts-node executes these as CommonJS. `rewriteRelativeImportExtensions`
+    // must be off: it rewrites the `./theme.ts` specifiers in
+    // `packages/types` to `./theme.js`, which don't exist when running from
+    // source. (Same reason the jest config disables it.)
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "rewriteRelativeImportExtensions": false,
+    "noEmit": true
+  }
+}

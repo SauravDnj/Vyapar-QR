@@ -132,7 +132,7 @@ export class WhatsappAiService {
   }
 
   private async loadClientForPrompt(clientId: string): Promise<(ClientForPrompt & { whatsappSettings: { systemPromptOverride: string | null } | null }) | null> {
-    return this.prisma.client.findUnique({
+    const client = await this.prisma.client.findUnique({
       where: { id: clientId },
       include: {
         landingPage: true,
@@ -144,6 +144,11 @@ export class WhatsappAiService {
         whatsappSettings: true,
       },
     });
+
+    // The JSON engine types `include` results loosely — it can't infer the
+    // payload shape from the argument the way Prisma's generics did — so
+    // assert the shape the include above actually produces.
+    return client;
   }
 
   buildBusinessContext(client: ClientForPrompt, customInstructions: string | null): string {

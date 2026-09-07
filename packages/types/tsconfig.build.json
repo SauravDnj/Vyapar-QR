@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    // CommonJS so `apps/api` (which tsc-emits CJS) can require this at
+    // runtime under any Node version, rather than relying on Node's
+    // TypeScript type-stripping to load `src/*.ts` directly.
+    "module": "commonjs",
+    "moduleResolution": "node",
+    // Rewrites the `./theme.ts` specifiers in `src/index.ts` to `./theme.js`
+    // so the emitted barrel resolves against the emitted files.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src"]
+}

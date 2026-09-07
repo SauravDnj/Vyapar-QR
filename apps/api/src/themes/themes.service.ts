@@ -3,7 +3,7 @@ import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../jsondb';
 
 export interface CreateThemeInput {
   name: string;

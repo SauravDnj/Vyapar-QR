@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
-import { fillTimeseriesBuckets } from '../../analytics/analytics.service';
+import { bucketByDayAndType, fillTimeseriesBuckets } from '../../analytics/analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
-import type { TimeseriesPoint, TimeseriesRow } from '../../analytics/analytics.service';
+import type { TimeseriesPoint } from '../../analytics/analytics.service';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -17,16 +16,11 @@ export class AdminAnalyticsService {
   async getTimeseries(days: number): Promise<TimeseriesPoint[]> {
     const since = new Date(Date.now() - days * MS_PER_DAY);
 
-    const rows = await this.prisma.$queryRaw<TimeseriesRow[]>(
-      Prisma.sql`
-        SELECT DATE(created_at) AS day, event_type AS eventType, COUNT(*) AS total
-        FROM analytics_events
-        WHERE created_at >= ${since}
-        GROUP BY DATE(created_at), event_type
-        ORDER BY day ASC
-      `,
-    );
+    const events = await this.prisma.analyticsEvent.findMany({
+      where: { createdAt: { gte: since } },
+      select: { createdAt: true, eventType: true },
+    });
 
-    return fillTimeseriesBuckets(rows, days);
+    return fillTimeseriesBuckets(bucketByDayAndType(events), days);
   }
 }

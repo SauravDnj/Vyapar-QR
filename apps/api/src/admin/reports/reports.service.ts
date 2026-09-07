@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+
+import type { Prisma } from '../../jsondb';
+
 
 const REVENUE_MONTHS = 6;
 
@@ -22,7 +24,7 @@ export interface BillingReport {
 
 interface RevenueRow {
   month: string;
-  total: Prisma.Decimal | number | string | null;
+  total: Prisma.Decimal   | string | null;
 }
 
 @Injectable()
@@ -43,7 +45,7 @@ export class ReportsService {
       ]);
 
     const mrr = activeSubscriptions.reduce((sum, subscription) => {
-      const price = Number(subscription.plan.price);
+      const price = subscription.plan.price;
       return sum + (subscription.plan.billingCycle === 'yearly' ? price / 12 : price);
     }, 0);
 
@@ -62,15 +64,21 @@ export class ReportsService {
     since.setDate(1);
     since.setHours(0, 0, 0, 0);
 
-    const rows = await this.prisma.$queryRaw<RevenueRow[]>(
-      Prisma.sql`
-        SELECT DATE_FORMAT(issued_at, '%Y-%m') AS month, SUM(amount) AS total
-        FROM invoices
-        WHERE status = 'paid' AND issued_at >= ${since}
-        GROUP BY DATE_FORMAT(issued_at, '%Y-%m')
-        ORDER BY month ASC
-      `,
-    );
+    const invoices = await this.prisma.invoice.findMany({
+      where: { status: 'paid', issuedAt: { gte: since } },
+      select: { issuedAt: true, amount: true },
+    });
+
+    // Replaces `GROUP BY DATE_FORMAT(issued_at, '%Y-%m')`.
+    const monthlyTotals = new Map<string, number>();
+    for (const invoice of invoices) {
+      const issued = new Date(invoice.issuedAt);
+      const month = `${String(issued.getFullYear())}-${String(issued.getMonth() + 1).padStart(2, '0')}`;
+      monthlyTotals.set(month, (monthlyTotals.get(month) ?? 0) + invoice.amount);
+    }
+    const rows: RevenueRow[] = [...monthlyTotals]
+      .map(([month, total]) => ({ month, total }))
+      .sort((a, b) => a.month.localeCompare(b.month));
 
     const buckets = new Map<string, number>();
     for (let offset = REVENUE_MONTHS - 1; offset >= 0; offset -= 1) {

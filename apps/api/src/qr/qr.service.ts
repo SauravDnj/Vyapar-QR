@@ -1,10 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
 import PDFDocument from 'pdfkit';
 import * as QRCode from 'qrcode';
 
 import { toDateKey } from '../analytics/analytics.service';
+import { Prisma } from '../jsondb';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 
@@ -246,17 +246,21 @@ export class QrService {
     }
 
     const since = new Date(Date.now() - SCAN_TREND_DAYS * 24 * 60 * 60 * 1000);
-    const rows = await this.prisma.$queryRaw<{ day: Date; total: bigint }[]>(
-      Prisma.sql`
-        SELECT DATE(created_at) AS day, COUNT(*) AS total
-        FROM analytics_events
-        WHERE client_id = ${clientId}
-          AND event_type = 'qr_scan'
-          AND created_at >= ${since}
-          AND JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.qrId')) = ${id}
-        GROUP BY DATE(created_at)
-      `,
-    );
+    const scans = await this.prisma.analyticsEvent.findMany({
+      where: { clientId, eventType: 'qr_scan', createdAt: { gte: since } },
+      select: { createdAt: true, metaJson: true },
+    });
+
+    // `metaJson.qrId` was matched with JSON_EXTRACT in SQL; the JSON engine
+    // has no expression filters, so narrow on columns then match in memory.
+    const totals = new Map<string, number>();
+    for (const scan of scans) {
+      const meta = scan.metaJson as Record<string, unknown> | null;
+      if (meta?.qrId !== id) continue;
+      const key = toDateKey(scan.createdAt);
+      totals.set(key, (totals.get(key) ?? 0) + 1);
+    }
+    const rows = [...totals].map(([day, total]) => ({ day, total }));
 
     const buckets = new Map<string, number>();
     for (let offset = SCAN_TREND_DAYS - 1; offset >= 0; offset -= 1) {
@@ -265,7 +269,7 @@ export class QrService {
     for (const row of rows) {
       const key = toDateKey(row.day);
       if (buckets.has(key)) {
-        buckets.set(key, Number(row.total));
+        buckets.set(key, row.total);
       }
     }
     return [...buckets.entries()].map(([date, count]) => ({ date, count }));

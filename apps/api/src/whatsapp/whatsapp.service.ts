@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappAiService } from './whatsapp-ai.service';
 import { WHATSAPP_CONFIG, type WhatsappConfig } from './whatsapp-config.provider';
 
-import type { LeadStatus, WhatsappMessage, WhatsappSendMode, WhatsappSettings } from '@prisma/client';
+import type { LeadStatus, WhatsappMessage, WhatsappSendMode, WhatsappSettings } from '../jsondb';
 
 const GRAPH_API_VERSION = 'v20.0';
 const CONVERSATION_SCAN_LIMIT = 500;

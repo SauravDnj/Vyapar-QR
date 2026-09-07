@@ -3,7 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditLogService } from '../../audit-log/audit-log.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
-import type { Agency, AgencyStatus } from '@prisma/client';
+import type { Agency, AgencyStatus } from '../../jsondb';
 
 const TRANSITIONS: Record<string, AgencyStatus> = {
   approve: 'active',

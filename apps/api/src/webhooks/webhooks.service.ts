@@ -4,8 +4,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import type { OutboundWebhook } from '../jsondb';
 import type { WebhookEventType } from './dto/create-webhook.dto';
-import type { OutboundWebhook } from '@prisma/client';
 
 const SECRET_BYTES = 24;
 

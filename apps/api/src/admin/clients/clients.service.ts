@@ -7,7 +7,7 @@ import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 import type { ListClientsQueryDto } from './dto/list-clients.dto';
-import type { Client, ClientStatus, Prisma } from '@prisma/client';
+import type { Client, ClientStatus, Prisma } from '../../jsondb';
 
 export interface PaginatedClients {
   data: Client[];

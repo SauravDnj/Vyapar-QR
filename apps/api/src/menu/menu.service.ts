@@ -185,7 +185,7 @@ export class MenuService {
       if (!item) {
         throw new BadRequestException('One or more items in your order are no longer available.');
       }
-      totalAmount += Number(item.priceRupees) * requested.quantity;
+      totalAmount += item.priceRupees * requested.quantity;
       itemsJson.push({ menuItemId: item.id, name: item.name, unitPrice: item.priceRupees.toString(), quantity: requested.quantity });
     }
 

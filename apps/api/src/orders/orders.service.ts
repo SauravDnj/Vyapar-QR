@@ -2,9 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import type { Order, Prisma } from '../jsondb';
 import type { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import type { OrderStatusValue } from './dto/update-order-status.dto';
-import type { Order, Prisma } from '@prisma/client';
 
 export interface PaginatedOrders {
   data: Order[];

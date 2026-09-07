@@ -11,10 +11,10 @@ import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { DEFAULT_COLUMN_MAPPING, GoogleSheetsService, type ColumnMapping, type SheetReviewRow } from './google-sheets.service';
 import { PlacesApiService } from './places-api.service';
 
+import type { GoogleReviewConfig } from '../jsondb';
 import type { DraftCustomerReviewDto } from './dto/draft-customer-review.dto';
 import type { SaveReviewConfigDto } from './dto/save-review-config.dto';
 import type { SubmitFunnelDto } from './dto/submit-funnel.dto';
-import type { GoogleReviewConfig } from '@prisma/client';
 
 export interface ReviewConfigResult {
   config: GoogleReviewConfig | null;

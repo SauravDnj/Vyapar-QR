@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -14,6 +13,15 @@ export interface NotificationItem {
   message: string;
   createdAt: string;
   link: string;
+}
+
+/** `metaJson` values are unconstrained JSON; only primitives are meaningful
+ * here, and anything else would stringify to '[object Object]'. */
+function asText(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return null;
 }
 
 interface PaymentClaimRow {
@@ -56,21 +64,31 @@ export class NotificationsService {
         orderBy: { createdAt: 'desc' },
         take: PER_SOURCE_LIMIT,
       }),
-      this.prisma.$queryRaw<PaymentClaimRow[]>(
-        Prisma.sql`
-          SELECT id,
-                 JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.amount')) AS amount,
-                 JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.method')) AS method,
-                 created_at
-          FROM analytics_events
-          WHERE client_id = ${clientId}
-            AND event_type = 'button_click'
-            AND JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.label')) = 'payment_claimed'
-            AND created_at >= ${since}
-          ORDER BY created_at DESC
-          LIMIT ${PER_SOURCE_LIMIT}
-        `,
-      ),
+      // Payment claims live in `metaJson`, which SQL reached with
+      // JSON_EXTRACT. Narrow on the indexed columns, then unpack in memory
+      // and apply the per-source limit afterwards.
+      this.prisma.analyticsEvent
+        .findMany({
+          where: { clientId, eventType: 'button_click', createdAt: { gte: since } },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, metaJson: true, createdAt: true },
+        })
+        .then((events) =>
+          events
+            .flatMap((event) => {
+              const meta = event.metaJson as Record<string, unknown> | null;
+              if (meta?.label !== 'payment_claimed') return [];
+              return [
+                {
+                  id: event.id,
+                  amount: asText(meta.amount),
+                  method: asText(meta.method),
+                  created_at: event.createdAt,
+                } satisfies PaymentClaimRow,
+              ];
+            })
+            .slice(0, PER_SOURCE_LIMIT),
+        ),
     ]);
 
     const items: NotificationItem[] = [

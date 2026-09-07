@@ -1,8 +1,8 @@
 import { resolveTxt } from 'node:dns/promises';
 
 import { BadRequestException, ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 
+import { Prisma } from '../jsondb';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { VERCEL_DOMAINS_CONFIG, type VercelDomainsConfig } from './vercel-domains.provider';
