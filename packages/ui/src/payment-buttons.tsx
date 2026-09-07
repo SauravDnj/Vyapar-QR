@@ -216,7 +216,7 @@ function AmountPayCard({
         className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-6 py-3 font-medium transition-opacity duration-200 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
         style={ACCENT_BUTTON}
       >
-        Pay {amount ? `₹${amount}` : ''} with {label}
+        {amount ? `Pay ₹${amount} with ${label}` : `Pay with ${label}`}
       </button>
 
       {noAppFound ? (
