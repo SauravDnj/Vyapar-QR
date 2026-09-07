@@ -41,18 +41,41 @@ export class CronController {
     private readonly reviews: ReviewsService,
   ) {}
 
-  // Vercel Cron invokes its targets with GET; POST is kept so the same sweep
+  // Vercel Cron invokes its targets with GET; POST is offered too so a sweep
   // can be triggered by hand or by an external scheduler.
+  //
+  // These are two separate handlers on purpose. Stacking `@Get()` and
+  // `@Post()` on a single method does NOT register both routes — Nest stores
+  // one method per handler, so the outer decorator silently wins and the
+  // other verb 404s.
   @Get(':job')
-  @Post(':job')
   @Public()
   // Cron traffic is a handful of requests a day; the default per-route limit
   // would be shared with real users behind the same proxy IP.
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  async run(
+  runViaGet(
     @Param('job') job: string,
     @Headers('authorization') authorization?: string,
     @Query('secret') secretQuery?: string,
+  ): Promise<{ job: string; result: unknown }> {
+    return this.run(job, authorization, secretQuery);
+  }
+
+  @Post(':job')
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  runViaPost(
+    @Param('job') job: string,
+    @Headers('authorization') authorization?: string,
+    @Query('secret') secretQuery?: string,
+  ): Promise<{ job: string; result: unknown }> {
+    return this.run(job, authorization, secretQuery);
+  }
+
+  private async run(
+    job: string,
+    authorization?: string,
+    secretQuery?: string,
   ): Promise<{ job: string; result: unknown }> {
     this.authorize(authorization, secretQuery);
 
