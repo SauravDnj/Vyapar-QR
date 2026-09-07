@@ -1,29 +1,35 @@
-'use client';
-
-import { motion } from 'framer-motion';
-
-/** Fades/slides a theme section in as it scrolls into view. `viewport.once`
- * so re-scrolling past a section doesn't re-trigger it, and a small
- * `amount` so short sections on tall phone screens still animate instead
- * of already being "in view" at 0 scroll. */
+/**
+ * Fades a theme section in as it scrolls into view.
+ *
+ * **Content is visible by default and animation is pure enhancement.** The
+ * previous implementation used framer-motion's `whileInView`, which renders
+ * the section at `opacity: 0` and relies on JavaScript to reveal it. In
+ * production that observer never fired for sections below the fold, so the
+ * review funnel, testimonials, social buttons and contact form were invisible
+ * on every customer page — the product's core features, permanently hidden.
+ *
+ * This version cannot fail that way. It is a plain server component with no
+ * JavaScript at all: the animation is a CSS scroll-driven animation
+ * (`animation-timeline: view()`, see `qr-reveal` in each app's globals.css).
+ * Browsers without support simply show the content, and the animation is
+ * skipped entirely under `prefers-reduced-motion`.
+ */
 export function Reveal({
   children,
   delay = 0,
   className,
 }: {
   children: React.ReactNode;
+  /** Seconds of stagger, applied as an animation delay. */
   delay?: number;
   className?: string;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.45, delay, ease: 'easeOut' }}
-      className={className}
+    <div
+      className={className ? `qr-reveal ${className}` : 'qr-reveal'}
+      style={delay ? { animationDelay: `${String(delay)}s` } : undefined}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
