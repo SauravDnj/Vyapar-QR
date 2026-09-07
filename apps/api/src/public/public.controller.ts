@@ -1,4 +1,17 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, Post, Query, Redirect, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  Redirect,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 
 import { CaptureEventDto } from '../analytics/dto/capture-event.dto';
@@ -9,11 +22,12 @@ import { PlaceOrderDto } from '../menu/dto/place-order.dto';
 import { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto';
 import { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
+import { VISITOR_COOKIE, VISITOR_COOKIE_MAX_AGE } from '../visitors/visitors.service';
 
 import { ClaimPaymentDto } from './dto/claim-payment.dto';
 import { PublicService } from './public.service';
 
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Controller('public')
 @Public()
@@ -35,17 +49,56 @@ export class PublicController {
     return this.publicService.getBrandingBySlug(slug);
   }
 
+  /**
+   * Records a scan and identifies the device behind it.
+   *
+   * A scan carries no personal data, so what's captured is what a request
+   * genuinely provides: device class, referrer, and the edge's city-level geo
+   * headers. The visitor cookie is what makes repeat scans collapse into one
+   * CRM row instead of a new anonymous entry every time.
+   */
   @Post('landing/:slug/scan')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async recordScan(@Param('slug') slug: string, @Query('qr') qrId?: string) {
-    await this.publicService.recordScan(slug, qrId);
+  async recordScan(
+    @Param('slug') slug: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Query('qr') qrId?: string,
+  ) {
+    const headers = request.headers as Record<string, string | undefined>;
+    const existingKey = readVisitorCookie(request);
+
+    const visitorKey = await this.publicService.recordScan(slug, qrId, {
+      existingVisitorKey: existingKey,
+      userAgent: headers['user-agent'],
+      referrer: headers.referer ?? headers.referrer,
+      // Vercel's edge adds these; absent locally, which simply means no
+      // location rather than a wrong one.
+      city: decodeHeader(headers['x-vercel-ip-city']),
+      region: decodeHeader(headers['x-vercel-ip-country-region']),
+      country: decodeHeader(headers['x-vercel-ip-country']),
+    });
+
+    if (visitorKey && visitorKey !== existingKey) {
+      response.cookie(VISITOR_COOKIE, visitorKey, {
+        maxAge: VISITOR_COOKIE_MAX_AGE * 1000,
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+      });
+    }
   }
 
   @Post('landing/:slug/leads')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  async createLead(@Param('slug') slug: string, @Body() dto: CreateLeadDto) {
-    await this.publicService.createLead(slug, dto);
+  async createLead(
+    @Param('slug') slug: string,
+    @Body() dto: CreateLeadDto,
+    @Req() request: Request,
+  ) {
+    await this.publicService.createLead(slug, dto, readVisitorCookie(request));
   }
 
   @Post('landing/:slug/review-funnel')
@@ -136,5 +189,23 @@ export class PublicController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   placeOrder(@Param('slug') slug: string, @Body() dto: PlaceOrderDto) {
     return this.publicService.placeOrder(slug, dto);
+  }
+}
+
+/** Reads the anonymous visitor id, if this device has been here before. */
+function readVisitorCookie(request: Request): string | undefined {
+  const cookies: unknown = (request as { cookies?: unknown }).cookies;
+  if (!cookies || typeof cookies !== 'object') return undefined;
+  const value = (cookies as Record<string, unknown>)[VISITOR_COOKIE];
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** Vercel percent-encodes geo header values that contain non-ASCII characters. */
+function decodeHeader(value?: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }

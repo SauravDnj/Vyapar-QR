@@ -15,17 +15,35 @@ const APP_LABEL: Record<PaymentMethodType, string> = {
   other: 'UPI',
 };
 
-/**
- * Bare app schemes — used only to open the app so the visitor can scan the
- * on-screen QR themselves (no UPI ID is available in that branch, so there's
- * nothing to deep-link with). The path-specific `tez://upi/pay` forms expect
- * real UPI query params and are for the one-tap case, which uses a generic
- * `upi://pay?...` link so any installed UPI app can handle it.
- */
+/** Bare app schemes, for opening an app so the visitor can scan an on-screen QR. */
 const APP_SCHEME: Partial<Record<PaymentMethodType, string>> = {
   gpay: 'tez://',
   phonepe: 'phonepe://',
   paytm: 'paytmmp://',
+};
+
+/**
+ * Per-app UPI deep links.
+ *
+ * A generic `upi://pay?…` makes Android show a "choose an app" sheet, which is
+ * wrong when the customer just tapped a button that says *Google Pay* — they
+ * asked for one app and got a chooser. Each app registers its own scheme
+ * carrying the same UPI parameters, so tapping the PhonePe button opens
+ * PhonePe with the amount already filled in.
+ */
+const UPI_SCHEME: Record<PaymentMethodType, string> = {
+  gpay: 'tez://upi/pay',
+  phonepe: 'phonepe://pay',
+  paytm: 'paytmmp://pay',
+  // No specific app requested, so the chooser is the correct behaviour here.
+  other: 'upi://pay',
+};
+
+/** Android package ids, used to build an `intent://` URL. */
+const ANDROID_PACKAGE: Partial<Record<PaymentMethodType, string>> = {
+  gpay: 'com.google.android.apps.nbu.paisa.user',
+  phonepe: 'com.phonepe.app',
+  paytm: 'net.one97.paytm',
 };
 
 /**
@@ -49,10 +67,44 @@ const CARD = {
 /** `--t-muted` is contrast-verified against every catalog surface. */
 const MUTED = { color: 'var(--t-muted, #4b5563)' };
 
-function upiLink(upiId: string, businessName: string, amount?: string): string {
-  const base = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(businessName)}&cu=INR`;
+/** The UPI query string every scheme below shares. */
+function upiParams(upiId: string, businessName: string, amount?: string): string {
+  const params = new URLSearchParams({
+    pa: upiId,
+    pn: businessName,
+    cu: 'INR',
+  });
   const parsed = amount ? Number(amount) : NaN;
-  return Number.isFinite(parsed) && parsed > 0 ? `${base}&am=${parsed.toFixed(2)}` : base;
+  if (Number.isFinite(parsed) && parsed > 0) {
+    params.set('am', parsed.toFixed(2));
+  }
+  return params.toString();
+}
+
+/**
+ * The link that opens the app the customer actually asked for.
+ *
+ * On Android an `intent://` URL naming the package is the most reliable form:
+ * if the app isn't installed the OS falls back to `S.browser_fallback_url`
+ * instead of dumping the visitor on an error page, which a bare custom scheme
+ * does. Elsewhere (iOS) the app's own scheme is used.
+ */
+function upiLink(
+  method: PaymentMethodType,
+  upiId: string,
+  businessName: string,
+  amount: string | undefined,
+  isAndroid: boolean,
+): string {
+  const query = upiParams(upiId, businessName, amount);
+  const androidPackage = ANDROID_PACKAGE[method];
+
+  if (isAndroid && androidPackage) {
+    const fallback = encodeURIComponent(`upi://pay?${query}`);
+    return `intent://pay?${query}#Intent;scheme=upi;package=${androidPackage};S.browser_fallback_url=${fallback};end`;
+  }
+
+  return `${UPI_SCHEME[method]}?${query}`;
 }
 
 function trackClick(slug: string | undefined, label: string) {
@@ -133,7 +185,8 @@ function AmountPayCard({
 
     setHasOpened(true);
     setNoAppFound(false);
-    window.location.href = upiLink(upiId, businessName, amount);
+    const isAndroid = /android/i.test(navigator.userAgent);
+    window.location.href = upiLink(method, upiId, businessName, amount, isAndroid);
 
     // On a touch device an app normally takes over and hides this page. If it
     // is still visible shortly after, nothing handled the link — fall back to

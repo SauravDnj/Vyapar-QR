@@ -1,7 +1,12 @@
 import { ApiError, apiFetch } from './api-client';
 
 export type LeadStatus = 'new' | 'contacted' | 'converted' | 'lost';
-export type LeadSource = 'contact_form' | 'whatsapp_click' | 'qr_scan';
+export type LeadSource =
+  | 'contact_form'
+  | 'whatsapp_click'
+  | 'qr_scan'
+  | 'whatsapp_message'
+  | 'payment_claim';
 
 export interface Lead {
   id: string;

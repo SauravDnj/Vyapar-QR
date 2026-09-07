@@ -33,6 +33,7 @@ import { StorageModule } from './storage/storage.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
 import { ThemesModule } from './themes/themes.module';
 import { TranslationsModule } from './translations/translations.module';
+import { VisitorsModule } from './visitors/visitors.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 
@@ -74,6 +75,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     PublicModule,
     AgencyModule,
     JobsModule,
+    VisitorsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -20,7 +20,7 @@ describe('JsonDbClient', () => {
 
   describe('schema parsing', () => {
     it('parses every model and enum from the real schema', () => {
-      expect(db.schema.models.size).toBe(33);
+      expect(db.schema.models.size).toBe(34);
       expect(db.schema.enums.get('UserRole')).toEqual([
         'super_admin',
         'client_admin',

@@ -25,6 +25,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Grow',
     items: [
       { label: 'Leads (CRM)', href: '/dashboard/leads' },
+      { label: 'Scan Activity', href: '/dashboard/visitors' },
       { label: 'Orders', href: '/dashboard/orders' },
       { label: 'WhatsApp', href: '/dashboard/whatsapp' },
       { label: 'Analytics', href: '/dashboard/analytics' },

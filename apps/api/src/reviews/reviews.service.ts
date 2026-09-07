@@ -8,6 +8,7 @@ import { SmsService } from '../sms/sms.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
+import { buildGoogleReviewUrl } from './google-review-link';
 import { DEFAULT_COLUMN_MAPPING, GoogleSheetsService, type ColumnMapping, type SheetReviewRow } from './google-sheets.service';
 import { PlacesApiService } from './places-api.service';
 
@@ -320,7 +321,16 @@ export class ReviewsService {
       await this.logFeedbackToSheet(client.googleReviewConfig, dto.rating, feedbackText);
     }
 
-    return { routedToGoogle, reviewLink: client.googleReviewConfig?.reviewLink ?? null };
+    return {
+      routedToGoogle,
+      // Derived rather than read straight off the config: a client who set a
+      // Place ID but never pasted a review URL previously got `null` here, so
+      // a happy customer was routed to Google and then sent nowhere.
+      reviewLink: buildGoogleReviewUrl({
+        reviewLink: client.googleReviewConfig?.reviewLink,
+        googlePlaceId: client.googleReviewConfig?.googlePlaceId,
+      }),
+    };
   }
 
   /** Appends private feedback as a new Sheet row so the owner can manage it

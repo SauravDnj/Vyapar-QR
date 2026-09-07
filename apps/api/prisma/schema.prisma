@@ -70,6 +70,8 @@ enum LeadSource {
   contact_form
   whatsapp_click
   qr_scan
+  whatsapp_message
+  payment_claim
 }
 
 enum LeadStatus {
@@ -189,6 +191,7 @@ model Client {
   webhooks              OutboundWebhook[]
   whatsappMessages      WhatsappMessage[]
   whatsappSettings      WhatsappSettings?
+  visitors              Visitor[]
 
   @@index([agencyId])
   @@map("clients")
@@ -465,7 +468,8 @@ model Lead {
   followUpSentAt DateTime?  @map("follow_up_sent_at")
   createdAt      DateTime   @default(now()) @map("created_at")
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client   Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  visitors Visitor[]
 
   @@index([clientId])
   @@map("leads")
@@ -853,4 +857,54 @@ model WhatsappSettings {
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("whatsapp_settings")
+}
+
+/**
+ * A person who scanned the QR, as far as it is possible to know them.
+ *
+ * A scan hands over no personal data — no name, no phone, no email. The
+ * browser simply doesn't provide it, and anything claiming otherwise is
+ * guessing. What a scan *does* give is: when, which code, what kind of device,
+ * where they came from, and roughly where they are (city-level, from the
+ * request IP). A cookie ties repeat scans to the same visitor.
+ *
+ * The value is what happens next: if the visitor later identifies themselves
+ * — submits the contact form, claims a payment, messages on WhatsApp — that
+ * `Lead` is attached here, turning a row of anonymous scans into a known
+ * customer with their whole visit history behind them.
+ */
+model Visitor {
+  id          String   @id @default(uuid())
+  clientId    String   @map("client_id")
+  /**
+   * Anonymous id kept in a first-party cookie so repeat scans from the same
+   * device collapse into one visitor instead of N rows.
+   */
+  visitorKey  String   @map("visitor_key")
+  scanCount   Int      @default(1) @map("scan_count")
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @updatedAt @map("last_seen_at")
+
+  /** Parsed from the user agent — kept coarse, this is not fingerprinting. */
+  device      String?
+  os          String?
+  browser     String?
+  /** Where the scan came from, when the browser reports it. */
+  referrer    String?  @db.Text
+  /** City-level location from the request IP, via the edge's geo headers. */
+  city        String?
+  region      String?
+  country     String?
+  /** The specific QR code most recently scanned (poster, table tent, card). */
+  lastQrId    String?  @map("last_qr_id")
+
+  /** Set the moment this visitor identifies themselves. */
+  leadId      String?  @map("lead_id")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lead   Lead?  @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@unique([clientId, visitorKey])
+  @@index([clientId])
+  @@map("visitors")
 }

@@ -9,9 +9,11 @@ import { LoyaltyService } from '../loyalty/loyalty.service';
 import { MenuService } from '../menu/menu.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QrService } from '../qr/qr.service';
+import { buildGoogleReviewUrl } from '../reviews/google-review-link';
 import { ReviewsService } from '../reviews/reviews.service';
 import { TestimonialsService } from '../testimonials/testimonials.service';
 import { TranslationsService } from '../translations/translations.service';
+import { VisitorsService, type ScanSignals } from '../visitors/visitors.service';
 import { WalletService } from '../wallet/wallet.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
@@ -77,6 +79,7 @@ export class PublicService {
     private readonly menuService: MenuService,
     private readonly walletService: WalletService,
     private readonly whatsappService: WhatsappService,
+    private readonly visitorsService: VisitorsService,
   ) {}
 
   resolveCustomDomain(hostname: string): Promise<{ slug: string }> {
@@ -115,16 +118,38 @@ export class PublicService {
     return { businessName: client.businessName, logoUrl, whiteLabelEnabled: true };
   }
 
-  recordScan(slug: string, qrId?: string): Promise<void> {
-    return this.qrService.recordScan(slug, qrId);
+  /**
+   * Records a scan for analytics *and* as a CRM visitor.
+   *
+   * Returns the visitor key so the caller can set the cookie. Returns
+   * `undefined` for an unknown slug — there is nobody to attribute it to.
+   */
+  async recordScan(
+    slug: string,
+    qrId: string | undefined,
+    signals: ScanSignals & { existingVisitorKey?: string },
+  ): Promise<string | undefined> {
+    const client = await this.prisma.client.findUnique({ where: { slug }, select: { id: true } });
+    if (!client) return undefined;
+
+    await this.qrService.recordScan(slug, qrId);
+    return this.visitorsService.recordScan(client.id, signals.existingVisitorKey, {
+      userAgent: signals.userAgent,
+      referrer: signals.referrer,
+      city: signals.city,
+      region: signals.region,
+      country: signals.country,
+      qrId,
+    });
   }
 
   recordEvent(slug: string, dto: CaptureEventDto): Promise<void> {
     return this.analyticsService.recordEvent(slug, dto);
   }
 
-  createLead(slug: string, dto: CreateLeadDto): Promise<void> {
-    return this.leadsService.createFromContactForm(slug, dto);
+  /** A visitor identifying themselves — links the new lead to their scans. */
+  createLead(slug: string, dto: CreateLeadDto, visitorKey?: string): Promise<void> {
+    return this.leadsService.createFromContactForm(slug, dto, visitorKey);
   }
 
   submitReviewFunnel(slug: string, dto: SubmitFunnelDto) {
@@ -308,7 +333,10 @@ export class PublicService {
         .map((s) => ({ id: s.id, platform: s.platform, value: s.value, displayOrder: s.displayOrder })),
       reviewConfig: client.googleReviewConfig
         ? {
-            reviewLink: client.googleReviewConfig.reviewLink,
+            reviewLink: buildGoogleReviewUrl({
+              reviewLink: client.googleReviewConfig.reviewLink,
+              googlePlaceId: client.googleReviewConfig.googlePlaceId,
+            }),
             avgRatingCached: client.googleReviewConfig.avgRatingCached?.toString() ?? null,
           }
         : null,

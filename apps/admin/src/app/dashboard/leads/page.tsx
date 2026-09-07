@@ -33,13 +33,17 @@ const STATUS_TONE: Record<LeadStatus, BadgeTone> = {
 };
 const SOURCE_LABEL: Record<LeadSource, string> = {
   contact_form: 'Contact form',
-  whatsapp_click: 'WhatsApp',
+  whatsapp_click: 'WhatsApp click',
   qr_scan: 'QR scan',
+  whatsapp_message: 'WhatsApp message',
+  payment_claim: 'Payment',
 };
 const SOURCE_TONE: Record<LeadSource, BadgeTone> = {
   contact_form: 'info',
   whatsapp_click: 'success',
   qr_scan: 'neutral',
+  whatsapp_message: 'success',
+  payment_claim: 'warning',
 };
 
 function maskPhone(phone: string): string {

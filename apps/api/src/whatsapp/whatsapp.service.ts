@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { buildGoogleReviewUrl } from '../reviews/google-review-link';
 
 import { WhatsappAiService } from './whatsapp-ai.service';
 import { WHATSAPP_CONFIG, type WhatsappConfig } from './whatsapp-config.provider';
@@ -118,11 +119,17 @@ export class WhatsappService {
     if (!lead) {
       throw new NotFoundException('Lead not found');
     }
-    if (!client?.googleReviewConfig?.reviewLink) {
-      throw new BadRequestException('Set up your Google review link first (Reviews settings).');
+    const reviewUrl = buildGoogleReviewUrl({
+      reviewLink: client?.googleReviewConfig?.reviewLink,
+      googlePlaceId: client?.googleReviewConfig?.googlePlaceId,
+    });
+    if (!client || !reviewUrl) {
+      throw new BadRequestException(
+        'Add your Google Place ID or review link first (Reviews settings).',
+      );
     }
 
-    const message = `Hi! This is ${client.businessName}. Thanks for stopping by — would you mind leaving us a quick review? ${client.googleReviewConfig.reviewLink}`;
+    const message = `Hi! This is ${client.businessName}. Thanks for stopping by — would you mind leaving us a quick review? ${reviewUrl}`;
     return this.sendAndRecord(clientId, lead.phone, message);
   }
 
@@ -209,6 +216,36 @@ export class WhatsappService {
     });
   }
 
+
+  /**
+   * Makes sure a phone that messages the business exists in the CRM.
+   *
+   * Deliberately does not overwrite an existing lead: a name captured from a
+   * contact form is better information than one guessed from a chat, and the
+   * owner may have edited it. WhatsApp gives no display name through this
+   * webhook, so a new lead is created under its phone number and the first
+   * message is kept as the note, which is what makes the row worth opening.
+   */
+  private async ensureLeadForPhone(clientId: string, phone: string, firstMessage: string): Promise<void> {
+    try {
+      const existing = await this.prisma.lead.findFirst({ where: { clientId, phone } });
+      if (existing) return;
+
+      await this.prisma.lead.create({
+        data: {
+          clientId,
+          name: `WhatsApp ${phone.slice(-4)}`,
+          phone,
+          source: 'whatsapp_message',
+          notes: firstMessage.slice(0, 500),
+        },
+      });
+    } catch (error) {
+      // A CRM write must never stop the customer's message being handled.
+      this.logger.warn(`Couldn't create a lead for ${phone}: ${String(error)}`);
+    }
+  }
+
   /** Webhook entry point for every inbound message on the shared number.
    * Since one number serves every client, an inbound message is routed to
    * whichever client this phone most recently exchanged a message with —
@@ -229,6 +266,12 @@ export class WhatsappService {
       this.logger.warn(`Inbound WhatsApp message from unrecognized number ${normalizedPhone} — no client to route to.`);
       return;
     }
+
+    // Someone messaging the business *is* a lead — previously an inbound
+    // message only ever became a `WhatsappMessage` row, so a customer who
+    // reached out on WhatsApp never appeared in the CRM at all and there was
+    // nothing to follow up, tag or broadcast to.
+    await this.ensureLeadForPhone(clientId, normalizedPhone, body);
 
     const settings = await this.getSettings(clientId);
     if (!settings.isEnabled || !settings.aiChatbotEnabled) {

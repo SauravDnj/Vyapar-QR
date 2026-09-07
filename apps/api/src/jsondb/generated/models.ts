@@ -67,11 +67,13 @@ export const SocialPlatform = {
   facebook: 'facebook',
 } as const;
 
-export type LeadSource = 'contact_form' | 'whatsapp_click' | 'qr_scan';
+export type LeadSource = 'contact_form' | 'whatsapp_click' | 'qr_scan' | 'whatsapp_message' | 'payment_claim';
 export const LeadSource = {
   contact_form: 'contact_form',
   whatsapp_click: 'whatsapp_click',
   qr_scan: 'qr_scan',
+  whatsapp_message: 'whatsapp_message',
+  payment_claim: 'payment_claim',
 } as const;
 
 export type LeadStatus = 'new' | 'contacted' | 'converted' | 'lost';
@@ -488,6 +490,24 @@ export interface WhatsappSettings {
   updatedAt: Date;
 }
 
+export interface Visitor {
+  id: string;
+  clientId: string;
+  visitorKey: string;
+  scanCount: number;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  device: string | null;
+  os: string | null;
+  browser: string | null;
+  referrer: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  lastQrId: string | null;
+  leadId: string | null;
+}
+
 export interface UserRelations {
   client: ToOneNullable<Client, ClientRelations>;
   auditLogs: ToMany<AuditLog, AuditLogRelations>;
@@ -525,6 +545,7 @@ export interface ClientRelations {
   webhooks: ToMany<OutboundWebhook, OutboundWebhookRelations>;
   whatsappMessages: ToMany<WhatsappMessage, WhatsappMessageRelations>;
   whatsappSettings: ToOneNullable<WhatsappSettings, WhatsappSettingsRelations>;
+  visitors: ToMany<Visitor, VisitorRelations>;
   _count: Record<string, number>;
 }
 
@@ -601,6 +622,7 @@ export interface ReviewFunnelResponseRelations {
 
 export interface LeadRelations {
   client: ToOne<Client, ClientRelations>;
+  visitors: ToMany<Visitor, VisitorRelations>;
   _count: Record<string, number>;
 }
 
@@ -689,6 +711,12 @@ export interface WhatsappMessageRelations {
 
 export interface WhatsappSettingsRelations {
   client: ToOne<Client, ClientRelations>;
+  _count: Record<string, number>;
+}
+
+export interface VisitorRelations {
+  client: ToOne<Client, ClientRelations>;
+  lead: ToOneNullable<Lead, LeadRelations>;
   _count: Record<string, number>;
 }
 
@@ -969,6 +997,14 @@ export namespace Prisma {
   export type WhatsappSettingsSelect = Record<string, unknown>;
   export type WhatsappSettingsInclude = Record<string, unknown>;
   export type WhatsappSettingsGetPayload<T = unknown> = WhatsappSettings & Partial<ResolvedRelations<WhatsappSettingsRelations>>;
+  export type VisitorWhereInput = Record<string, unknown>;
+  export type VisitorWhereUniqueInput = Record<string, unknown>;
+  export type VisitorCreateInput = Record<string, unknown>;
+  export type VisitorUpdateInput = Record<string, unknown>;
+  export type VisitorOrderByWithRelationInput = Record<string, unknown>;
+  export type VisitorSelect = Record<string, unknown>;
+  export type VisitorInclude = Record<string, unknown>;
+  export type VisitorGetPayload<T = unknown> = Visitor & Partial<ResolvedRelations<VisitorRelations>>;
 
   /**
    * Kept so existing `instanceof` / `err.code === 'P2002'` branches work.
@@ -1111,4 +1147,5 @@ export interface JsonDbDelegates {
   outboundWebhook: JsonDelegate<OutboundWebhook, OutboundWebhookRelations>;
   whatsappMessage: JsonDelegate<WhatsappMessage, WhatsappMessageRelations>;
   whatsappSettings: JsonDelegate<WhatsappSettings, WhatsappSettingsRelations>;
+  visitor: JsonDelegate<Visitor, VisitorRelations>;
 }

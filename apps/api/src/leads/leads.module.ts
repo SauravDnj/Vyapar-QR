@@ -3,6 +3,7 @@ import { Module, Optional, type OnModuleInit } from '@nestjs/common';
 
 import { EmailModule } from '../email/email.module';
 import { bullQueueImports, isRedisEnabled } from '../jobs/jobs.config';
+import { VisitorsModule } from '../visitors/visitors.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 
@@ -13,7 +14,7 @@ import { LeadsService } from './leads.service';
 import type { Queue } from 'bullmq';
 
 @Module({
-  imports: [...bullQueueImports(LEAD_FOLLOW_UP_QUEUE), WebhooksModule, EmailModule, WhatsappModule],
+  imports: [VisitorsModule, ...bullQueueImports(LEAD_FOLLOW_UP_QUEUE), WebhooksModule, EmailModule, WhatsappModule],
   controllers: [LeadsController],
   providers: [LeadsService, LeadFollowUpProcessor],
   exports: [LeadsService],

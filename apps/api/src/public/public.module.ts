@@ -11,6 +11,7 @@ import { QrModule } from '../qr/qr.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { TestimonialsModule } from '../testimonials/testimonials.module';
 import { TranslationsModule } from '../translations/translations.module';
+import { VisitorsModule } from '../visitors/visitors.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 
@@ -18,7 +19,7 @@ import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
 
 @Module({
-  imports: [
+  imports: [VisitorsModule, 
     QrModule,
     LeadsModule,
     ReviewsModule,

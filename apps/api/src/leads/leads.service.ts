@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { VisitorsService } from '../visitors/visitors.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappAiService } from '../whatsapp/whatsapp-ai.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
@@ -43,6 +44,7 @@ export class LeadsService {
     private readonly configService: ConfigService,
     private readonly whatsappService: WhatsappService,
     private readonly whatsappAiService: WhatsappAiService,
+      private readonly visitorsService: VisitorsService,
   ) {}
 
   async list(clientId: string, query: ListLeadsQueryDto): Promise<PaginatedLeads> {
@@ -113,7 +115,7 @@ export class LeadsService {
     return [CSV_COLUMNS.join(','), ...rows].join('\n');
   }
 
-  async createFromContactForm(slug: string, dto: CreateLeadDto): Promise<void> {
+  async createFromContactForm(slug: string, dto: CreateLeadDto, visitorKey?: string): Promise<void> {
     if (dto.website) {
       // Honeypot tripped — silent success, no row written.
       return;
@@ -139,6 +141,10 @@ export class LeadsService {
         notes,
       },
     });
+
+    // Ties this named contact back to their anonymous scan history, so the
+    // CRM can show how many times they scanned before getting in touch.
+    await this.visitorsService.attachLead(client.id, visitorKey, lead.id);
 
     await this.webhooksService.dispatch(client.id, 'lead.created', {
       id: lead.id,
