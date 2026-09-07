@@ -571,3 +571,29 @@ were not redesigned — that is a separate body of work. See P17-09.
 | P17-09 | Admin + super-admin UI redesign | ⚪ Not started | The customer-facing side was fixed first because that is what a business's customers actually see, and because the bugs there were functional rather than cosmetic. The dashboards work but have not been through the same design pass. |
 | P17-10 | Landing page desktop layout | ⚪ Not started | The page is a centred mobile column at every width. Fine on the phone it is designed for, unremarkable on a laptop. |
 | P17-11 | Theme preview in the picker | ⚪ Not started | With 121 themes, choosing by name alone is guesswork — the picker needs visual previews. |
+
+---
+
+## Phase 18 — Scan CRM, WhatsApp CRM, review routing, UPI app targeting
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P18-01 | Scans reach the CRM | ✅ Done | `recordScan` only incremented a counter and wrote an analytics row — a business saw "47 scans" and nothing about who they were. Scans now create a `Visitor`: when, which QR, device class, referrer, and city-level location from the edge geo headers, keyed by an anonymous first-party cookie so repeat scans from one phone collapse into one row. **Verified live:** 3 scans from one device → 1 visitor, location resolved to "Ahmedabad, GJ, IN". |
+| P18-02 | Anonymous scans become known customers | ✅ Done | `attachLead` links a visitor to the lead they become. **Verified live:** a visitor with 3 scans submitted the contact form and the CRM then showed "3 scans, Ahmedabad → Priya Sharma (+919812345678)", with a 50% scan-to-contact conversion figure. |
+| P18-03 | Inbound WhatsApp creates contacts | ✅ Done | Inbound messages were stored as `WhatsappMessage` rows only, so a customer who messaged the business never appeared in the CRM and could not be followed up, tagged or broadcast to. An inbound message now creates a lead under its phone number with the first message as the note. It never overwrites an existing lead — a name from a contact form beats one guessed from a chat. |
+| P18-04 | Scan Activity screen | ✅ Done | People, total scans, returning visitors, and how many went on to make contact. States on the page what a scan can and cannot tell you, so the figures aren't mistaken for personal data. |
+| P18-05 | Google review routing | ✅ Done | The link was whatever the client typed. A client who set a Place ID but pasted no URL got `null`, so a happy customer was routed "to Google" and sent nowhere. The URL is now derived — a pasted link if it is a real URL, otherwise `search.google.com/local/writereview?placeid=…` — across the funnel, the public payload and the WhatsApp review request. **Verified live:** setting only a Place ID now returns a working review URL. |
+| P18-06 | UPI opens the app that was tapped | ✅ Done | A generic `upi://pay?…` made Android show an app chooser, which is wrong after pressing a button that says *Google Pay*. Each app's own scheme is used (`tez://upi/pay`, `phonepe://pay`, `paytmmp://pay`), and on Android an `intent://` URL naming the package is preferred so a missing app falls back to the browser instead of an error page. |
+
+### A limit worth stating plainly
+
+**A review cannot be posted to Google on a customer's behalf.** Google exposes
+no write API for reviews and will not — a review has to come from a real
+signed-in account or the ratings are worthless. Taking the customer straight to
+Google's review box with the business pre-selected, which is what P18-05 now
+does reliably, is the most any tool can do.
+
+**A QR scan carries no personal data.** No name, phone or email; the browser
+does not provide it. The scan CRM records what a scan genuinely carries and is
+explicit about it. Identity arrives only when the visitor chooses to give it —
+and from that moment their whole scan history is attached to them.
