@@ -110,17 +110,37 @@ function AmountPayCard({
 
   function handlePay() {
     trackClick(slug, method);
+
+    // `upi://` is a mobile-only scheme. On a desktop browser the navigation is
+    // doomed: nothing handles it, the click appears to do nothing, and the
+    // visitor concludes the page is broken — which is exactly how "payments
+    // don't work" presents when a business tests on a laptop. Worse, the
+    // attempted navigation tears the page context down, so a timeout-based
+    // fallback never runs.
+    //
+    // So don't attempt it where it cannot succeed. A coarse pointer means a
+    // touch device, which is where a UPI app might actually be installed;
+    // everywhere else goes straight to what does work — the QR to scan with a
+    // phone and the UPI ID to copy.
+    const touchDevice =
+      typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+
+    if (!touchDevice) {
+      setNoAppFound(true);
+      setHasOpened(true);
+      return;
+    }
+
     setHasOpened(true);
     setNoAppFound(false);
     window.location.href = upiLink(upiId, businessName, amount);
 
-    // A `upi://` link does nothing at all on a desktop browser — the click
-    // silently fails and the visitor assumes the page is broken. If the tab is
-    // still visible shortly after, no UPI app took the link, so show something
-    // that actually works: the QR to scan and the UPI ID to copy.
+    // On a touch device an app normally takes over and hides this page. If it
+    // is still visible shortly after, nothing handled the link — fall back to
+    // the same QR and UPI ID.
     timer.current = setTimeout(() => {
       if (document.visibilityState === 'visible') setNoAppFound(true);
-    }, 1200);
+    }, 1500);
   }
 
   async function handleClaimPaid() {
@@ -202,8 +222,8 @@ function AmountPayCard({
       {noAppFound ? (
         <div className="flex flex-col items-center gap-3 border-t pt-3" style={{ borderColor: 'var(--t-border, #e5e7eb)' }}>
           <p className="text-center text-sm" style={MUTED}>
-            No UPI app opened — you&apos;re probably on a computer. Scan this with your
-            phone, or copy the UPI ID.
+            UPI apps only open on a phone. Scan this with your phone&apos;s UPI app,
+            or copy the UPI ID below.
           </p>
           {qrImageUrl ? (
             <img src={qrImageUrl} alt={`${label} payment QR code`} className="size-44 object-contain" />
