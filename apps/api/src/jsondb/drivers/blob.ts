@@ -7,7 +7,13 @@ import type { JsonDbDriver } from './types';
 interface Version {
   url: string;
   pathname: string;
-  uploadedAt: number;
+}
+
+interface LocalWrite {
+  pathname: string;
+  /** The `Date.now()` this version's filename was minted with. */
+  version: number;
+  rows: unknown[];
 }
 
 /**
@@ -17,23 +23,21 @@ interface Version {
  * per-instance and wiped between invocations — so a plain file on disk cannot
  * be the write store there. Blob persists, and is on the free tier.
  *
- * **Why each write creates a new file.** Blob serves content through a CDN
- * that will return a stale 200 for a pathname that was just overwritten, and
- * a cache-busting query string does not defeat it. Overwriting one stable
- * `user.json` therefore broke correctness in two ways in production: an update
- * immediately after a create failed with "No User found", and a second
- * instance reading a stale body failed to see an existing email and created a
- * duplicate account, silently dropping the first.
+ * Two independent consistency problems had to be solved here, both found only
+ * by running against the real service:
  *
- * So a collection is a *directory* of immutable versions:
+ * 1. **The CDN serves a stale 200 for an overwritten pathname**, and a
+ *    cache-busting query string does not defeat it. So a collection is not one
+ *    file that gets overwritten; it is a *directory of immutable versions*
+ *    (`jsondb/user/<ts>-<uuid>.json`). Every write publishes a URL no cache has
+ *    ever seen, so a fetch cannot return something stale.
  *
- *     jsondb/user/1788772000000-9f3c…json
- *     jsondb/user/1788772461230-2a71…json   <- newest wins
- *
- * Every write publishes a brand-new URL that no cache has ever seen, and every
- * read asks the Blob API (`list`, not the CDN) which version is newest. Reads
- * are therefore always fresh. Superseded versions are deleted after each
- * write, with a couple kept as a short history.
+ * 2. **`list()` is eventually consistent too** — immediately after a write it
+ *    can still report only the previous version. Picking "the newest version
+ *    `list()` knows about" therefore lost data: a `deleteMany` + `createMany`
+ *    pair inside one request came back empty, because the second operation's
+ *    read did not yet see the first one's write. So this instance's own write
+ *    wins unless `list()` shows something demonstrably newer.
  *
  * Concurrent writes from two instances remain last-write-wins — inherent to
  * file-backed storage, and documented in this package's README.
@@ -41,13 +45,22 @@ interface Version {
 export class VercelBlobDriver implements JsonDbDriver {
   readonly name = 'blob';
 
-  /** Rows this instance last wrote, used only if a fetch fails outright. */
-  private local = new Map<string, unknown[]>();
+  /** The version this instance last wrote, per collection. */
+  private local = new Map<string, LocalWrite>();
 
   private static readonly FETCH_RETRIES = 4;
 
   /** Superseded versions kept after a write, as a small safety margin. */
   private static readonly KEEP_VERSIONS = 2;
+
+  /**
+   * Last version number handed out by this instance. `Date.now()` alone is not
+   * enough: two writes in the same millisecond — a `deleteMany` immediately
+   * followed by a `createMany`, exactly what onboarding does — would get equal
+   * version numbers, leaving their order ambiguous and pruning unable to tell
+   * which is superseded.
+   */
+  private lastVersion = 0;
 
   constructor(
     private readonly prefix = 'jsondb',
@@ -64,17 +77,26 @@ export class VercelBlobDriver implements JsonDbDriver {
     return `${this.prefix}/${collection}.json`;
   }
 
+  /** Parses the `Date.now()` prefix out of a version's filename. */
+  private static versionOf(pathname: string): number {
+    const name = pathname.slice(pathname.lastIndexOf('/') + 1);
+    const dash = name.indexOf('-');
+    return dash > 0 ? (Number.parseInt(name.slice(0, dash), 10) || 0) : 0;
+  }
+
   /** All versions of a collection, newest first. */
   private async versions(collection: string): Promise<Version[]> {
     const { list } = loadBlobSdk();
     const { blobs } = await list({ prefix: this.dir(collection), token: this.token });
     return blobs
-      .map((b) => ({
-        url: b.url,
-        pathname: b.pathname,
-        uploadedAt: new Date(b.uploadedAt).getTime(),
-      }))
-      .sort((a, b) => b.uploadedAt - a.uploadedAt);
+      .map((b) => ({ url: b.url, pathname: b.pathname }))
+      .sort((a, b) => {
+        const delta =
+          VercelBlobDriver.versionOf(b.pathname) - VercelBlobDriver.versionOf(a.pathname);
+        // Fall back to the full pathname so two instances that happen to mint
+        // the same millisecond still order deterministically.
+        return delta !== 0 ? delta : b.pathname.localeCompare(a.pathname);
+      });
   }
 
   private async fetchJson(url: string): Promise<unknown[]> {
@@ -97,24 +119,30 @@ export class VercelBlobDriver implements JsonDbDriver {
 
   async read(collection: string): Promise<unknown[] | null> {
     const versions = await this.versions(collection);
+    const local = this.local.get(collection);
+
     // Explicit length check rather than destructuring: this project does not
     // enable `noUncheckedIndexedAccess`, so `const [x] =` would be typed as
     // present even when the array is empty.
+    const newestListed =
+      versions.length > 0 ? VercelBlobDriver.versionOf(versions[0].pathname) : 0;
+
+    // Our own write wins over a listing that hasn't caught up with it. See
+    // point 2 in the class comment — this is what stopped writes disappearing.
+    if (local && local.version >= newestListed) return local.rows;
+
     if (versions.length === 0) {
-      // No versioned data yet — fall back to the pre-versioning file, so a
+      // Nothing versioned yet — fall back to the pre-versioning file so a
       // store written by an earlier deploy keeps working. The next write
       // publishes a versioned file and this path stops being taken.
-      const legacy = await this.readLegacy(collection);
-      if (legacy) return legacy;
-      return this.local.get(collection) ?? null;
+      return this.readLegacy(collection);
     }
 
     try {
       // A URL no cache has seen before, so this cannot be stale.
       return await this.fetchJson(versions[0].url);
     } catch (error) {
-      const local = this.local.get(collection);
-      if (local) return local;
+      if (local) return local.rows;
       throw error;
     }
   }
@@ -131,9 +159,11 @@ export class VercelBlobDriver implements JsonDbDriver {
   async write(collection: string, rows: unknown[]): Promise<void> {
     const { put } = loadBlobSdk();
 
-    // Timestamp first so the names sort chronologically when browsing the
-    // store; the uuid is what actually guarantees a fresh, uncached URL.
-    const pathname = `${this.dir(collection)}${String(Date.now())}-${randomUUID()}.json`;
+    // Timestamp first so names sort chronologically and `versionOf` can order
+    // them; the uuid is what guarantees a fresh, uncached URL.
+    const version = Math.max(Date.now(), this.lastVersion + 1);
+    this.lastVersion = version;
+    const pathname = `${this.dir(collection)}${String(version)}-${randomUUID()}.json`;
     await put(pathname, JSON.stringify(rows, null, 2), {
       access: 'public',
       token: this.token,
@@ -141,18 +171,22 @@ export class VercelBlobDriver implements JsonDbDriver {
       addRandomSuffix: false,
     });
 
-    this.local.set(collection, rows);
-    await this.pruneVersions(collection, pathname);
+    this.local.set(collection, { pathname, version, rows });
+    await this.pruneVersions(collection, version);
   }
 
-  /** Deletes superseded versions, keeping the newest few. */
-  private async pruneVersions(collection: string, justWritten: string): Promise<void> {
+  /** Deletes versions older than the one just written, keeping the newest few. */
+  private async pruneVersions(collection: string, justWritten: number): Promise<void> {
     try {
       const { del } = loadBlobSdk();
       const all = await this.versions(collection);
+
+      // Strictly older only: a lagging `list()` must never lead to deleting
+      // the version that was just published.
       const stale = all
-        .filter((v) => v.pathname !== justWritten)
+        .filter((v) => VercelBlobDriver.versionOf(v.pathname) < justWritten)
         .slice(VercelBlobDriver.KEEP_VERSIONS - 1);
+
       if (stale.length) {
         await del(
           stale.map((v) => v.url),

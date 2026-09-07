@@ -210,6 +210,34 @@ describe('vercel blob driver', () => {
     await expect(makeDriver().read('user')).resolves.toEqual([{ id: 'legacy' }]);
   });
 
+  it('sees its own write even when list() has not caught up', async () => {
+    // Regression test for the lost payment methods. `list()` is eventually
+    // consistent, so a read straight after a write can still be told the
+    // previous version is the newest — or, as here, that nothing exists yet.
+    // The write must win anyway.
+    const driver = makeDriver();
+    await driver.write('paymentMethod', [{ id: 'first' }]);
+
+    list.mockResolvedValue({ blobs: [] });
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock;
+
+    await expect(driver.read('paymentMethod')).resolves.toEqual([{ id: 'first' }]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('survives deleteMany followed by createMany in one request', async () => {
+    // The exact sequence `onboarding.service.savePaymentMethods` runs, which
+    // silently produced zero rows in production.
+    const driver = makeDriver();
+
+    await driver.write('paymentMethod', []); // deleteMany
+    await expect(driver.read('paymentMethod')).resolves.toEqual([]);
+
+    await driver.write('paymentMethod', [{ id: 'gpay' }, { id: 'phonepe' }]); // createMany
+    await expect(driver.read('paymentMethod')).resolves.toHaveLength(2);
+  });
+
   it('falls back to its own copy when the CDN keeps failing', async () => {
     const driver = makeDriver();
     await driver.write('user', [{ id: 'ours' }]);
