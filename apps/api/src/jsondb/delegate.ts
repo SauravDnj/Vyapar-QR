@@ -5,7 +5,7 @@ import { applyDistinct, applyOrderBy, projectRow } from './query/shape';
 import { matchesWhere, uniqueKeyOf, type Row } from './query/where';
 import { reviveRow, serializeRow } from './serialize';
 
-import type { ModelMeta, SchemaMeta } from './schema/types';
+import type { FieldMeta, ModelMeta, SchemaMeta } from './schema/types';
 import type { JsonStore } from './store';
 
 export type Args = Record<string, unknown>;
@@ -350,13 +350,74 @@ export class ModelDelegate {
     }
   }
 
+  /**
+   * Splits `data` into plain fields and nested relation writes
+   * (`agency: { create: {...} }`).
+   *
+   * Relation keys silently disappearing would be data loss — an agency signup
+   * that creates the user but not the agency — so anything here that isn't a
+   * supported nested `create` raises instead.
+   */
+  private splitNestedWrites(data: Args): { scalars: Args; nested: [FieldMeta, Args[]][] } {
+    const scalars: Args = {};
+    const nested: [FieldMeta, Args[]][] = [];
+
+    for (const [key, value] of Object.entries(data)) {
+      const field = this.model.fieldsByName.get(key);
+      if (field?.kind !== 'object') {
+        scalars[key] = value;
+        continue;
+      }
+
+      const op = value as { create?: unknown } | null;
+      if (!op || typeof op !== 'object' || op.create === undefined) {
+        throw new Error(
+          `jsondb: unsupported nested write on "${this.model.name}.${key}" — ` +
+            'only `{ create: ... }` is implemented',
+        );
+      }
+      if (!field.backRelation) {
+        throw new Error(
+          `jsondb: nested create on "${this.model.name}.${key}" is not supported — ` +
+            'this side holds the foreign key, so create the related row first ' +
+            'and assign its id',
+        );
+      }
+      nested.push([field, (Array.isArray(op.create) ? op.create : [op.create]) as Args[]]);
+    }
+
+    return { scalars, nested };
+  }
+
   async create(args: Args): Promise<Row> {
-    const data = (args.data ?? {}) as Args;
+    const { scalars, nested } = this.splitNestedWrites((args.data ?? {}) as Args);
+
     const created = await this.store.mutate(this.collection, (rows) => {
-      const stored = serializeRow(this.buildCreateRow(data), this.model);
+      const stored = serializeRow(this.buildCreateRow(scalars), this.model);
       this.assertUnique(rows, stored);
       return { rows: [...rows, stored], result: stored };
     });
+
+    // Children carry the foreign key, so they're created after the parent and
+    // pointed back at it.
+    for (const [field, children] of nested) {
+      const backRelation = field.backRelation;
+      if (!backRelation) continue;
+      const targetModel = this.schema.models.get(backRelation.model);
+      const owner = targetModel?.fieldsByName.get(backRelation.field);
+      if (!targetModel || !owner?.relation) continue;
+
+      const rel = owner.relation;
+      const delegate = this.host.delegateFor(targetModel.name);
+      for (const child of children) {
+        const withKey: Args = { ...child };
+        rel.fields.forEach((fk, i) => {
+          withKey[fk] = created[rel.references[i]];
+        });
+        await delegate.create({ data: withKey });
+      }
+    }
+
     return this.project(reviveRow(created, this.model), args);
   }
 

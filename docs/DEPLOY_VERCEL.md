@@ -1,5 +1,10 @@
 # QRHub on Vercel — all three apps, no database server
 
+> **Live as of 2026-09-07.** This project is deployed and verified:
+> API <https://qrhub-api.vercel.app> · Admin <https://qrhub-admin.vercel.app>
+> · Landing <https://qrhub-landing.vercel.app>. All three Vercel projects are
+> connected to `SauravDnj/Vyapar-QR`, so pushing to `main` redeploys them.
+
 This is the **all-Vercel** deploy: `apps/api`, `apps/admin` and `apps/landing`
 each become a Vercel project, and the data lives in JSON documents rather than
 in MySQL. No VPS, no Docker, no database server to run or pay for.
@@ -39,8 +44,9 @@ free Upstash database from the Vercel Marketplace) to restore exact limits.
 - This repo pushed to a Git remote (GitHub/GitLab/Bitbucket) if you want
   deploy-on-push; the CLI path below works without one
 
-> **You have to run the deploy commands yourself.** They authenticate against
-> your Vercel account, so they cannot be run on your behalf.
+> The commands below authenticate against your Vercel account. They have
+> already been run for this project — this section is the record of how, and
+> what to repeat if you ever recreate the projects.
 
 ---
 
@@ -53,8 +59,9 @@ cd apps/api
 vercel link          # create a new project, e.g. "qrhub-api"
 ```
 
-`apps/api/vercel.json` already declares the build, the function entrypoint and
-the five cron schedules.
+`apps/api/vercel.json` already declares the build, the function entrypoint, an
+empty `public/` output directory (Vercel demands one even for a functions-only
+project) and the cron schedule.
 
 ### Add a Blob store
 
@@ -189,18 +196,22 @@ Cron runs show up under **Project → Settings → Cron Jobs**.
 
 ## Cron schedule
 
-Declared in `apps/api/vercel.json`:
+Vercel's Hobby plan runs cron jobs **at most once a day** and caps how many a
+project may have — five separate schedules are rejected at deploy time. So
+`apps/api/vercel.json` declares a single daily job that fans out:
 
-| Job | Schedule | What it does |
+| Job | Schedule | Runs |
 |---|---|---|
-| `grace-period` | `0 3 * * *` | Suspends clients past the billing grace period |
-| `lead-follow-up` | `0 10 * * *` | Sends follow-up nudges on stale leads |
-| `booking-reminder` | `0 * * * *` | Reminds customers of upcoming bookings |
-| `review-sync` | `0 4 * * *` | Pulls Google reviews for configured clients |
-| `weekly-digest` | `0 9 * * 1` | Weekly summary to published clients |
+| `/internal/cron/all` | `0 3 * * *` | all five sweeps, in sequence |
 
-Vercel's Hobby plan allows a limited number of cron jobs and runs them at most
-daily; the hourly `booking-reminder` needs a paid plan to fire hourly.
+The sweeps it runs: `grace-period` (suspends clients past the billing grace
+period), `lead-follow-up`, `booking-reminder`, `review-sync`, `weekly-digest`.
+A failure in one is recorded and the rest still run.
+
+Each is also individually callable — `POST /internal/cron/review-sync` — for
+manual triggering. **On a Pro plan**, replace the single `crons` entry with
+five, one per job, to give each its own schedule (e.g. `booking-reminder` on
+`0 * * * *`).
 
 ---
 
@@ -226,6 +237,10 @@ fastest, so watch it first.
 
 **Cold starts.** The first request after idle builds the Nest app (~200ms
 locally; slower on Vercel). Warm requests are unaffected.
+
+**Every read costs two Blob calls** — one API call to find the newest version,
+one fetch for the body. That is the price of never serving a stale read; see
+the driver notes in `apps/api/src/jsondb/README.md`.
 
 ### When to move off JSON
 

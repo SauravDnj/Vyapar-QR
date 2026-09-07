@@ -83,6 +83,45 @@ describe('JsonDbClient', () => {
     });
   });
 
+  describe('nested writes', () => {
+    it('creates a related row and links it back', async () => {
+      // The shape `auth.service.ts` uses for agency signup. Silently dropping
+      // this created an agency_admin user with no Agency row.
+      const user = await db.user.create({
+        data: {
+          email: 'agency@b.com',
+          passwordHash: 'x',
+          role: 'agency_admin',
+          agency: { create: { name: 'Acme Agency', slug: 'acme-agency' } },
+        },
+      });
+
+      const agencies = await db.agency.findMany({ where: { userId: user.id } });
+      expect(agencies).toHaveLength(1);
+      expect(agencies[0].name).toBe('Acme Agency');
+      expect(agencies[0].slug).toBe('acme-agency');
+
+      const withAgency = await db.user.findUnique({
+        where: { id: user.id },
+        include: { agency: true },
+      });
+      expect(withAgency?.agency?.slug).toBe('acme-agency');
+    });
+
+    it('rejects nested writes it cannot honour, rather than dropping them', async () => {
+      await expect(
+        db.user.create({
+          data: {
+            email: 'x@b.com',
+            passwordHash: 'x',
+            role: 'agency_admin',
+            agency: { connect: { id: 'whatever' } },
+          },
+        }),
+      ).rejects.toThrow(/unsupported nested write/);
+    });
+  });
+
   describe('read', () => {
     beforeEach(async () => {
       for (const [i, name] of ['delta', 'alpha', 'charlie', 'bravo'].entries()) {

@@ -40,10 +40,20 @@ elsewhere.
 
 - **`local`** — `data/jsondb/<model>.json`. Writes go to a temp file and are
   renamed into place, so a crash mid-write leaves the previous file intact.
-- **`blob`** — the same files in Vercel Blob. **Required on Vercel:** the
-  serverless filesystem is read-only apart from `/tmp`, which is per-instance
-  and wiped between invocations, so a local write would vanish. Reads use
-  `cache: 'no-store'` — a CDN-stale read would otherwise resurrect deleted rows.
+- **`blob`** — Vercel Blob. **Required on Vercel:** the serverless filesystem
+  is read-only apart from `/tmp`, which is per-instance and wiped between
+  invocations, so a local write would vanish.
+
+  Each collection is a *directory of immutable versions*
+  (`jsondb/user/<timestamp>-<uuid>.json`) rather than one overwritten file.
+  Blob serves through a CDN that returns a **stale 200** for an overwritten
+  pathname, and a cache-busting query string does not defeat it. Overwriting
+  a single `user.json` broke correctness twice in production: an update
+  immediately after a create failed with "No User found", and a second
+  instance reading a stale body missed an existing email and created a
+  duplicate account. Publishing a new URL per write means no cache has ever
+  seen it, and reads ask the Blob API (not the CDN) which version is newest.
+  Superseded versions are pruned after each write.
 - **`memory`** — in-process, for tests.
 
 Adding a driver means implementing three methods (`read`, `write`, `list`).
