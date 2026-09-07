@@ -1,0 +1,9 @@
+This directory is intentionally empty.
+
+Vercel requires a static output directory even for a functions-only project;
+without it the build fails with "No Output Directory named 'public' found".
+
+It must stay empty. Every request is rewritten to the serverless function in
+`api/index.js` (see vercel.json), and Vercel checks for a matching static file
+*before* applying a rewrite — so an index.html here would shadow the API's
+own `/` route.
