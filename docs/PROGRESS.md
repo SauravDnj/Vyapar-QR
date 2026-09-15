@@ -597,3 +597,22 @@ does reliably, is the most any tool can do.
 does not provide it. The scan CRM records what a scan genuinely carries and is
 explicit about it. Identity arrives only when the visitor chooses to give it —
 and from that moment their whole scan history is attached to them.
+
+---
+
+## Phase 19 — Production outage: Blob store blocked
+
+On 2026-09-15 every login on the live admin failed with "Internal server
+error". The function logs showed `Blob read failed ... (last status 403)`, and
+the Blob URL itself answered **"Your store is blocked"**: the JSON store had
+used up the Vercel Hobby plan's monthly Blob allowance. Every read cost a
+`list()` plus a fetch of a never-cached URL (the price of P16-14/P16-15's
+stale-read fixes), so a week of normal traffic exhausted it. Waiting for the
+monthly reset would only repeat the outage, so the store was replaced.
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P19-01 | Redis driver for the JSON database | ✅ Done | `jsondb/drivers/redis.ts` over a shared `upstash-rest.ts` client (plain `fetch`, no socket). One key per model, written together with its index entry in a single MULTI/EXEC. Runs the same driver contract tests as `local` and `memory`, plus auth, cross-instance visibility and error-surfacing tests. Selected by `JSONDB_DRIVER=redis`, and by default on Vercel whenever `KV_REST_API_URL` is present. |
+| P19-02 | Uploads off Blob | ✅ Done | `STORAGE_DRIVER=redis` stores each file under `upload:<uuid><ext>` and the API serves it at `GET /uploads/:filename` — public, unthrottled, immutable-cached, `nosniff`, and a sandboxing CSP so an uploaded SVG cannot run script on the API origin. Filenames are validated against the uuid pattern. |
+| P19-03 | Verified end-to-end locally | ✅ Done | Built API run against a local stand-in for the Upstash REST API: the real seed script populated it (3 plans, 121 themes), login returned 401 for a wrong password and a token for the right one, an uploaded PNG came back byte-identical with the expected headers, and malformed or unknown filenames 404. |
+| P19-04 | Upstash database on Vercel | 🟡 Code complete | Needs "Upstash for Redis" (free) added to the `qrhub-api` project — accepting the Marketplace terms is a human step. Then set `JSONDB_DRIVER` and `STORAGE_DRIVER` to `redis`, redeploy, and re-seed: the old Blob data cannot be read while the store is blocked. |

@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { LocalFileDriver } from './local';
 import { MemoryDriver } from './memory';
+import { RedisRestDriver } from './redis';
+import { UpstashRest } from './upstash-rest';
 
 import type { JsonDbDriver } from './types';
 
@@ -244,5 +246,83 @@ describe('vercel blob driver', () => {
     serveStore({});
 
     await expect(driver.read('user')).resolves.toEqual([{ id: 'ours' }]);
+  });
+});
+
+/**
+ * A fake of the Upstash REST API: a command is a JSON array POSTed to the base
+ * URL, and `/multi-exec` takes an array of them. Only the commands the driver
+ * sends are modelled.
+ */
+describe('redis rest driver', () => {
+  const realFetch = global.fetch;
+  let strings: Map<string, string>;
+  let sets: Map<string, Set<string>>;
+  let authHeaders: string[];
+
+  function run(cmd: string[]): unknown {
+    const [op, key, ...args] = cmd;
+    switch (op) {
+      case 'GET':
+        return strings.get(key) ?? null;
+      case 'SET':
+        strings.set(key, args[0]);
+        return 'OK';
+      case 'SADD': {
+        const set = sets.get(key) ?? new Set<string>();
+        args.forEach((a) => set.add(a));
+        sets.set(key, set);
+        return args.length;
+      }
+      case 'SMEMBERS':
+        return [...(sets.get(key) ?? [])];
+      default:
+        return undefined;
+    }
+  }
+
+  beforeEach(() => {
+    strings = new Map();
+    sets = new Map();
+    authHeaders = [];
+    global.fetch = jest.fn((input: string, init: { headers: Record<string, string>; body: string }) => {
+      authHeaders.push(init.headers.Authorization);
+      const body = JSON.parse(init.body) as string[] | string[][];
+      const payload = input.endsWith('/multi-exec')
+        ? (body as string[][]).map((c) => ({ result: run(c) }))
+        : { result: run(body as string[]) };
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200 }));
+    }) as typeof fetch;
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  function makeDriver() {
+    return new RedisRestDriver(new UpstashRest('https://redis.example/', 'test-token'));
+  }
+
+  describeDriverContract('redis', makeDriver);
+
+  it('authenticates every request with the bearer token', async () => {
+    await makeDriver().read('user');
+    expect(authHeaders).toEqual(['Bearer test-token']);
+  });
+
+  it('a write is visible to a separate instance immediately', async () => {
+    await makeDriver().write('user', [{ id: 'fresh' }]);
+    await expect(makeDriver().read('user')).resolves.toEqual([{ id: 'fresh' }]);
+  });
+
+  it('surfaces a REST error instead of returning empty data', async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ error: 'WRONGPASS' }), { status: 401 })),
+    ) as typeof fetch;
+    await expect(makeDriver().read('user')).rejects.toThrow('WRONGPASS');
+  });
+
+  it('refuses to construct without credentials', () => {
+    expect(() => new UpstashRest('', '')).toThrow('KV_REST_API_URL');
   });
 });

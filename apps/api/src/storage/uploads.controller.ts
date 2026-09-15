@@ -1,11 +1,25 @@
 import { extname } from 'node:path';
 
-import { BadRequestException, Controller, ParseFilePipeBuilder, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseFilePipeBuilder,
+  Post,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle } from '@nestjs/throttler';
+
+import { Public } from '../common/decorators/public.decorator';
 
 import { StorageService } from './storage.service';
 
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
@@ -15,6 +29,30 @@ const ALLOWED_DOCUMENT_MIME = /^(image\/(png|jpe?g|webp)|application\/pdf)$/;
 @Controller('uploads')
 export class UploadsController {
   constructor(private readonly storageService: StorageService) {}
+
+  /**
+   * Serves files stored by the `redis` storage driver. Public, like the Blob
+   * URLs it replaces: landing pages embed these images for anonymous visitors.
+   * Unthrottled because one page load fetches several at once.
+   */
+  @Public()
+  @SkipThrottle()
+  @Get(':filename')
+  async serve(@Param('filename') filename: string, @Res() res: Response) {
+    const file = await this.storageService.read(filename);
+    if (!file) throw new NotFoundException();
+
+    res.set({
+      'Content-Type': file.contentType,
+      // Filenames are fresh uuids and never overwritten, so this is safe.
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+      // An uploaded SVG is served from the API's own origin; this stops any
+      // script inside it from running if the file is opened directly.
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox",
+    });
+    res.send(file.body);
+  }
 
   @Post('image')
   @UseInterceptors(FileInterceptor('file'))

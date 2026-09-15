@@ -5,6 +5,8 @@ import { ModelDelegate, type DelegateHost } from './delegate';
 import { VercelBlobDriver } from './drivers/blob';
 import { LocalFileDriver } from './drivers/local';
 import { MemoryDriver } from './drivers/memory';
+import { RedisRestDriver } from './drivers/redis';
+import { UpstashRest } from './drivers/upstash-rest';
 import { parseSchema } from './schema/parser';
 import { JsonStore } from './store';
 
@@ -20,7 +22,8 @@ import type { SchemaMeta } from './schema/types';
  *
  * Storage is chosen by `JSONDB_DRIVER`:
  *   `local`  — one `.json` file per model on disk (dev, VPS)
- *   `blob`   — the same files in Vercel Blob (Vercel; the disk is read-only there)
+ *   `redis`  — one Redis key per model over the Upstash REST API (Vercel)
+ *   `blob`   — the same files in Vercel Blob (legacy; exhausts Hobby quotas)
  *   `memory` — in-process only (tests)
  */
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging --
@@ -122,8 +125,15 @@ function resolveSchemaPath(): string {
 }
 
 export function createDriverFromEnv(): JsonDbDriver {
-  const name = process.env.JSONDB_DRIVER ?? (process.env.VERCEL ? 'blob' : 'local');
+  const name =
+    process.env.JSONDB_DRIVER ??
+    (process.env.VERCEL ? (UpstashRest.isConfigured() ? 'redis' : 'blob') : 'local');
   switch (name) {
+    case 'redis':
+      return new RedisRestDriver(
+        UpstashRest.fromEnv(),
+        process.env.JSONDB_REDIS_PREFIX ?? 'jsondb',
+      );
     case 'blob':
       return new VercelBlobDriver(process.env.JSONDB_BLOB_PREFIX ?? 'jsondb');
     case 'memory':

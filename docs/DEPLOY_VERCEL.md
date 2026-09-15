@@ -20,12 +20,22 @@ and exact rate limits), see [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 [`apps/api/src/jsondb`](../apps/api/src/jsondb/README.md) and implements the
 slice of the Prisma API the codebase used, so no service or controller changed.
 
-**The JSON files live in Vercel Blob, not on disk.** This is the one part that
-cannot be a plain local file. A Vercel serverless function has a **read-only
-filesystem** apart from `/tmp`, which is per-instance and wiped between
-invocations. A signup written to a local file would be gone on the next
-request. Blob keeps the same one-JSON-file-per-model layout while actually
-persisting, and it is on Vercel's free tier.
+**The JSON documents live in Upstash Redis, not on disk.** This is the one part
+that cannot be a plain local file. A Vercel serverless function has a
+**read-only filesystem** apart from `/tmp`, which is per-instance and wiped
+between invocations. A signup written to a local file would be gone on the
+next request. Redis keeps one JSON document per model (key `jsondb:<model>`),
+reached over Upstash's REST API, and is free from the Vercel Marketplace.
+Uploads (logos, payment QR images, generated QR codes) live there too, served
+back by the API at `/uploads/<file>`.
+
+> **Why not Vercel Blob?** It was the original store and it failed in
+> production on 2026-09-15. Blob is a CDN file store, not a database: every
+> read cost a `list()` call plus a fetch of a never-cached URL, which used up
+> the Hobby plan's monthly Blob operations in about a week. Vercel then
+> **blocked the store** — every read returned 403 "Your store is blocked", and
+> every API call touching data (login included) failed with a 500. The Blob
+> driver still exists but is no longer the default.
 
 **Background jobs run on Vercel Cron.** The five recurring sweeps used BullMQ,
 which needs a long-lived Redis worker that serverless has nowhere to run. They
@@ -63,11 +73,19 @@ vercel link          # create a new project, e.g. "qrhub-api"
 empty `public/` output directory (Vercel demands one even for a functions-only
 project) and the cron schedule.
 
-### Add a Blob store
+### Add an Upstash Redis database
 
-In the Vercel dashboard: **Storage → Create → Blob**, then connect it to the
-`qrhub-api` project. Vercel injects `BLOB_READ_WRITE_TOKEN` automatically —
-you do not set it by hand.
+In the Vercel dashboard: **qrhub-api → Storage → Create Database → Upstash for
+Redis → Free**, connected to the project for all environments. Or from
+`apps/api`:
+
+```bash
+vercel integration add upstash/upstash-kv
+```
+
+Vercel injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically — you do
+not set them by hand. It also injects `REDIS_URL`; that is harmless because
+`JOBS_DRIVER=cron` keeps BullMQ and the Redis rate limiter switched off.
 
 ### Set the environment variables
 
@@ -75,11 +93,11 @@ you do not set it by hand.
 cd apps/api
 
 # Database
-vercel env add JSONDB_DRIVER production        # blob
+vercel env add JSONDB_DRIVER production        # redis
 vercel env add JSONDB_CACHE_TTL_MS production  # 0
 
 # Uploads (logos, payment QR images, generated QR codes)
-vercel env add STORAGE_DRIVER production       # blob
+vercel env add STORAGE_DRIVER production       # redis
 
 # Jobs
 vercel env add JOBS_DRIVER production          # cron
@@ -145,13 +163,14 @@ as an opaque "Failed to fetch" in the browser with nothing in the API logs.
 ## Step 3 — Seed the database
 
 The store starts empty — no super admin, no plans, no themes. Seed it against
-the Blob store by running the seed locally with production credentials:
+Redis by running the seed locally with production credentials:
 
 ```bash
 cd apps/api
-vercel env pull .env.production.local        # pulls BLOB_READ_WRITE_TOKEN
+vercel env pull .env.production.local        # pulls KV_REST_API_URL / _TOKEN
+set -a && . ./.env.production.local && set +a
 
-JSONDB_DRIVER=blob \
+JSONDB_DRIVER=redis \
 NODE_ENV=production \
 SEED_SUPER_ADMIN_EMAIL="you@yourdomain.com" \
 SEED_SUPER_ADMIN_PASSWORD="a-strong-password" \
@@ -238,9 +257,11 @@ fastest, so watch it first.
 **Cold starts.** The first request after idle builds the Nest app (~200ms
 locally; slower on Vercel). Warm requests are unaffected.
 
-**Every read costs two Blob calls** — one API call to find the newest version,
-one fetch for the body. That is the price of never serving a stale read; see
-the driver notes in `apps/api/src/jsondb/README.md`.
+**Upstash free-tier limits.** Each collection read or write is one Redis
+command; the free plan's monthly command allowance covers a small production
+workload comfortably. Watch usage in the Upstash dashboard (**Storage →
+qrhub-db**). A single value is capped at the plan's max request size, which
+the largest collection (`theme`, ~0.5 MB) is well under.
 
 ### When to move off JSON
 
@@ -258,9 +279,16 @@ swap.
 doesn't exactly match the admin origin. It is a comma-separated list of full
 origins, no trailing slash.
 
-**Writes vanish between requests.** `JSONDB_DRIVER` is not `blob`, or no Blob
-store is connected, so writes are going to the ephemeral `/tmp` filesystem.
-Check `BLOB_READ_WRITE_TOKEN` is present in the project's env.
+**Login (and everything else) returns 500 "Internal server error".** Check the
+function logs (`vercel logs qrhub-api.vercel.app`). `Blob read failed ... last
+status 403` means the project is still on the `blob` driver and Vercel has
+blocked the store for exceeding Hobby limits — switch `JSONDB_DRIVER` and
+`STORAGE_DRIVER` to `redis` as above. `Redis request failed: WRONGPASS` or
+`needs KV_REST_API_URL` means the Upstash database isn't connected to the
+project.
+
+**Writes vanish between requests.** `JSONDB_DRIVER` is `local`, so writes are
+going to the ephemeral `/tmp` filesystem. Set it to `redis`.
 
 **Cron returns 403.** `CRON_SECRET` is unset or differs from what Vercel sends.
 

@@ -35,14 +35,21 @@ populated by the build (`scripts/copy-schema.js`).
 
 ## Storage drivers
 
-Selected by `JSONDB_DRIVER`, defaulting to `blob` on Vercel and `local`
-elsewhere.
+Selected by `JSONDB_DRIVER`. On Vercel the default is `redis` when Upstash is
+configured (`KV_REST_API_URL`), else `blob`; everywhere else it is `local`.
 
 - **`local`** — `data/jsondb/<model>.json`. Writes go to a temp file and are
   renamed into place, so a crash mid-write leaves the previous file intact.
-- **`blob`** — Vercel Blob. **Required on Vercel:** the serverless filesystem
-  is read-only apart from `/tmp`, which is per-instance and wiped between
-  invocations, so a local write would vanish.
+- **`redis`** — Upstash Redis over its REST API (`drivers/upstash-rest.ts`, plain
+  `fetch`). One key per model (`jsondb:<model>`) plus a set indexing them.
+  **The Vercel store:** the serverless filesystem is read-only apart from
+  `/tmp`, which is per-instance and wiped, so a local write would vanish. A
+  `SET` is visible to the next `GET` from any instance, so none of the Blob
+  consistency machinery below is needed.
+- **`blob`** — Vercel Blob. **Legacy — do not use on the Hobby plan.** Every
+  read is a `list()` plus a fetch of an uncached URL; in production that used
+  up the monthly Blob operation allowance in about a week, Vercel blocked the
+  store, and every read 403'd ("Your store is blocked").
 
   Each collection is a *directory of immutable versions*
   (`jsondb/user/<timestamp>-<uuid>.json`) rather than one overwritten file.
