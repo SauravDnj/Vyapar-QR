@@ -27,26 +27,31 @@ There are three kinds of people. Only two of them have a login.
 
 | | |
 |---|---|
-| Email | `admin@qrhub.local` |
-| Password | `rzNbY1F4nVbta-v7` |
+| Email | `admin.waloop@gmail.com` |
+| Password | Handed over privately — never stored in this repository |
 
 Runs the whole platform: approves businesses, sets pricing plans, manages the
 theme catalog, sees revenue across every client.
 
-> **Change this password**, and move to an email you actually own.
-> `admin@qrhub.local` is not a real address, so password-reset mail goes
-> nowhere. Create a replacement super admin, then delete this one.
+> **Change the password after first login** (Settings → Change password).
 
 ### 2. Client Admin — a business that pays you
 
 | | |
 |---|---|
-| Email | `client@qrhub.local` |
-| Password | `heXdqs-gpTEJ` |
-| Live page | https://qrhub-landing.vercel.app/site/blue-bean-cafe |
+| Email | `official.waloop@gmail.com` |
+| Password | Handed over privately |
+| Business | Waloop — approved, theme picked, **not yet published** |
+| Page (once published) | https://qrhub-landing.vercel.app/site/waloop |
 
-This is a working demo account — "Blue Bean Cafe", already onboarded, published
-and approved. Log in to see what a real customer of yours sees.
+To put the page live: log in, add Waloop's real UPI ID or payment QR image
+under payment methods, then publish. Publishing is refused without at least
+one payment method, so a page never goes live with a pay button that goes
+nowhere.
+
+> The earlier demo accounts (`admin@qrhub.local`, `client@qrhub.local` / Blue
+> Bean Cafe) were lost with the blocked Blob store on 2026-09-15 and no longer
+> exist.
 
 A business only ever sees its own data. It cannot see other businesses, or
 anything on the Super Admin side.

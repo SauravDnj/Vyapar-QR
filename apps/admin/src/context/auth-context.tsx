@@ -37,6 +37,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Comfortably inside the API's 15-minute access-token lifetime. */
+const TOKEN_RENEW_INTERVAL_MS = 10 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -70,6 +73,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // The access token lives 15 minutes and nothing else renews it, so a user
+  // who stayed on the page longer had every call start failing with 401.
+  // Renew ahead of expiry while signed in. Skipped during impersonation: a
+  // refresh would swap the impersonation token for the admin's own session.
+  const signedIn = user !== null;
+  const impersonating = adminSession !== null;
+  useEffect(() => {
+    if (!signedIn || impersonating) return;
+
+    const timer = setInterval(() => {
+      apiFetch<{ accessToken: string }>('/auth/refresh', { method: 'POST' })
+        .then(({ accessToken: token }) => {
+          setAccessToken(token);
+        })
+        .catch(() => {
+          // Leave the session as is; the next interval, or a reload, retries.
+        });
+    }, TOKEN_RENEW_INTERVAL_MS);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [signedIn, impersonating]);
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await apiFetch<AuthResponse>('/auth/login', {

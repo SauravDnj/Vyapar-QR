@@ -90,7 +90,9 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(@CurrentUser() user: JwtPayload, @Res({ passthrough: true }) res: Response) {
     await this.authService.logout(user.sub);
-    res.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
+    // Must carry the same attributes the cookie was set with, or the browser
+    // treats it as a different cookie and keeps the original.
+    res.clearCookie(REFRESH_COOKIE_NAME, this.refreshCookieOptions());
     return { success: true };
   }
 
@@ -140,13 +142,34 @@ export class AuthController {
     return { user: result.user, accessToken: result.accessToken };
   }
 
+  /**
+   * In production the admin app and the API are different *sites* —
+   * `vercel.app` is on the Public Suffix List, so `qrhub-admin.vercel.app` and
+   * `qrhub-api.vercel.app` are as unrelated to a browser as two separate
+   * domains. A `SameSite=Lax` cookie is never sent on the admin's cross-site
+   * `fetch`, so the silent refresh on page load always failed: every reload or
+   * new tab signed the user out. `None` (which requires `Secure`) lets it
+   * through; `Partitioned` keeps it working in browsers that block ordinary
+   * third-party cookies, scoped to the admin site that uses it.
+   *
+   * Local development is plain http on one site (localhost), where `None`
+   * cannot be used without `Secure` — so it stays `Lax` there.
+   */
+  private refreshCookieOptions() {
+    const production = this.configService.get<string>('NODE_ENV') === 'production';
+    return {
+      httpOnly: true,
+      secure: production,
+      sameSite: production ? ('none' as const) : ('lax' as const),
+      partitioned: production,
+      path: REFRESH_COOKIE_PATH,
+    };
+  }
+
   private setRefreshCookie(res: Response, refreshToken: string) {
     const expiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '30d';
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
-      httpOnly: true,
-      secure: this.configService.get<string>('NODE_ENV') === 'production',
-      sameSite: 'lax',
-      path: REFRESH_COOKIE_PATH,
+      ...this.refreshCookieOptions(),
       maxAge: ms(expiresIn as ms.StringValue),
     });
   }
