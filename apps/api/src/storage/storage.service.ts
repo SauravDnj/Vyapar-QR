@@ -6,7 +6,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { loadBlobSdk } from '../jsondb/drivers/blob-sdk';
-import { UpstashRest } from '../jsondb/drivers/upstash-rest';
+import {
+  isRedisStoreConfigured,
+  redisClientFromEnv,
+  type RedisClient,
+} from '../jsondb/drivers/redis-client';
 
 export const UPLOADS_DIR = join(process.cwd(), 'uploads');
 
@@ -34,11 +38,11 @@ type StorageDriver = 'local' | 'blob' | 'redis';
  * `save(buffer, ext) -> url` / `readByUrl(url)` shape.
  *
  * Three backends, chosen by `STORAGE_DRIVER` (default on Vercel: Redis when
- * Upstash is configured, else Blob; local disk everywhere else):
+ * one is configured, else Blob; local disk everywhere else):
  *
  *   `local` — writes under `uploads/`, served back by `/uploads/*`. Fine for
  *             dev and for a VPS with a persistent disk.
- *   `redis` — Upstash Redis, one key per file, served back by
+ *   `redis` — Redis (Upstash or TCP), one key per file, served back by
  *             `UploadsController` at `/uploads/:filename`. The Vercel default.
  *   `blob`  — Vercel Blob. Legacy: it shares the Hobby operation allowance the
  *             database exhausted, and a blocked store 403s every file.
@@ -47,17 +51,17 @@ type StorageDriver = 'local' | 'blob' | 'redis';
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly driver: StorageDriver;
-  private redisClient?: UpstashRest;
+  private redisClient?: RedisClient;
 
   constructor(private readonly configService: ConfigService) {
     const configured = this.configService.get<string>('STORAGE_DRIVER');
     this.driver =
       (configured as StorageDriver | undefined) ??
-      (process.env.VERCEL ? (UpstashRest.isConfigured() ? 'redis' : 'blob') : 'local');
+      (process.env.VERCEL ? (isRedisStoreConfigured() ? 'redis' : 'blob') : 'local');
   }
 
-  private get redis(): UpstashRest {
-    this.redisClient ??= UpstashRest.fromEnv();
+  private get redis(): RedisClient {
+    this.redisClient ??= redisClientFromEnv();
     return this.redisClient;
   }
 

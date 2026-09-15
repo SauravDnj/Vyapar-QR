@@ -1,3 +1,5 @@
+import type { RedisClient } from './redis-client';
+
 export type RedisCommand = (string | number)[];
 
 /**
@@ -6,9 +8,9 @@ export type RedisCommand = (string | number)[];
  * Plain `fetch`, so there is no client library and no long-lived socket — the
  * right shape for serverless functions.
  *
- * Shared by the `redis` jsondb driver and `StorageService`.
+ * One of the two `RedisClient` transports — see `redis-client.ts`.
  */
-export class UpstashRest {
+export class UpstashRest implements RedisClient {
   constructor(
     private readonly url: string,
     private readonly token: string,

@@ -20,12 +20,13 @@ and exact rate limits), see [`DEPLOYMENT.md`](./DEPLOYMENT.md).
 [`apps/api/src/jsondb`](../apps/api/src/jsondb/README.md) and implements the
 slice of the Prisma API the codebase used, so no service or controller changed.
 
-**The JSON documents live in Upstash Redis, not on disk.** This is the one part
+**The JSON documents live in Redis, not on disk.** This is the one part
 that cannot be a plain local file. A Vercel serverless function has a
 **read-only filesystem** apart from `/tmp`, which is per-instance and wiped
 between invocations. A signup written to a local file would be gone on the
 next request. Redis keeps one JSON document per model (key `jsondb:<model>`),
-reached over Upstash's REST API, and is free from the Vercel Marketplace.
+reached over TCP (`REDIS_URL`) or Upstash's REST API, and is free from the
+Vercel Marketplace.
 Uploads (logos, payment QR images, generated QR codes) live there too, served
 back by the API at `/uploads/<file>`.
 
@@ -73,19 +74,19 @@ vercel link          # create a new project, e.g. "qrhub-api"
 empty `public/` output directory (Vercel demands one even for a functions-only
 project) and the cron schedule.
 
-### Add an Upstash Redis database
+### Add a Redis database
 
-In the Vercel dashboard: **qrhub-api → Storage → Create Database → Upstash for
-Redis → Free**, connected to the project for all environments. Or from
-`apps/api`:
+In the Vercel dashboard: **qrhub-api → Storage → Create Database**, pick a free
+Redis, and connect it to the project for all environments. Either kind works:
 
-```bash
-vercel integration add upstash/upstash-kv
-```
+- **Redis** (Redis Cloud) injects `REDIS_URL` and is used over TCP. **This is
+  what the live project uses** (connected 2026-09-15).
+- **Upstash for Redis** injects `KV_REST_API_URL` / `KV_REST_API_TOKEN` and is
+  used over HTTP. Preferred when both are present.
 
-Vercel injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically — you do
-not set them by hand. It also injects `REDIS_URL`; that is harmless because
-`JOBS_DRIVER=cron` keeps BullMQ and the Redis rate limiter switched off.
+You do not set these by hand. `REDIS_URL` would normally also switch on BullMQ
+and the Redis rate limiter; `JOBS_DRIVER=cron` keeps both off, which is right
+for serverless.
 
 ### Set the environment variables
 
@@ -167,7 +168,7 @@ Redis by running the seed locally with production credentials:
 
 ```bash
 cd apps/api
-vercel env pull .env.production.local        # pulls KV_REST_API_URL / _TOKEN
+vercel env pull .env.production.local        # pulls REDIS_URL (or KV_REST_API_*)
 set -a && . ./.env.production.local && set +a
 
 JSONDB_DRIVER=redis \
@@ -257,11 +258,12 @@ fastest, so watch it first.
 **Cold starts.** The first request after idle builds the Nest app (~200ms
 locally; slower on Vercel). Warm requests are unaffected.
 
-**Upstash free-tier limits.** Each collection read or write is one Redis
-command; the free plan's monthly command allowance covers a small production
-workload comfortably. Watch usage in the Upstash dashboard (**Storage →
-qrhub-db**). A single value is capped at the plan's max request size, which
-the largest collection (`theme`, ~0.5 MB) is well under.
+**Free Redis is small.** Each collection read or write is one Redis command, so
+command volume is not the constraint — memory is (Redis Cloud's free database
+is 30 MB). The seeded data is ~1 MB, but uploaded images are stored in Redis
+too (up to 5 MB each), so a handful of large uploads can fill it. Watch usage
+under **Storage** in the Vercel dashboard, and upgrade the database before
+putting many real businesses on it.
 
 ### When to move off JSON
 
@@ -283,9 +285,9 @@ origins, no trailing slash.
 function logs (`vercel logs qrhub-api.vercel.app`). `Blob read failed ... last
 status 403` means the project is still on the `blob` driver and Vercel has
 blocked the store for exceeding Hobby limits — switch `JSONDB_DRIVER` and
-`STORAGE_DRIVER` to `redis` as above. `Redis request failed: WRONGPASS` or
-`needs KV_REST_API_URL` means the Upstash database isn't connected to the
-project.
+`STORAGE_DRIVER` to `redis` as above. `Redis store is not configured`, `WRONGPASS`
+or a connection timeout means the Redis database isn't connected to the
+project (check `REDIS_URL` is listed under its environment variables).
 
 **Writes vanish between requests.** `JSONDB_DRIVER` is `local`, so writes are
 going to the ephemeral `/tmp` filesystem. Set it to `redis`.

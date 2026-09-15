@@ -35,13 +35,14 @@ populated by the build (`scripts/copy-schema.js`).
 
 ## Storage drivers
 
-Selected by `JSONDB_DRIVER`. On Vercel the default is `redis` when Upstash is
-configured (`KV_REST_API_URL`), else `blob`; everywhere else it is `local`.
+Selected by `JSONDB_DRIVER`. On Vercel the default is `redis` when a Redis is
+configured (`KV_REST_API_URL` or `REDIS_URL`), else `blob`; everywhere else it
+is `local`.
 
 - **`local`** — `data/jsondb/<model>.json`. Writes go to a temp file and are
   renamed into place, so a crash mid-write leaves the previous file intact.
-- **`redis`** — Upstash Redis over its REST API (`drivers/upstash-rest.ts`, plain
-  `fetch`). One key per model (`jsondb:<model>`) plus a set indexing them.
+- **`redis`** — Redis through `drivers/redis-client.ts`: Upstash's REST API
+  (plain `fetch`) when configured, otherwise TCP via ioredis. One key per model (`jsondb:<model>`) plus a set indexing them.
   **The Vercel store:** the serverless filesystem is read-only apart from
   `/tmp`, which is per-instance and wiped, so a local write would vanish. A
   `SET` is visible to the next `GET` from any instance, so none of the Blob

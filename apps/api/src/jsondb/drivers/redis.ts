@@ -1,9 +1,9 @@
+import type { RedisClient } from './redis-client';
 import type { JsonDbDriver } from './types';
-import type { UpstashRest } from './upstash-rest';
 
 /**
- * Stores each JSON collection as one string key in Redis, spoken to over the
- * Upstash REST API.
+ * Stores each JSON collection as one string key in Redis — Upstash over REST
+ * or any Redis over TCP, see `redis-client.ts`.
  *
  * This replaced `VercelBlobDriver` as the Vercel store. Blob is the wrong tool
  * for a database: every read there is a `list()` plus a CDN fetch of a
@@ -19,11 +19,11 @@ import type { UpstashRest } from './upstash-rest';
  * Concurrent writes from two instances are still last-write-wins, exactly as
  * with the other drivers — see `JsonStore`.
  */
-export class RedisRestDriver implements JsonDbDriver {
+export class RedisDriver implements JsonDbDriver {
   readonly name = 'redis';
 
   constructor(
-    private readonly redis: UpstashRest,
+    private readonly redis: RedisClient,
     private readonly prefix = 'jsondb',
   ) {}
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { LocalFileDriver } from './local';
 import { MemoryDriver } from './memory';
-import { RedisRestDriver } from './redis';
+import { RedisDriver } from './redis';
 import { UpstashRest } from './upstash-rest';
 
 import type { JsonDbDriver } from './types';
@@ -300,7 +300,7 @@ describe('redis rest driver', () => {
   });
 
   function makeDriver() {
-    return new RedisRestDriver(new UpstashRest('https://redis.example/', 'test-token'));
+    return new RedisDriver(new UpstashRest('https://redis.example/', 'test-token'));
   }
 
   describeDriverContract('redis', makeDriver);
@@ -324,5 +324,53 @@ describe('redis rest driver', () => {
 
   it('refuses to construct without credentials', () => {
     expect(() => new UpstashRest('', '')).toThrow('KV_REST_API_URL');
+  });
+});
+
+/**
+ * ioredis is mocked with the one behaviour that bit in production testing: a
+ * pipeline only has lowercase command methods, so an uppercase `SET` queued
+ * through `multi()` crashed with "Cannot read properties of undefined".
+ */
+describe('tcp redis client', () => {
+  const data = new Map<string, string>();
+
+  beforeEach(() => {
+    jest.resetModules();
+    data.clear();
+    class FakeRedis {
+      call(name: string, ...args: string[]) {
+        return Promise.resolve(name === 'GET' ? (data.get(args[0]) ?? null) : 'OK');
+      }
+      multi(cmds: string[][]) {
+        const pipeline: Record<string, (k: string, v: string) => unknown> = {
+          set: (k, v) => {
+            data.set(k, v);
+            return 'OK';
+          },
+          sadd: () => 1,
+        };
+        return {
+          exec: () =>
+            Promise.resolve(cmds.map(([name, ...args]) => [null, pipeline[name](args[0], args[1])])),
+        };
+      }
+    }
+    jest.doMock('ioredis', () => ({ Redis: FakeRedis }));
+  });
+
+  afterEach(() => {
+    jest.unmock('ioredis');
+  });
+
+  it('runs a write transaction and reads it back', async () => {
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { TcpRedis } = require('./redis-client') as typeof import('./redis-client');
+    const { RedisDriver: Driver } = require('./redis') as typeof import('./redis');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    const driver = new Driver(new TcpRedis('redis://fake:6379'));
+
+    await driver.write('user', [{ id: 'tcp' }]);
+    await expect(driver.read('user')).resolves.toEqual([{ id: 'tcp' }]);
   });
 });
