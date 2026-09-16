@@ -1,5 +1,5 @@
 {
-  "name": "@qrhub/types",
+  "name": "@vyaparqr/types",
   "private": true,
   "version": "0.0.0",
   "main": "./dist/index.js",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@qrhub/config": "workspace:*",
+    "@vyaparqr/config": "workspace:*",
     "typescript": "^5.7.2"
   }
 }

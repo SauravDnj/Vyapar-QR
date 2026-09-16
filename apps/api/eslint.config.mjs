@@ -1,7 +1,7 @@
 // @ts-check
-import { importOrder } from '@qrhub/config/eslint/import-order.mjs';
-import { prettierConfig } from '@qrhub/config/eslint/prettier.mjs';
-import { typescriptStrict } from '@qrhub/config/eslint/typescript.mjs';
+import { importOrder } from '@vyaparqr/config/eslint/import-order.mjs';
+import { prettierConfig } from '@vyaparqr/config/eslint/prettier.mjs';
+import { typescriptStrict } from '@vyaparqr/config/eslint/typescript.mjs';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 

@@ -11,7 +11,7 @@ const LANDING_URL = 'http://localhost:3002';
  * itself is untestable here anyway (no test-mode keys in this sandbox). */
 test('client sign-up through published landing page with a working payment link and contact form', async ({ page }) => {
   const unique = Date.now();
-  const email = `e2e-${String(unique)}@qrhub.test`;
+  const email = `e2e-${String(unique)}@vyaparqr.test`;
   const password = 'E2ePassword123!';
   const businessName = `E2E Test Cafe ${String(unique)}`;
   const upiId = `e2etest${String(unique)}@okhdfcbank`;

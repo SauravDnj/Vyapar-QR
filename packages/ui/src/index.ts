@@ -17,4 +17,5 @@ export * from './booking-slots-widget';
 export * from './themes/registry';
 export { TokenTheme } from './themes/token-theme';
 export { Icon } from './icon';
+export { BRAND_NAME, BRAND_TAGLINE, BrandLogo, BrandMark } from './brand';
 export type { IconName } from './icon';

@@ -1,4 +1,4 @@
-import type { PublicGalleryImage } from '@qrhub/types';
+import type { PublicGalleryImage } from '@vyaparqr/types';
 
 /**
  * A responsive photo grid — each photo opens full-size in a new tab on tap

@@ -1,7 +1,7 @@
-# QRHub — SaaS Digital QR Business Card & Landing Page Platform
+# Vyapar QR — SaaS Digital QR Business Card & Landing Page Platform
 ### System Architecture, Database Design & Build Plan
 
-*Working name "QRHub" used as a placeholder — rename freely.*
+*Working name "Vyapar QR" used as a placeholder — rename freely.*
 
 ---
 
@@ -47,7 +47,7 @@ These extend what you described without adding gateways, API keys, or complexity
 | **Plan-based feature gating** | Ties naturally into your subscription/package system — e.g. Basic = 3 themes + no custom domain, Pro = all themes + custom domain + analytics |
 | **Trial period support** | Lets Super Admin offer e.g. 7-day free trial before first billing — common SaaS expectation |
 | **Printable poster / table-tent generator** | Client downloads a ready-to-print PDF with their QR + "Scan to Pay / Review Us" — big practical value for physical shops |
-| **Custom domain mapping** *(Phase 3, premium feature)* | `client-brand.com` → their landing page, instead of `qrhub.io/site/slug` |
+| **Custom domain mapping** *(Phase 3, premium feature)* | `client-brand.com` → their landing page, instead of `vyaparqr.com/site/slug` |
 | **SEO fields per landing page** (title, description, og:image) | Free organic reach if the page is ever shared as a link, not just scanned |
 | **Audit log** | Super Admin can see who changed what — important once you have paying clients and disputes happen |
 
@@ -105,7 +105,7 @@ These extend what you described without adding gateways, API keys, or complexity
 ## 7. Multi-Tenancy & Routing
 
 - **Single database, shared schema, tenant-scoped rows.** Every business-data table carries a `client_id`; a NestJS guard/interceptor injects and enforces it on every query — no client can ever read another's data.
-- **MVP routing:** `qrhub.io/site/{slug}` — no DNS/SSL complexity, works instantly for every new client.
+- **MVP routing:** `vyaparqr.com/site/{slug}` — no DNS/SSL complexity, works instantly for every new client.
 - **Phase 3 upgrade:** optional custom domain — client points a CNAME at the platform, Nginx + Let's Encrypt handles SSL per domain, a `custom_domain` lookup table maps hostname → `client_id`.
 
 ---
@@ -182,7 +182,7 @@ This is the trickiest part of the spec, worth being explicit about:
 ## 12. Suggested Repo Structure
 
 ```
-qrhub/
+vyaparqr/
 ├── apps/
 │   ├── api/            # NestJS — all backend modules
 │   ├── admin/          # Next.js — Super Admin + Client Admin (role-gated routes)

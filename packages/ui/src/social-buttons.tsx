@@ -1,6 +1,6 @@
 'use client';
 
-import type { PublicSocialLink, SocialPlatform } from '@qrhub/types';
+import type { PublicSocialLink, SocialPlatform } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 

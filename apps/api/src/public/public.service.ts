@@ -25,7 +25,7 @@ import type { PlaceOrderDto } from '../menu/dto/place-order.dto';
 import type { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto';
 import type { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import type { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
-import type { PlanFeatures, ThemeContent } from '@qrhub/types';
+import type { PlanFeatures, ThemeContent } from '@vyaparqr/types';
 
 const CACHED_REVIEWS_LIMIT = 6;
 
@@ -89,7 +89,7 @@ export class PublicService {
   /** P4-03 — powers the branded per-client login page. Only clients on a
    * `whiteLabel`-enabled plan get their business name/logo back; everyone
    * else gets `whiteLabelEnabled: false` so the frontend falls back to the
-   * generic QRHub login rather than showing a half-branded page. */
+   * generic Vyapar QR login rather than showing a half-branded page. */
   async getBrandingBySlug(slug: string): Promise<{ businessName: string; logoUrl: string | null; whiteLabelEnabled: boolean }> {
     const client = await this.prisma.client.findUnique({
       where: { slug },

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import { DEFAULT_THEME_SCHEMA, THEME_CATALOG } from '@qrhub/types';
+import { DEFAULT_THEME_SCHEMA, THEME_CATALOG } from '@vyaparqr/types';
 import * as bcrypt from 'bcrypt';
 
 import { JsonDbClient } from '../src/jsondb';
@@ -16,7 +16,7 @@ const themeSchemaJson = DEFAULT_THEME_SCHEMA as unknown as Prisma.InputJsonValue
 async function main() {
   // Overridable so a real deploy doesn't ship with a published default
   // password. The fallback stays for local development.
-  const superAdminEmail = process.env.SEED_SUPER_ADMIN_EMAIL ?? 'admin@qrhub.local';
+  const superAdminEmail = process.env.SEED_SUPER_ADMIN_EMAIL ?? 'admin@vyaparqr.local';
   const superAdminPassword = process.env.SEED_SUPER_ADMIN_PASSWORD ?? 'ChangeMe123!';
 
   if (!process.env.SEED_SUPER_ADMIN_PASSWORD && process.env.NODE_ENV === 'production') {

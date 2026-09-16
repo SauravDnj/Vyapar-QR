@@ -18,7 +18,7 @@ import { TestimonialForm } from '../testimonial-form';
 import { TestimonialsWall } from '../testimonials-wall';
 import { accentColorStyle, orDefault } from '../theme-content';
 
-import type { ThemeRenderProps } from '@qrhub/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 
 /** Nest's default accent is a warm brass/bronze — evocative of real-estate
  * signage and property-brochure branding — preserved as the CSS var's
@@ -261,7 +261,7 @@ export function NestTheme({
         <ShareButton businessName={businessName} />
         <LoyaltyCardLink slug={slug} active={loyaltyActive} />
         <span>{orDefault(footer.text, `© ${businessName}`)}</span>
-        {!hideBranding ? <span>Powered by QRHub</span> : null}
+        {!hideBranding ? <span>Powered by Vyapar QR</span> : null}
       </footer>
     </div>
   );

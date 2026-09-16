@@ -4,7 +4,7 @@
 module.exports = {
   apps: [
     {
-      name: 'qrhub-api',
+      name: 'vyaparqr-api',
       cwd: __dirname,
       script: 'dist/src/main.js',
       instances: 1,

@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { ApiError, apiFetch } from '../lib/api-client';
 
-import type { UserRole } from '@qrhub/types';
+import type { UserRole } from '@vyaparqr/types';
 
 export interface AuthUser {
   id: string;

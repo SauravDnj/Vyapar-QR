@@ -1,4 +1,4 @@
-import type { ThemeDensity, ThemeFont, ThemeRadius } from '@qrhub/types';
+import type { ThemeDensity, ThemeFont, ThemeRadius } from '@vyaparqr/types';
 
 /**
  * Font stacks for the catalog's type pairings.

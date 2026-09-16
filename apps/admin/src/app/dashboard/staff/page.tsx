@@ -14,7 +14,7 @@ import {
   type StaffMember,
 } from '../../../lib/staff-api';
 
-import type { StaffPermissions } from '@qrhub/types';
+import type { StaffPermissions } from '@vyaparqr/types';
 
 const PERMISSION_LABELS: { key: keyof StaffPermissions; label: string }[] = [
   { key: 'leads', label: 'Leads / CRM' },

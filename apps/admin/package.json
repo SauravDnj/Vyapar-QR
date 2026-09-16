@@ -1,5 +1,5 @@
 {
-  "name": "@qrhub/admin",
+  "name": "@vyaparqr/admin",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -10,15 +10,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@qrhub/types": "workspace:*",
-    "@qrhub/ui": "workspace:*",
+    "@vyaparqr/types": "workspace:*",
+    "@vyaparqr/ui": "workspace:*",
     "framer-motion": "^13.1.0",
     "next": "^16.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@qrhub/config": "workspace:*",
+    "@vyaparqr/config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",

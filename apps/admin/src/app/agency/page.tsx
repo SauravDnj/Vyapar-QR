@@ -69,7 +69,7 @@ function AgencyContent() {
         <div className="rounded-md border border-warning bg-warning-bg p-4 text-sm text-warning">
           {agency.status === 'pending'
             ? 'Your agency is pending Super Admin approval. Your referral link will start working once approved.'
-            : 'Your agency has been suspended. Contact the QRHub team for details.'}
+            : 'Your agency has been suspended. Contact the Vyapar QR team for details.'}
         </div>
       )}
 

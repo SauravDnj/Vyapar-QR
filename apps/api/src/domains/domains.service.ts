@@ -169,6 +169,6 @@ export class DomainsService {
   }
 
   private verificationRecordFor(clientId: string): VerificationRecord {
-    return { host: '_qrhub-verify', type: 'TXT', value: `qrhub-verify=${clientId}` };
+    return { host: '_vyaparqr-verify', type: 'TXT', value: `vyaparqr-verify=${clientId}` };
   }
 }

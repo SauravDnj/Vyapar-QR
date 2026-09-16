@@ -1,6 +1,6 @@
 import { ApiError } from './api-client';
 
-import type { PaymentMethodType, SocialPlatform, ThemeContent } from '@qrhub/types';
+import type { PaymentMethodType, SocialPlatform, ThemeContent } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 

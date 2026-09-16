@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GroqService, type GroqChatMessage } from '../ai/groq.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { ThemeContent } from '@qrhub/types';
+import type { ThemeContent } from '@vyaparqr/types';
 
 /** Keep the AI on a short leash — this replies as the business on its own
  * WhatsApp number, so terse and on-topic beats chatty. */

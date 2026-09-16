@@ -3,7 +3,7 @@
 export interface PlanFeatures {
   analytics: boolean;
   customDomain: boolean;
-  /** Hides the "Powered by QRHub" landing-page footer line (P4-03). */
+  /** Hides the "Powered by Vyapar QR" landing-page footer line (P4-03). */
   whiteLabel: boolean;
   /** Digital menu + WhatsApp ordering (menu CRUD, public ordering, Orders CRM). */
   digitalMenu: boolean;

@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @source '../../../../packages/ui/src';
 
-/* ── QRHub design system tokens ──────────────────────────────────────────
+/* ── Vyapar QR design system tokens ──────────────────────────────────────────
  * Brand palette: Meta blue (primary), WhatsApp green (success), Facebook
  * blue (info) — the three platforms this product integrates with day to
  * day, used as the accent trio instead of a generic single-tone brand

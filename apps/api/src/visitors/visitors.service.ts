@@ -16,7 +16,7 @@ export interface ScanSignals {
   qrId?: string;
 }
 
-export const VISITOR_COOKIE = 'qrhub_vid';
+export const VISITOR_COOKIE = 'vyaparqr_vid';
 /** Two years — long enough that a returning regular is recognised. */
 export const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 730;
 

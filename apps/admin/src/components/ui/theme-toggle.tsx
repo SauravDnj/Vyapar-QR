@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-export const THEME_STORAGE_KEY = 'qrhub-theme';
+export const THEME_STORAGE_KEY = 'vyaparqr-theme';
 
 type Theme = 'light' | 'dark';
 

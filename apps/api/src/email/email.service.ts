@@ -82,7 +82,7 @@ export class EmailService {
 
     try {
       await this.transport.sendMail({
-        from: this.configService.get<string>('SMTP_FROM') ?? 'QRHub <no-reply@qrhub.local>',
+        from: this.configService.get<string>('SMTP_FROM') ?? 'Vyapar QR <no-reply@vyaparqr.local>',
         to,
         subject,
         html,

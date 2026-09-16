@@ -1,4 +1,4 @@
-# QRHub on Vercel — all three apps, no database server
+# Vyapar QR on Vercel — all three apps, no database server
 
 > **Live as of 2026-09-07.** This project is deployed and verified:
 > API <https://qrhub-api.vercel.app> · Admin <https://qrhub-admin.vercel.app>
@@ -67,7 +67,7 @@ From the repo root:
 
 ```bash
 cd apps/api
-vercel link          # create a new project, e.g. "qrhub-api"
+vercel link          # create a new project, e.g. "vyaparqr-api"
 ```
 
 `apps/api/vercel.json` already declares the build, the function entrypoint, an
@@ -76,7 +76,7 @@ project) and the cron schedule.
 
 ### Add a Redis database
 
-In the Vercel dashboard: **qrhub-api → Storage → Create Database**, pick a free
+In the Vercel dashboard: **vyaparqr-api → Storage → Create Database**, pick a free
 Redis, and connect it to the project for all environments. Either kind works:
 
 - **Redis** (Redis Cloud) injects `REDIS_URL` and is used over TCP. **This is
@@ -157,7 +157,7 @@ as an opaque "Failed to fetch" in the browser with nothing in the API logs.
 
 > **Monorepo setting:** in each project's dashboard, set **Root Directory** to
 > `apps/api`, `apps/admin` or `apps/landing`. Each app's `vercel.json` already
-> builds `@qrhub/types` first, which the apps import at runtime.
+> builds `@vyaparqr/types` first, which the apps import at runtime.
 
 ---
 
@@ -241,7 +241,7 @@ Worth reading before putting real customers on this.
 
 **Concurrent writes can clobber.** Two serverless instances writing the same
 collection at the same moment is last-write-wins. Within one instance writes
-are serialised and safe. At QRHub's write volume (signups, leads, orders) a
+are serialised and safe. At Vyapar QR's write volume (signups, leads, orders) a
 collision is unlikely but not impossible — it is the main reason to move to a
 real database as you grow.
 
@@ -294,8 +294,8 @@ going to the ephemeral `/tmp` filesystem. Set it to `redis`.
 
 **Cron returns 403.** `CRON_SECRET` is unset or differs from what Vercel sends.
 
-**`Cannot find module '@qrhub/types'`.** The build didn't build the workspace
-package first. Each `vercel.json` runs `pnpm --filter @qrhub/types build`
+**`Cannot find module '@vyaparqr/types'`.** The build didn't build the workspace
+package first. Each `vercel.json` runs `pnpm --filter @vyaparqr/types build`
 ahead of the app build; confirm the project's Root Directory is set correctly.
 
 **DI errors like `Nest can't resolve dependencies`.** The function is loading

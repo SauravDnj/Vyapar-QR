@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @source '../../../../packages/ui/src';
 
-/* ── QRHub design system tokens ──────────────────────────────────────────
+/* ── Vyapar QR design system tokens ──────────────────────────────────────────
  * Mirrors apps/admin/src/app/globals.css — packages/ui components (social
  * buttons, payment buttons, theme chrome) render in both apps, so both need
  * the same --color-* utilities available or classes like bg-whatsapp only

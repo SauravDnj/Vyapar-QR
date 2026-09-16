@@ -18,7 +18,7 @@ import { TestimonialForm } from '../testimonial-form';
 import { TestimonialsWall } from '../testimonials-wall';
 import { accentColorStyle, orDefault } from '../theme-content';
 
-import type { ThemeRenderProps } from '@qrhub/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 
 /** Bold's own default accent is its yellow-400 highlight — preserved as the
  * CSS var's fallback so a client who hasn't picked a color sees exactly
@@ -187,7 +187,7 @@ export function BoldTheme({
         <ShareButton businessName={businessName} />
         <LoyaltyCardLink slug={slug} active={loyaltyActive} />
         <span>{orDefault(footer.text, `© ${businessName}`)}</span>
-        {!hideBranding ? <span>Powered by QRHub</span> : null}
+        {!hideBranding ? <span>Powered by Vyapar QR</span> : null}
       </footer>
     </div>
   );

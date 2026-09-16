@@ -1,5 +1,6 @@
 'use client';
 
+import { BRAND_NAME, BrandLogo } from '@vyaparqr/ui';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -12,7 +13,7 @@ export function LoginForm({
   logoUrl,
   showRegisterLink = true,
 }: {
-  /** Defaults to "QRHub" — set for a white-label client's branded login page. */
+  /** Defaults to "Vyapar QR" — set for a white-label client's branded login page. */
   brandName?: string;
   logoUrl?: string | null;
   /** Hidden on branded per-client login pages — self-registration doesn't
@@ -52,9 +53,11 @@ export function LoginForm({
       <div className="space-y-2 text-center">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt={brandName ?? 'Logo'} className="mx-auto h-12 w-12 rounded-md object-contain" />
+          <img src={logoUrl} alt={brandName ?? BRAND_NAME} className="mx-auto h-12 w-12 rounded-md object-contain" />
+        ) : brandName ? (
+          <p className="text-sm font-semibold tracking-tight text-accent">{brandName}</p>
         ) : (
-          <p className="font-mono text-sm font-semibold tracking-tight text-accent">{brandName ?? 'QRHub'}</p>
+          <BrandLogo size={32} className="justify-center" />
         )}
         <h1 className="text-2xl font-semibold">Sign in</h1>
       </div>

@@ -12,7 +12,7 @@ import type { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import type { PlaceOrderDto } from './dto/place-order.dto';
 import type { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 import type { UpdateMenuItemDto } from './dto/update-menu-item.dto';
-import type { PlanFeatures } from '@qrhub/types';
+import type { PlanFeatures } from '@vyaparqr/types';
 
 @Injectable()
 export class MenuService {

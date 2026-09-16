@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploys the QRHub API on a VPS — no Docker. Run this ON the VPS (locally,
+# Deploys the Vyapar QR API on a VPS — no Docker. Run this ON the VPS (locally,
 # or via SSH from CI — see .github/workflows/deploy.yml).
 #
 # Assumes: Node 20+, pnpm, and PM2 already installed globally
@@ -8,7 +8,7 @@
 # from DATABASE_URL/REDIS_URL in that .env.
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-$HOME/qrhub}"
+APP_DIR="${APP_DIR:-$HOME/vyapar-qr}"
 cd "$APP_DIR"
 
 echo "==> Pulling latest code"

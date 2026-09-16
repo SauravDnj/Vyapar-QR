@@ -18,7 +18,7 @@ import { TestimonialForm } from '../testimonial-form';
 import { TestimonialsWall } from '../testimonials-wall';
 import { accentColorStyle, orDefault } from '../theme-content';
 
-import type { ThemeRenderProps } from '@qrhub/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 
 /** Academy's default accent is a friendly, energetic indigo-500 — the
  * "modern learning platform" color that reads encouraging rather than
@@ -218,7 +218,7 @@ export function AcademyTheme({
         <ShareButton businessName={businessName} />
         <LoyaltyCardLink slug={slug} active={loyaltyActive} />
         <span>{orDefault(footer.text, `© ${businessName}`)}</span>
-        {!hideBranding ? <span>Powered by QRHub</span> : null}
+        {!hideBranding ? <span>Powered by Vyapar QR</span> : null}
       </footer>
     </div>
   );

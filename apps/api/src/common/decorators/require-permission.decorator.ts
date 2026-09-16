@@ -1,6 +1,6 @@
 import { SetMetadata } from '@nestjs/common';
 
-import type { StaffPermissions } from '@qrhub/types';
+import type { StaffPermissions } from '@vyaparqr/types';
 
 export const REQUIRE_PERMISSION_KEY = 'requirePermission';
 export const RequirePermission = (permission: keyof StaffPermissions) =>

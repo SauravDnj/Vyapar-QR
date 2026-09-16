@@ -14,7 +14,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
   const { user, logout } = useAuth();
 
   return (
-    <DashboardShell brand="QRHub · Agency" navSections={NAV_SECTIONS} user={user} onLogout={logout}>
+    <DashboardShell brandSuffix="Agency" navSections={NAV_SECTIONS} user={user} onLogout={logout}>
       {children}
     </DashboardShell>
   );

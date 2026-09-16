@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
+import { DEFAULT_THEME_SCHEMA } from '@vyaparqr/types';
 
 import { PrismaService } from '../prisma/prisma.service';
 

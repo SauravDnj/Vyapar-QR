@@ -19,7 +19,7 @@
       "Bash(.tools/redis/redis-cli.exe ping *)",
       "Bash(node -e ' *)",
       "Bash(curl -s http://localhost:4100/public/landing/sunrise-cafe -o /tmp/sunrise.json)",
-      "Bash(pnpm --filter @qrhub/ui typecheck)",
+      "Bash(pnpm --filter @vyaparqr/ui typecheck)",
       "Bash(npx turbo *)"
     ]
   }

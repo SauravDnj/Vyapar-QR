@@ -7,7 +7,7 @@ import { Badge } from '../../../components/ui/badge';
 import { useAuth } from '../../../context/auth-context';
 import { getOnboardingStatus, savePaymentMethods, uploadImage, type OnboardingPaymentMethod } from '../../../lib/onboarding-api';
 
-import type { PaymentMethodType } from '@qrhub/types';
+import type { PaymentMethodType } from '@vyaparqr/types';
 
 const APPS: { type: PaymentMethodType; label: string }[] = [
   { type: 'gpay', label: 'GPay' },

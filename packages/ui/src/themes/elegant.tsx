@@ -18,7 +18,7 @@ import { TestimonialForm } from '../testimonial-form';
 import { TestimonialsWall } from '../testimonials-wall';
 import { accentColorStyle, orDefault } from '../theme-content';
 
-import type { ThemeRenderProps } from '@qrhub/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 
 /** Elegant has no strong accent of its own — it's a quiet cream/stone
  * monochrome palette. stone-400 is used as the CSS var's fallback so an
@@ -194,7 +194,7 @@ export function ElegantTheme({
         <ShareButton businessName={businessName} />
         <LoyaltyCardLink slug={slug} active={loyaltyActive} />
         <span>{orDefault(footer.text, `© ${businessName}`)}</span>
-        {!hideBranding ? <span>Powered by QRHub</span> : null}
+        {!hideBranding ? <span>Powered by Vyapar QR</span> : null}
       </footer>
     </div>
   );

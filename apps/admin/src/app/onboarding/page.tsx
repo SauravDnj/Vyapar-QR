@@ -1,7 +1,7 @@
 'use client';
 
-import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
-import { ThemeRenderer } from '@qrhub/ui';
+import { DEFAULT_THEME_SCHEMA } from '@vyaparqr/types';
+import { ThemeRenderer } from '@vyaparqr/ui';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ProtectedRoute } from '../../components/protected-route';
@@ -20,7 +20,7 @@ import {
   type OnboardingTheme,
 } from '../../lib/onboarding-api';
 
-import type { PaymentMethodType, SocialPlatform, ThemeContent, ThemeField, ThemeSectionKey } from '@qrhub/types';
+import type { PaymentMethodType, SocialPlatform, ThemeContent, ThemeField, ThemeSectionKey } from '@vyaparqr/types';
 
 type Step = 'business' | 'theme' | 'payment' | 'social' | 'done';
 const STEPS: { key: Step; label: string }[] = [
@@ -246,7 +246,7 @@ function OnboardingWizard() {
         address: about.address,
         hours: about.hours,
         phone: about.phone,
-        agencySlug: sessionStorage.getItem('qrhub_agency_slug') ?? undefined,
+        agencySlug: sessionStorage.getItem('vyaparqr_agency_slug') ?? undefined,
       });
       setStep('theme');
     } catch {

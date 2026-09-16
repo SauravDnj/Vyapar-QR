@@ -1,4 +1,4 @@
-# QRHub — Full Build Task List (Execution Backlog)
+# Vyapar QR — Full Build Task List (Execution Backlog)
 
 Companion to [`PLAN.md`](./PLAN.md). Every item below is a self-contained task: a **Prompt** (paste as-is to build it), and **Deliverables** (what "done" means). Work top to bottom within a phase — later tasks assume earlier ones exist. IDs are stable so you can reference them ("do P1-14 next").
 
@@ -336,7 +336,7 @@ Prompt: "Add `client_staff` as an invitable sub-role per client with restricted 
 Prompt: "Add a kanban-style board view of `Lead` statuses (drag-and-drop between new/contacted/converted/lost) alongside the existing list view."
 
 **P4-03 — White-label options**
-Prompt: "Add a premium option to remove QRHub branding from the landing page footer and allow a custom login page per client (for agencies reselling the platform)."
+Prompt: "Add a premium option to remove Vyapar QR branding from the landing page footer and allow a custom login page per client (for agencies reselling the platform)."
 
 **P4-04 — Outbound integrations**
 Prompt: "Build outbound webhooks (new lead, new review, subscription event) so clients can connect Zapier/Make or their own systems."

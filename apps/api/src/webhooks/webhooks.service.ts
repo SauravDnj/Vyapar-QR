@@ -53,7 +53,7 @@ export class WebhooksService {
     try {
       const response = await fetch(webhook.url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-QRHub-Signature': signature, 'X-QRHub-Event': eventType },
+        headers: { 'Content-Type': 'application/json', 'X-VyaparQR-Signature': signature, 'X-VyaparQR-Event': eventType },
         body,
       });
       if (!response.ok) {

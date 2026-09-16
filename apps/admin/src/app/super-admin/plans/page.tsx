@@ -214,7 +214,7 @@ function PlansContent() {
             checked={form.whiteLabel}
             onChange={(e) => setForm({ ...form, whiteLabel: e.target.checked })}
           />
-          White-label (hide &quot;Powered by QRHub&quot;)
+          White-label (hide &quot;Powered by Vyapar QR&quot;)
         </label>
         <label className="flex items-center gap-2">
           <input

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Icon } from './icon';
 
-import type { PaymentMethodType, PublicPaymentMethod } from '@qrhub/types';
+import type { PaymentMethodType, PublicPaymentMethod } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 

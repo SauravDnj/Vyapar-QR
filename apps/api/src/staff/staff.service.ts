@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import type { AuthUser } from '../auth/auth.service';
 import type { ClientStaffMember, Prisma } from '../jsondb';
-import type { StaffPermissions } from '@qrhub/types';
+import type { StaffPermissions } from '@vyaparqr/types';
 
 const STAFF_INVITE_PURPOSE = 'staff_invite';
 const BCRYPT_ROUNDS = 10;

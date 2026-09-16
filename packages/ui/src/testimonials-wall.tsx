@@ -1,4 +1,4 @@
-import type { PublicTestimonial } from '@qrhub/types';
+import type { PublicTestimonial } from '@vyaparqr/types';
 
 function stars(rating: number): string {
   return '★'.repeat(Math.max(0, Math.min(5, Math.round(rating)))).padEnd(5, '☆');

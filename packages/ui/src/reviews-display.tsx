@@ -1,4 +1,4 @@
-import type { PublicReviewItem } from '@qrhub/types';
+import type { PublicReviewItem } from '@vyaparqr/types';
 
 function stars(rating: number): string {
   return '★'.repeat(Math.max(0, Math.min(5, Math.round(rating)))).padEnd(5, '☆');

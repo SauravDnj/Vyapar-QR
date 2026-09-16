@@ -91,7 +91,7 @@ function WebhooksContent() {
             required
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://example.com/webhooks/qrhub"
+            placeholder="https://example.com/webhooks/vyaparqr"
             className="rounded-md border border-border-color px-3 py-2"
           />
         </label>
@@ -133,7 +133,7 @@ function WebhooksContent() {
               </div>
               <p className="mt-1 text-muted">Events: {webhook.eventTypes.join(', ')}</p>
               <p className="mt-1 text-xs text-muted">
-                Verify each delivery with the <code>X-QRHub-Signature</code> header — HMAC-SHA256 of the raw body
+                Verify each delivery with the <code>X-VyaparQR-Signature</code> header — HMAC-SHA256 of the raw body
                 using this secret:
               </p>
               <code className="mt-1 block break-all text-xs">{webhook.secret}</code>

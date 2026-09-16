@@ -68,10 +68,10 @@ export interface ThemeRenderProps {
    * Defaults to an empty array where not yet fetched (e.g. admin previews). */
   reviews?: PublicReviewItem[];
   /** True when the client's plan includes white-label (P4-03) — themes hide
-   * the "Powered by QRHub" footer line when this is set. */
+   * the "Powered by Vyapar QR" footer line when this is set. */
   hideBranding?: boolean;
   /** Client-chosen accent color override (hex), null/undefined = the
-   * theme's own default. See `accentColorStyle` in `@qrhub/ui`. */
+   * theme's own default. See `accentColorStyle` in `@vyaparqr/ui`. */
   accentColor?: string | null;
   /** Gallery photo strip. Defaults to empty where not yet fetched (e.g.
    * admin previews that don't pass it). */

@@ -1,4 +1,4 @@
-import type { PublicLocation } from '@qrhub/types';
+import type { PublicLocation } from '@vyaparqr/types';
 
 /** A client's physical branches — address, phone, hours, and a "Get
  * directions" link built from the address text (no maps API/key needed,

@@ -18,7 +18,7 @@ import { TestimonialForm } from '../testimonial-form';
 import { TestimonialsWall } from '../testimonials-wall';
 import { accentColorStyle, orDefault } from '../theme-content';
 
-import type { ThemeRenderProps } from '@qrhub/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 
 /** Aperture's default accent is a punchy rose — a single vivid highlight
  * against the near-black gallery backdrop, used sparingly so the client's
@@ -227,7 +227,7 @@ export function ApertureTheme({
         <ShareButton businessName={businessName} />
         <LoyaltyCardLink slug={slug} active={loyaltyActive} />
         <span>{orDefault(footer.text, `© ${businessName}`)}</span>
-        {!hideBranding ? <span>Powered by QRHub</span> : null}
+        {!hideBranding ? <span>Powered by Vyapar QR</span> : null}
       </footer>
     </div>
   );

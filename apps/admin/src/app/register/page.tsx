@@ -1,5 +1,6 @@
 'use client';
 
+import { BrandLogo } from '@vyaparqr/ui';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -23,7 +24,7 @@ function RegisterForm() {
   useEffect(() => {
     const agencySlug = searchParams.get('agency');
     if (agencySlug) {
-      sessionStorage.setItem('qrhub_agency_slug', agencySlug);
+      sessionStorage.setItem('vyaparqr_agency_slug', agencySlug);
     }
   }, [searchParams]);
 
@@ -51,7 +52,7 @@ function RegisterForm() {
       style={{ boxShadow: 'var(--shadow-card)' }}
     >
       <div className="space-y-1 text-center">
-        <p className="font-mono text-sm font-semibold tracking-tight text-accent">QRHub</p>
+        <BrandLogo size={32} className="justify-center" />
         <h1 className="text-2xl font-semibold">Create your account</h1>
       </div>
 

@@ -18,7 +18,7 @@ export function SuperAdminNav() {
     <nav className="flex items-center justify-between border-b px-8 py-4">
       <div className="flex gap-6">
         <Link href="/super-admin" className="font-semibold">
-          QRHub Admin
+          Vyapar QR · Super Admin
         </Link>
         <Link href="/super-admin/clients">Clients</Link>
         <Link href="/super-admin/plans">Plans</Link>

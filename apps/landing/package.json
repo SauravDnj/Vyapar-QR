@@ -1,5 +1,5 @@
 {
-  "name": "@qrhub/landing",
+  "name": "@vyaparqr/landing",
   "private": true,
   "version": "0.1.0",
   "scripts": {
@@ -10,14 +10,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@qrhub/types": "workspace:*",
-    "@qrhub/ui": "workspace:*",
+    "@vyaparqr/types": "workspace:*",
+    "@vyaparqr/ui": "workspace:*",
     "next": "^16.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@qrhub/config": "workspace:*",
+    "@vyaparqr/config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",

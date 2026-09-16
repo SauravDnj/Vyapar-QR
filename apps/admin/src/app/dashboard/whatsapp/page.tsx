@@ -173,7 +173,7 @@ function SettingsPanel({ accessToken }: { accessToken: string }) {
       <div>
         <p className="font-medium">WhatsApp settings</p>
         <p className="text-sm text-muted">
-          Sent and received through QRHub&apos;s shared WhatsApp Business number. Customers see your business name in
+          Sent and received through Vyapar QR&apos;s shared WhatsApp Business number. Customers see your business name in
           every message.
         </p>
       </div>

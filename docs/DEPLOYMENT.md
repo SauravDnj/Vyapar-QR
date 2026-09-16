@@ -1,8 +1,8 @@
-# QRHub — VPS Production Deployment Guide
+# Vyapar QR — VPS Production Deployment Guide
 
 > ### ⚠️ This guide is no longer the default path
 >
-> **QRHub no longer uses MySQL.** The data layer is now JSON documents —
+> **Vyapar QR no longer uses MySQL.** The data layer is now JSON documents —
 > one file per model — served by the engine in
 > [`apps/api/src/jsondb`](../apps/api/src/jsondb/README.md). Every step below
 > that installs, configures or migrates MySQL **no longer applies**, and
@@ -125,7 +125,7 @@ which you'll paste into the VPS's `apps/api/.env` in Step 3.
 3. **Before running any migration**, go to that database's settings in the
    PlanetScale dashboard and check whether **Foreign Key Constraints** is
    enabled. PlanetScale disables real FK constraints by default (a Vitess
-   quirk) — QRHub's Prisma schema relies on real foreign keys and does
+   quirk) — Vyapar QR's Prisma schema relies on real foreign keys and does
    **not** set `relationMode = "prisma"`, so `prisma migrate deploy` will
    fail with a "Foreign key constraints are not allowed" error on a
    database that doesn't have them turned on. Enable that setting for this
@@ -133,10 +133,10 @@ which you'll paste into the VPS's `apps/api/.env` in Step 3.
 4. Get the connection string: database page → **Connect** → select
    **Prisma** as the framework → copy the shown value, e.g.:
    ```
-   DATABASE_URL="mysql://xxxxxxxx:pscale_pw_xxxxxxxx@aws.connect.psdb.cloud/qrhub_prod?sslaccept=strict"
+   DATABASE_URL="mysql://xxxxxxxx:pscale_pw_xxxxxxxx@aws.connect.psdb.cloud/vyaparqr_prod?sslaccept=strict"
    ```
 5. Use that as `DATABASE_URL` in Step 3's `apps/api/.env` on the VPS,
-   instead of the local `mysql://root:...@localhost:3306/qrhub_dev` value —
+   instead of the local `mysql://root:...@localhost:3306/vyaparqr_dev` value —
    and skip the "install/create MySQL" lines in Step 3 entirely, since
    there's nothing to install locally.
 
@@ -166,11 +166,11 @@ sudo systemctl enable --now mysql redis-server
 
 # Create the production database (skip if using a managed host — it
 # already has a database for you)
-sudo mysql -e "CREATE DATABASE qrhub_prod; CREATE USER 'qrhub'@'localhost' IDENTIFIED BY 'CHANGE_ME_STRONG_PASSWORD'; GRANT ALL ON qrhub_prod.* TO 'qrhub'@'localhost'; FLUSH PRIVILEGES;"
+sudo mysql -e "CREATE DATABASE vyaparqr_prod; CREATE USER 'vyaparqr'@'localhost' IDENTIFIED BY 'CHANGE_ME_STRONG_PASSWORD'; GRANT ALL ON vyaparqr_prod.* TO 'vyaparqr'@'localhost'; FLUSH PRIVILEGES;"
 
 # Clone the repo
-git clone https://github.com/<you>/<repo>.git ~/qrhub
-cd ~/qrhub
+git clone https://github.com/<you>/<repo>.git ~/vyapar-qr
+cd ~/vyapar-qr
 
 # Real production env
 cp apps/api/.env.example apps/api/.env
@@ -182,7 +182,7 @@ nano apps/api/.env
 | Variable | Production value |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | `mysql://qrhub:CHANGE_ME_STRONG_PASSWORD@localhost:3306/qrhub_prod` (or your Step 2 Option B string) |
+| `DATABASE_URL` | `mysql://vyaparqr:CHANGE_ME_STRONG_PASSWORD@localhost:3306/vyaparqr_prod` (or your Step 2 Option B string) |
 | `REDIS_URL` | `redis://localhost:6379` |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Generate real random secrets — **never** the `dev-...-change-me` placeholders (`openssl rand -base64 48`) |
 | `ADMIN_APP_URL` | `https://app.yourdomain.com` (your Vercel admin URL/custom domain) |
@@ -218,7 +218,7 @@ pm2 save
 pm2 startup   # follow its printed instructions so it survives a reboot
 ```
 
-> **Verify it actually started** — check `pm2 logs qrhub-api --lines 50` for
+> **Verify it actually started** — check `pm2 logs vyaparqr-api --lines 50` for
 > `Nest application successfully started`, then `curl localhost:4100/themes`
 > should return real JSON. If PM2 shows the process endlessly restarting,
 > `pm2 logs` will show why — the most common cause is `DATABASE_URL`/
@@ -227,9 +227,9 @@ pm2 startup   # follow its printed instructions so it survives a reboot
 ### Nginx + SSL for the API
 
 ```bash
-sudo cp deploy/nginx/qrhub-api.conf /etc/nginx/sites-available/qrhub-api.conf
-sudo nano /etc/nginx/sites-available/qrhub-api.conf   # replace api.yourdomain.com with your real domain
-sudo ln -s /etc/nginx/sites-available/qrhub-api.conf /etc/nginx/sites-enabled/
+sudo cp deploy/nginx/vyaparqr-api.conf /etc/nginx/sites-available/vyaparqr-api.conf
+sudo nano /etc/nginx/sites-available/vyaparqr-api.conf   # replace api.yourdomain.com with your real domain
+sudo ln -s /etc/nginx/sites-available/vyaparqr-api.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 sudo apt-get install -y certbot python3-certbot-nginx
@@ -272,7 +272,7 @@ install/build command, so Vercel only needs pointing at the right subfolder.
    - Deploy. Add your root domain here, e.g. `yourdomain.com`.
 4. Go back to the API's `.env` on the VPS and double check `ADMIN_APP_URL`/
    `LANDING_APP_URL`/`CORS_ORIGINS` match these real Vercel domains exactly
-   (including `https://`, no trailing slash), then `pm2 restart qrhub-api`.
+   (including `https://`, no trailing slash), then `pm2 restart vyaparqr-api`.
 5. Note each project's **Project ID** and your **Org/Team ID**
    (Settings → General) — needed for CI secrets in Step 5.
 
@@ -301,7 +301,7 @@ Add these secrets under **GitHub repo → Settings → Secrets and variables →
 | `VPS_HOST` | Your VPS's IP or hostname |
 | `VPS_USER` | SSH user on the VPS (e.g. `deploy`) |
 | `VPS_SSH_KEY` | Private half of a **deploy-only** SSH key pair — put the public half in the VPS's `~/.ssh/authorized_keys` |
-| `VPS_APP_DIR` | Absolute path to the cloned repo on the VPS, e.g. `/home/deploy/qrhub` (optional, defaults to `$HOME/qrhub`) |
+| `VPS_APP_DIR` | Absolute path to the cloned repo on the VPS, e.g. `/home/deploy/vyapar-qr` (optional, defaults to `$HOME/vyapar-qr`) |
 
 Without these secrets configured, deploys just stay manual — push to `main`,
 then `git pull && bash deploy/scripts/deploy-api.sh` on the VPS, and Vercel
@@ -386,14 +386,14 @@ no-ops/logs "not configured" when blank:
 
 1. `curl https://api.yourdomain.com/themes` → real JSON array, not an error.
 2. `https://app.yourdomain.com/login` → log in as the seeded Super Admin
-   (`admin@qrhub.local` / whatever you set — **change this password in
+   (`admin@vyaparqr.local` / whatever you set — **change this password in
    production**, or better, delete/recreate that account with a real email).
 3. Register a fresh client account → complete onboarding → publish →
    confirm the live page loads at `https://yourdomain.com/site/<slug>` (or
    your landing domain).
 4. Browser dev tools console on `app.yourdomain.com` → no CORS errors.
-5. `pm2 status` on the VPS → `qrhub-api` shows `online`, not endlessly restarting.
-6. `pm2 logs qrhub-api --lines 20` → clean, no repeating stack traces.
+5. `pm2 status` on the VPS → `vyaparqr-api` shows `online`, not endlessly restarting.
+6. `pm2 logs vyaparqr-api --lines 20` → clean, no repeating stack traces.
 
 ---
 

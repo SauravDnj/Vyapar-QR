@@ -1,5 +1,6 @@
 'use client';
 
+import { BRAND_NAME, BrandLogo } from '@vyaparqr/ui';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -22,7 +23,7 @@ export interface NavSection {
 }
 
 export function DashboardShell({
-  brand,
+  brandSuffix,
   navSections,
   footer,
   headerExtra,
@@ -30,7 +31,8 @@ export function DashboardShell({
   onLogout,
   children,
 }: {
-  brand: string;
+  /** Labels the area beside the logo, e.g. "Super Admin". */
+  brandSuffix?: string;
   navSections: NavSection[];
   /** Rendered above [Log out] in the sidebar footer, e.g. a plan badge. */
   footer?: React.ReactNode;
@@ -58,7 +60,7 @@ export function DashboardShell({
   function renderNavContent(layoutGroupId: string) {
     return (
       <>
-        <p className="font-mono text-sm font-semibold tracking-tight">{brand}</p>
+        <BrandLogo size={26} suffix={brandSuffix} className="px-2" />
         <LayoutGroup id={layoutGroupId}>
           <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
             {navSections.map((section) => (
@@ -148,7 +150,7 @@ export function DashboardShell({
             >
               ☰
             </button>
-            <p className="text-lg font-semibold">{activeItem?.label ?? brand}</p>
+            <p className="text-lg font-semibold">{activeItem?.label ?? BRAND_NAME}</p>
           </div>
           <div className="flex items-center gap-3">
             {headerExtra}

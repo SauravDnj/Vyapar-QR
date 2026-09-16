@@ -3,7 +3,7 @@ name: Deploy
 # Runs after CI succeeds on main. No Docker: apps/admin and apps/landing
 # deploy to Vercel (their own cloud build, driven by each app's vercel.json),
 # apps/api deploys to a VPS via SSH, running there under PM2 behind Nginx
-# (see deploy/scripts/deploy-api.sh and deploy/nginx/qrhub-api.conf).
+# (see deploy/scripts/deploy-api.sh and deploy/nginx/vyaparqr-api.conf).
 on:
   workflow_run:
     workflows: ["CI"]
@@ -53,4 +53,4 @@ jobs:
           echo "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
-            "APP_DIR='${VPS_APP_DIR:-\$HOME/qrhub}' bash '${VPS_APP_DIR:-\$HOME/qrhub}/deploy/scripts/deploy-api.sh'"
+            "APP_DIR='${VPS_APP_DIR:-\$HOME/vyapar-qr}' bash '${VPS_APP_DIR:-\$HOME/vyapar-qr}/deploy/scripts/deploy-api.sh'"

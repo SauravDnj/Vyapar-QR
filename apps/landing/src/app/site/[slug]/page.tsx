@@ -1,4 +1,4 @@
-import { ThemeRenderer } from '@qrhub/ui';
+import { ThemeRenderer } from '@vyaparqr/ui';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
@@ -15,7 +15,7 @@ import type {
   PublicSocialLink,
   PublicTestimonial,
   SeoMeta,
-} from '@qrhub/types';
+} from '@vyaparqr/types';
 import type { Metadata } from 'next';
 
 export const revalidate = 300;
@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: PageProps<'/site/[slug]'>): P
   const { slug } = await params;
   const page = await fetchLandingPage(slug);
   if (!page || page.status !== 'published') {
-    return { title: 'QRHub' };
+    return { title: 'Vyapar QR' };
   }
   return {
     title: page.seoMeta?.title || page.businessName,

@@ -1,4 +1,4 @@
-# QRHub — How to use it
+# Vyapar QR — How to use it
 
 A practical guide to the live system: who logs in, what each person can do, and
 how a business goes from signing up to having a working QR code.
@@ -49,7 +49,7 @@ under payment methods, then publish. Publishing is refused without at least
 one payment method, so a page never goes live with a pay button that goes
 nowhere.
 
-> The earlier demo accounts (`admin@qrhub.local`, `client@qrhub.local` / Blue
+> The earlier demo accounts (`admin@vyaparqr.local`, `client@vyaparqr.local` / Blue
 > Bean Cafe) were lost with the blocked Blob store on 2026-09-15 and no longer
 > exist.
 
@@ -122,7 +122,7 @@ Everything on one page, no app, no signup:
 - **Menu and ordering**, **book a slot**, **collect loyalty stamps** — where the
   business has set those up.
 
-> **On payments:** QRHub never touches the money. It opens the customer's own
+> **On payments:** Vyapar QR never touches the money. It opens the customer's own
 > UPI app pointed at the business's own UPI ID. There is no payment gateway,
 > no settlement, and no cut taken — which is also why a "paid" confirmation is
 > self-reported and the business should check its UPI app before trusting it.

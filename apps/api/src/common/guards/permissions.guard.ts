@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 
 import { REQUIRE_PERMISSION_KEY } from '../decorators/require-permission.decorator';
 
-import type { StaffPermissions } from '@qrhub/types';
+import type { StaffPermissions } from '@vyaparqr/types';
 import type { Request } from 'express';
 
 /** Must run after `ClientScopeGuard` — reads `request.staffPermissions`,

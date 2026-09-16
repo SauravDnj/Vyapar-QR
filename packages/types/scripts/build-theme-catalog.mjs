@@ -1,7 +1,7 @@
 /**
  * Generates `src/theme-catalog.generated.ts`.
  *
- * The catalog lives in `@qrhub/types` rather than `@qrhub/ui` because both
+ * The catalog lives in `@vyaparqr/types` rather than `@vyaparqr/ui` because both
  * consume it: the UI renders from it, and the API seeds the theme table from
  * it. Keeping one copy is what stops the database and the renderer drifting
  * apart over a hundred entries.

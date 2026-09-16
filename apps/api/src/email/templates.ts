@@ -9,10 +9,10 @@ function wrap(bodyHtml: string): string {
 
 export function clientApprovedEmail(businessName: string, dashboardUrl: string): EmailContent {
   return {
-    subject: 'Your QRHub account has been approved',
+    subject: 'Your Vyapar QR account has been approved',
     html: wrap(`
       <h2>You're approved, ${businessName}!</h2>
-      <p>Your QRHub account is now active. You can log in and finish setting up your page.</p>
+      <p>Your Vyapar QR account is now active. You can log in and finish setting up your page.</p>
       <p><a href="${dashboardUrl}">Go to your dashboard</a></p>
     `),
   };
@@ -20,7 +20,7 @@ export function clientApprovedEmail(businessName: string, dashboardUrl: string):
 
 export function invoiceReceiptEmail(businessName: string, amount: string, invoiceId: string): EmailContent {
   return {
-    subject: `Receipt for your QRHub subscription — ₹${amount}`,
+    subject: `Receipt for your Vyapar QR subscription — ₹${amount}`,
     html: wrap(`
       <h2>Payment received</h2>
       <p>Hi ${businessName}, we've received your payment of <strong>₹${amount}</strong>.</p>
@@ -31,10 +31,10 @@ export function invoiceReceiptEmail(businessName: string, amount: string, invoic
 
 export function staffInviteEmail(businessName: string, inviteUrl: string): EmailContent {
   return {
-    subject: `You've been invited to help run ${businessName} on QRHub`,
+    subject: `You've been invited to help run ${businessName} on Vyapar QR`,
     html: wrap(`
       <h2>You're invited</h2>
-      <p>${businessName} has invited you to manage their QRHub page as a team member.</p>
+      <p>${businessName} has invited you to manage their Vyapar QR page as a team member.</p>
       <p><a href="${inviteUrl}">Accept the invite</a></p>
       <p>This link expires in 7 days.</p>
     `),
@@ -107,7 +107,7 @@ export interface WeeklyDigestStats {
 
 export function weeklyDigestEmail(businessName: string, stats: WeeklyDigestStats): EmailContent {
   return {
-    subject: `Your week on QRHub — ${businessName}`,
+    subject: `Your week on Vyapar QR — ${businessName}`,
     html: wrap(`
       <h2>Here's how your page did this week</h2>
       ${stats.aiSummary ? `<p>${stats.aiSummary}</p>` : ''}
@@ -124,7 +124,7 @@ export function weeklyDigestEmail(businessName: string, stats: WeeklyDigestStats
 
 export function passwordResetEmail(resetUrl: string): EmailContent {
   return {
-    subject: 'Reset your QRHub password',
+    subject: 'Reset your Vyapar QR password',
     html: wrap(`
       <h2>Reset your password</h2>
       <p>Click the link below to set a new password. This link expires in 15 minutes.</p>

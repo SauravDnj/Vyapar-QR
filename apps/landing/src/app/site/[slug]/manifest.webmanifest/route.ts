@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const { slug } = await params;
   const response = await fetch(`${API_URL}/public/landing/${slug}`, { next: { revalidate: 300 } });
   if (!response.ok) {
-    return Response.json({ name: 'QRHub' }, { status: 404 });
+    return Response.json({ name: 'Vyapar QR' }, { status: 404 });
   }
 
   const page = (await response.json()) as LandingPageForManifest;

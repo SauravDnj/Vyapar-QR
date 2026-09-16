@@ -21,7 +21,7 @@ import { orDefault } from '../theme-content';
 
 import { FONT_STACKS, RADIUS, SPACING } from './token-styles';
 
-import type { ThemeRenderProps, ThemeTokens } from '@qrhub/types';
+import type { ThemeRenderProps, ThemeTokens } from '@vyaparqr/types';
 import type { CSSProperties } from 'react';
 
 /**
@@ -189,7 +189,7 @@ export function TokenTheme({
           style={{ borderColor: 'var(--t-border)', color: 'var(--t-muted)' }}
         >
           <p>{orDefault(footer.note, `© ${businessName}`)}</p>
-          {hideBranding ? null : <p className="mt-1 opacity-70">Powered by QRHub</p>}
+          {hideBranding ? null : <p className="mt-1 opacity-70">Powered by Vyapar QR</p>}
         </footer>
       </div>
     </div>

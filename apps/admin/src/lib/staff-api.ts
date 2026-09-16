@@ -1,6 +1,6 @@
 import { ApiError, apiFetch } from './api-client';
 
-import type { StaffPermissions } from '@qrhub/types';
+import type { StaffPermissions } from '@vyaparqr/types';
 
 export interface StaffMember {
   id: string;

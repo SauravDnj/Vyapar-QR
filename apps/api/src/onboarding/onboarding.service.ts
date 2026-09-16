@@ -10,7 +10,7 @@ import type { BusinessInfoDto } from './dto/business-info.dto';
 import type { MenuSectionDto } from './dto/menu-section.dto';
 import type { SavePaymentMethodsDto } from './dto/payment-methods.dto';
 import type { SocialReviewDto } from './dto/social-review.dto';
-import type { ThemeContent } from '@qrhub/types';
+import type { ThemeContent } from '@vyaparqr/types';
 
 function slugify(input: string): string {
   return (

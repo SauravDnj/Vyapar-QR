@@ -1,4 +1,4 @@
-# QRHub — UI/UX Design Specification
+# Vyapar QR — UI/UX Design Specification
 
 Companion to [`PLAN.md`](./PLAN.md) and [`TASKS.md`](./TASKS.md). This document specifies the actual screens, navigation, layout, and components for all three surfaces: the **Super Admin dashboard**, the **Client dashboard**, and the **public landing page** visitors see after scanning a QR code. Everything here is responsive by default — desktop sidebar layouts collapse to a mobile drawer, tables scroll horizontally, stat grids reflow to one column.
 
@@ -26,7 +26,7 @@ Companion to [`PLAN.md`](./PLAN.md) and [`TASKS.md`](./TASKS.md). This document 
 ### 2.1 Navigation (left sidebar)
 
 ```
-QRHub · Super Admin
+Vyapar QR · Super Admin
 ─────────────────────
  PLATFORM
  ▸ Overview
@@ -108,7 +108,7 @@ Purpose: global platform configuration.
 ### 3.1 Navigation (left sidebar)
 
 ```
-QRHub · [Business Name]
+Vyapar QR · [Business Name]
 ─────────────────────
  YOUR PAGE
  ▸ Dashboard
@@ -238,7 +238,7 @@ Rendered full-screen on a phone after the QR scan — designed and reviewed **as
 │  [Message]                    │
 │  [         Send          ]   │
 ├─────────────────────────────┤
-│  Powered by QRHub             │
+│  Powered by Vyapar QR             │
 └─────────────────────────────┘
 ```
 

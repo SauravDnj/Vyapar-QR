@@ -1,5 +1,5 @@
-import { importOrderRules } from '@qrhub/config/eslint/import-order.mjs';
-import { prettierConfig } from '@qrhub/config/eslint/prettier.mjs';
+import { importOrderRules } from '@vyaparqr/config/eslint/import-order.mjs';
+import { prettierConfig } from '@vyaparqr/config/eslint/prettier.mjs';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';

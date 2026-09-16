@@ -59,7 +59,7 @@ export class DigestService {
       if (ownerPhone) {
         const whatsappMessage =
           aiSummary ??
-          `Your week on QRHub: ${String(summary.pageViews)} page views, ${String(summary.qrScans)} QR scans, ${String(newLeads)} new leads, ${String(newTestimonials)} new testimonials. ${dashboardUrl}`;
+          `Your week on Vyapar QR: ${String(summary.pageViews)} page views, ${String(summary.qrScans)} QR scans, ${String(newLeads)} new leads, ${String(newTestimonials)} new testimonials. ${dashboardUrl}`;
         await this.whatsappService.sendAndRecord(clientId, ownerPhone, whatsappMessage);
       }
     }

@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REQUIRE_FEATURE_KEY } from '../decorators/require-feature.decorator';
 
-import type { PlanFeatures } from '@qrhub/types';
+import type { PlanFeatures } from '@vyaparqr/types';
 import type { Request } from 'express';
 
 /** Runs after `ClientScopeGuard` — reads `request.clientId` (never trusts

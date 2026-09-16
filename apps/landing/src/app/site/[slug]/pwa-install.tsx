@@ -7,7 +7,7 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-const DISMISSED_KEY = 'qrhub-pwa-install-dismissed';
+const DISMISSED_KEY = 'vyaparqr-pwa-install-dismissed';
 
 /** Registers the service worker (required for Chrome/Android install
  * eligibility) and shows a custom "Add to Home Screen" prompt. Android/Chrome

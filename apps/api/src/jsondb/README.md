@@ -1,6 +1,6 @@
 # jsondb — the JSON-document database
 
-QRHub's data layer. One JSON file per model, behind the slice of the Prisma
+Vyapar QR's data layer. One JSON file per model, behind the slice of the Prisma
 Client API this codebase actually uses, so the 35 controllers and 41 services
 above it did not change when MySQL was removed.
 

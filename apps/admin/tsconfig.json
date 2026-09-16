@@ -1,5 +1,5 @@
 {
-  "extends": "@qrhub/config/tsconfig.base.json",
+  "extends": "@vyaparqr/config/tsconfig.base.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }],
     "jsx": "preserve",

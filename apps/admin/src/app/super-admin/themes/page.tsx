@@ -1,6 +1,6 @@
 'use client';
 
-import { ThemeRenderer } from '@qrhub/ui';
+import { ThemeRenderer } from '@vyaparqr/ui';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ProtectedRoute } from '../../../components/protected-route';
@@ -10,7 +10,7 @@ import { PhoneFrame } from '../../../components/ui/phone-frame';
 import { useAuth } from '../../../context/auth-context';
 import { createTheme, listAdminThemes, updateTheme, type CatalogTheme } from '../../../lib/admin-api';
 
-import type { PublicPaymentMethod, PublicReviewItem, PublicSocialLink, ThemeContent } from '@qrhub/types';
+import type { PublicPaymentMethod, PublicReviewItem, PublicSocialLink, ThemeContent } from '@vyaparqr/types';
 
 /** Realistic sample content so a preview shows a fully "filled in" page
  * instead of empty placeholder text — every section renders. */

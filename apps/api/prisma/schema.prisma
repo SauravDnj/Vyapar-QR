@@ -753,7 +753,7 @@ model ClientStaffMember {
    * P4-06: per-staff-member access grants (leads/reviews/analytics/billing/
    * domains). Null means "full access" — keeps every staff member invited
    * before this field existed behaved exactly as before. See
-   * `StaffPermissions` in @qrhub/types for the shape.
+   * `StaffPermissions` in @vyaparqr/types for the shape.
    */
   permissionsJson Json?             @map("permissions_json")
   createdAt       DateTime          @default(now()) @map("created_at")

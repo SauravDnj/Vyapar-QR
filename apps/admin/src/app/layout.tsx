@@ -5,8 +5,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'QRHub Admin',
-  description: 'QRHub Super Admin & Client Admin dashboard',
+  title: 'Vyapar QR — Admin',
+  description: 'Manage your Vyapar QR business page, QR code, leads and reviews.',
 };
 
 /** Runs before paint so a stored/system dark preference doesn't flash the
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
-    var stored = window.localStorage.getItem('qrhub-theme');
+    var stored = window.localStorage.getItem('vyaparqr-theme');
     var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     document.documentElement.dataset.theme = theme;
   } catch (e) {}

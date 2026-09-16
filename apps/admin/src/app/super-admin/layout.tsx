@@ -35,7 +35,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   return (
     <DashboardShell
-      brand="QRHub · Super Admin"
+      brandSuffix="Super Admin"
       navSections={NAV_SECTIONS}
       user={user}
       onLogout={logout}

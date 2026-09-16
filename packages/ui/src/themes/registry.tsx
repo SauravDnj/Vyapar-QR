@@ -1,4 +1,4 @@
-import { THEME_BY_NAME } from '@qrhub/types';
+import { THEME_BY_NAME } from '@vyaparqr/types';
 
 import { AcademyTheme } from './academy';
 import { ApertureTheme } from './aperture';
@@ -16,7 +16,7 @@ import { TrustlineTheme } from './trustline';
 import { VitalityTheme } from './vitality';
 
 
-import type { ThemeRenderProps } from '@qrhub/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 
 /** The thirteen original bespoke themes, matched by their database `name`. */
 const BESPOKE: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {

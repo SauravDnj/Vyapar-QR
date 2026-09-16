@@ -3,7 +3,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { LandingPageTranslation } from '../jsondb';
-import type { ThemeContent } from '@qrhub/types';
+import type { ThemeContent } from '@vyaparqr/types';
 
 const LOCALE_PATTERN = /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/;
 

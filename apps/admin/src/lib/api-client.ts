@@ -16,7 +16,7 @@ interface ApiFetchOptions {
   accessToken?: string | null;
 }
 
-/** Calls the QRHub API. Always sends credentials so the httpOnly refresh
+/** Calls the Vyapar QR API. Always sends credentials so the httpOnly refresh
  * cookie (set by the API's own origin) is included on every request. */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};

@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 
 import { useAuth } from '../context/auth-context';
 
-import type { UserRole } from '@qrhub/types';
+import type { UserRole } from '@vyaparqr/types';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

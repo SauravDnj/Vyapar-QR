@@ -1,6 +1,6 @@
 'use client';
 
-import { ThemeRenderer } from '@qrhub/ui';
+import { ThemeRenderer } from '@vyaparqr/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -25,7 +25,7 @@ import {
   type OnboardingTheme,
 } from '../../../lib/onboarding-api';
 
-import type { PublicSocialLink, SocialPlatform, ThemeContent } from '@qrhub/types';
+import type { PublicSocialLink, SocialPlatform, ThemeContent } from '@vyaparqr/types';
 
 interface HeroAboutForm {
   headline: string;

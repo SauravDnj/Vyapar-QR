@@ -1,5 +1,6 @@
 'use client';
 
+import { BrandLogo } from '@vyaparqr/ui';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -45,7 +46,7 @@ export default function RegisterAgencyPage() {
         style={{ boxShadow: 'var(--shadow-card)' }}
       >
         <div className="space-y-1 text-center">
-          <p className="font-mono text-sm font-semibold tracking-tight text-accent">QRHub for Agencies</p>
+          <BrandLogo size={32} suffix="Agencies" className="justify-center" />
           <h1 className="text-2xl font-semibold">Become a reseller</h1>
           <p className="text-sm text-muted">
             Get your own referral link, onboard clients under your agency, and track them from one dashboard.

@@ -4,12 +4,12 @@ import {
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
-import { DEFAULT_STAFF_PERMISSIONS } from '@qrhub/types';
+import { DEFAULT_STAFF_PERMISSIONS } from '@vyaparqr/types';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
 import type { JwtPayload } from '../../auth/types/jwt-payload.interface';
-import type { StaffPermissions } from '@qrhub/types';
+import type { StaffPermissions } from '@vyaparqr/types';
 import type { Request } from 'express';
 
 

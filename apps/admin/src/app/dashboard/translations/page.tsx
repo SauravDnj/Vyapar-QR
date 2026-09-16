@@ -1,6 +1,6 @@
 'use client';
 
-import { DEFAULT_THEME_SCHEMA } from '@qrhub/types';
+import { DEFAULT_THEME_SCHEMA } from '@vyaparqr/types';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ProtectedRoute } from '../../../components/protected-route';
