@@ -142,7 +142,7 @@ export function StorefrontTheme({
             </h2>
             {reviewConfig?.avgRatingCached ? <p className="text-2xl font-extrabold">★ {reviewConfig.avgRatingCached}</p> : null}
             <ReviewsDisplay reviews={reviews} />
-            <ReviewFunnel slug={slug} />
+            <ReviewFunnel slug={slug} businessName={businessName} />
           </section>
         </Reveal>
       ) : null}

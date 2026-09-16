@@ -147,7 +147,7 @@ export function ElegantTheme({
               </p>
             ) : null}
             <ReviewsDisplay reviews={reviews} />
-            <ReviewFunnel slug={slug} />
+            <ReviewFunnel slug={slug} businessName={businessName} />
           </section>
         </Reveal>
       ) : null}

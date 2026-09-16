@@ -23,6 +23,7 @@ import type { BookSlotDto } from '../bookings/dto/book-slot.dto';
 import type { CreateLeadDto } from '../leads/dto/create-lead.dto';
 import type { PlaceOrderDto } from '../menu/dto/place-order.dto';
 import type { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto';
+import type { ReviewHandoffDto } from '../reviews/dto/review-handoff.dto';
 import type { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import type { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
 import type { PlanFeatures, ThemeContent } from '@vyaparqr/types';
@@ -158,6 +159,10 @@ export class PublicService {
 
   draftCustomerReview(slug: string, dto: DraftCustomerReviewDto) {
     return this.reviewsService.draftCustomerReview(slug, dto);
+  }
+
+  recordReviewHandoff(slug: string, dto: ReviewHandoffDto) {
+    return this.reviewsService.recordHandoff(slug, dto);
   }
 
   /** A customer taps "I've paid" after being sent to their UPI app. There's

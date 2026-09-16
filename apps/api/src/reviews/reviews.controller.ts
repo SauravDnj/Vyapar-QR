@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { ClientScopeGuard } from '../common/guards/client-scope.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 
+import { CheckReviewLinkDto } from './dto/check-review-link.dto';
 import { SaveReviewConfigDto } from './dto/save-review-config.dto';
 import { ReviewsService } from './reviews.service';
 
@@ -27,6 +28,12 @@ export class ReviewsController {
     return this.reviewsService.saveConfig(clientId, dto);
   }
 
+  @Post('config/check-link')
+  @Roles('client_admin')
+  checkLink(@Body() dto: CheckReviewLinkDto) {
+    return this.reviewsService.checkReviewLink(dto.url);
+  }
+
   @Post('sync')
   @Roles('client_admin')
   sync(@CurrentClientId() clientId: string) {
@@ -36,6 +43,11 @@ export class ReviewsController {
   @Get('funnel-stats')
   getFunnelStats(@CurrentClientId() clientId: string) {
     return this.reviewsService.getFunnelStats(clientId);
+  }
+
+  @Get('funnel-responses')
+  listFunnelResponses(@CurrentClientId() clientId: string) {
+    return this.reviewsService.listFunnelResponses(clientId);
   }
 
   @Get('cached')

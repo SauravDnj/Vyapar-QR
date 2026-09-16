@@ -171,7 +171,7 @@ export function AcademyTheme({
               <p className="rounded-full bg-white/20 px-4 py-1 text-lg font-bold">★ {reviewConfig.avgRatingCached}</p>
             ) : null}
             <ReviewsDisplay reviews={reviews} />
-            <ReviewFunnel slug={slug} />
+            <ReviewFunnel slug={slug} businessName={businessName} />
           </section>
         </Reveal>
       ) : null}

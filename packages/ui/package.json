@@ -9,16 +9,18 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "dependencies": {
     "@vyaparqr/types": "workspace:*",
     "framer-motion": "^13.1.0"
   },
   "devDependencies": {
-    "@vyaparqr/config": "workspace:*",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.4",
+    "@vyaparqr/config": "workspace:*",
     "typescript": "^5.7.2"
   }
 }

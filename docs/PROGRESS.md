@@ -618,3 +618,29 @@ monthly reset would only repeat the outage, so the store was replaced.
 | P19-04 | Redis database on Vercel | ✅ Done | The Marketplace **Redis** (Redis Cloud) integration was connected, which injects only `REDIS_URL` — so a TCP transport (ioredis) was added behind the same `RedisClient` interface as Upstash REST. Tested against the real database before switching (including a 0.5 MB round trip), which caught ioredis pipelines needing lowercase command names. `JSONDB_DRIVER`/`STORAGE_DRIVER` set to `redis`; **verified live:** login answers 401 for bad credentials instead of 500. |
 | P19-05 | Production accounts | ✅ Done | The old Blob data was unreadable, so the store was rebuilt: seeded with super admin `admin.waloop@gmail.com`, 3 plans and 121 themes, and a `Waloop` client (`official.waloop@gmail.com`) signed up through the real API, given a theme and approved. Not published — that needs Waloop's real UPI details. Passwords handed over privately, not committed. **Verified live:** both logins return tokens with the right roles, and CORS allows the admin origin. |
 | P19-06 | Sessions dropped on reload and after 15 minutes | ✅ Done | `vercel.app` is on the Public Suffix List, so the admin and API are different sites and the `SameSite=Lax` refresh cookie was never sent — every reload or new tab signed the user out. The cookie is now `SameSite=None; Secure; Partitioned` in production (still `Lax` on http localhost), and `clearCookie` uses the same attributes so logout actually clears it. The admin also renews the 15-minute access token every 10 minutes while signed in, skipping impersonation. A custom domain for both apps (e.g. `admin.` and `api.` on one domain) would make the cookie first-party and remove the reliance on cross-site cookies. |
+
+---
+
+## Phase 20 — Rebrand to Vyapar QR
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P20-01 | Rename QRHub → Vyapar QR | ✅ Done | All UI text, emails, theme footers and docs; package scope `@qrhub/*` → `@vyaparqr/*`. Renamed identifiers: webhook headers `X-VyaparQR-*`, domain TXT record `_vyaparqr-verify`, visitor cookie and storage keys. The live `qrhub-*.vercel.app` domains are unchanged — they are the Vercel project names. |
+| P20-02 | Brand mark and homepage | ✅ Done | `packages/ui/src/brand.tsx` (BRAND_NAME, BrandMark, BrandLogo) in the admin sidebar, login and register; SVG favicons; a real homepage on the landing app in place of the create-next-app boilerplate. |
+
+---
+
+## Phase 21 — Google review writer
+
+Google's review page cannot be shown in an iframe (every google.com response
+sends `X-Frame-Options: SAMEORIGIN`), and no API posts a review for a customer.
+So the writing happens on the landing page and only the final Post happens on
+Google.
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P21-01 | Google Business link in admin | ✅ Done | Reviews page takes a `share.google` / `maps.app.goo.gl` / `g.page` link, rejects non-Google links, and "Check link" follows the short link (Google hosts only) to show which business it opens. With `GOOGLE_PLACES_API_KEY` the business name is matched to a Place ID on save, so customers land in the write-review box itself. |
+| P21-02 | Review sheet on the landing page | ✅ Done | Stars → highlight chips + "in your own words" → "Help me write my review" → editable text → "Copy & post on Google" copies it and opens Google, then shows paste-and-post steps. 1–3★ stays private feedback. Rendered through a portal: themes' scroll animations otherwise trap `position: fixed`. |
+| P21-03 | Review writer | 🟡 Code complete | `reviews/review-writer.ts`: Groq writes from only the customer's words and picked highlights, in their language. **`GROQ_API_KEY` is not set in production**, so it currently uses the built-in template writer, which still produces a usable review. |
+| P21-04 | Owner visibility and sheet log | 🟡 Code complete | Each "Post on Google" records the review text, the customer's words and whether help was used (`ReviewFunnelResponse`), listed under "Reviews written on your page". Feedback and reviews append to the review log sheet (Date · Rating · Text · Type · Customer's own words) — needs Google Sheets credentials, not set in production. |
+| P21-05 | Verified locally | ✅ Done | Built API + landing + admin: link check resolved the real share link to its business, the browser walkthrough opened Google with the review on the clipboard, and the admin list showed both the review and the private feedback. 19 unit tests for links and the writer. |

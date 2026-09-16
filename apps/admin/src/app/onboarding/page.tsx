@@ -496,7 +496,8 @@ function OnboardingWizard() {
             + Add another link
           </button>
           <input
-            placeholder="Google review link"
+            type="url"
+            placeholder="Google Business link, e.g. https://share.google/…"
             value={reviewLink}
             onChange={(e) => setReviewLink(e.target.value)}
             className="rounded border border-border-color px-3 py-2"

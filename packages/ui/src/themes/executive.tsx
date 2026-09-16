@@ -155,7 +155,7 @@ export function ExecutiveTheme({
               <p className="text-xl font-semibold text-white">★ {reviewConfig.avgRatingCached}</p>
             ) : null}
             <ReviewsDisplay reviews={reviews} />
-            <ReviewFunnel slug={slug} />
+            <ReviewFunnel slug={slug} businessName={businessName} />
           </section>
         </Reveal>
       ) : null}

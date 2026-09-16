@@ -291,6 +291,10 @@ export interface ReviewFunnelResponse {
   ratingGiven: number;
   routedToGoogle: boolean;
   feedbackText: string | null;
+  customerNotes: string | null;
+  reviewText: string | null;
+  aiDrafted: boolean;
+  handedOffAt: Date | null;
   createdAt: Date;
 }
 

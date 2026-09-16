@@ -444,6 +444,16 @@ model ReviewFunnelResponse {
   ratingGiven    Int      @map("rating_given")
   routedToGoogle Boolean  @map("routed_to_google")
   feedbackText   String?  @map("feedback_text") @db.Text
+  /**
+   * 4-5★ only: what the customer typed in their own words, the review text
+   * they took to Google (their own or the AI-polished version), and whether
+   * the AI wrote it. Set when they tap "Post on Google" — nothing here proves
+   * they actually posted, since Google never tells us.
+   */
+  customerNotes  String?   @map("customer_notes") @db.Text
+  reviewText     String?   @map("review_text") @db.Text
+  aiDrafted      Boolean   @default(false) @map("ai_drafted")
+  handedOffAt    DateTime? @map("handed_off_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)

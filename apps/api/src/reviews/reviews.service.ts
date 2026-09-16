@@ -8,12 +8,14 @@ import { SmsService } from '../sms/sms.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
-import { buildGoogleReviewUrl } from './google-review-link';
+import { blankToNull, buildGoogleReviewUrl, isGoogleLink, resolveGoogleLink, writeReviewUrl } from './google-review-link';
 import { DEFAULT_COLUMN_MAPPING, GoogleSheetsService, type ColumnMapping, type SheetReviewRow } from './google-sheets.service';
 import { PlacesApiService } from './places-api.service';
+import { buildReviewMessages, cleanGeneratedReview, composeReviewWithoutAi } from './review-writer';
 
-import type { GoogleReviewConfig } from '../jsondb';
+import type { GoogleReviewConfig, ReviewFunnelResponse } from '../jsondb';
 import type { DraftCustomerReviewDto } from './dto/draft-customer-review.dto';
+import type { ReviewHandoffDto } from './dto/review-handoff.dto';
 import type { SaveReviewConfigDto } from './dto/save-review-config.dto';
 import type { SubmitFunnelDto } from './dto/submit-funnel.dto';
 
@@ -21,6 +23,24 @@ export interface ReviewConfigResult {
   config: GoogleReviewConfig | null;
   sheetsConfigured: boolean;
   whatsappConfigured: boolean;
+  /** Groq key set — review drafts are AI-written; otherwise a template polish. */
+  aiConfigured: boolean;
+  /** Places key set — a share link's business is matched to a Place ID. */
+  placesConfigured: boolean;
+  /** Where the page's review button actually sends a customer right now. */
+  effectiveReviewUrl: string | null;
+}
+
+export interface ReviewLinkCheck {
+  valid: boolean;
+  message: string;
+  finalUrl: string | null;
+  businessName: string | null;
+  placeId: string | null;
+  address: string | null;
+  /** What customers will be sent to: the review box when a Place ID is known,
+   * otherwise the business profile the link opens. */
+  reviewUrl: string | null;
 }
 
 export interface FunnelStats {
@@ -66,15 +86,93 @@ export class ReviewsService {
 
   async getConfig(clientId: string): Promise<ReviewConfigResult> {
     const config = await this.prisma.googleReviewConfig.findUnique({ where: { clientId } });
-    return { config, sheetsConfigured: this.googleSheetsService.isConfigured, whatsappConfigured: this.whatsappService.isConfigured };
+    return {
+      config,
+      sheetsConfigured: this.googleSheetsService.isConfigured,
+      whatsappConfigured: this.whatsappService.isConfigured,
+      aiConfigured: this.groqService.isConfigured,
+      placesConfigured: this.placesApiService.isConfigured,
+      effectiveReviewUrl: buildGoogleReviewUrl({ reviewLink: config?.reviewLink, googlePlaceId: config?.googlePlaceId }),
+    };
+  }
+
+  /**
+   * Checks a pasted Google Business link before it's saved: follows a
+   * share.google / maps.app.goo.gl short link to where it really goes, reads
+   * the business name out of it, and — when a Places key is configured —
+   * matches that name to a Place ID so the button can open the review box
+   * itself rather than the profile.
+   */
+  async checkReviewLink(url: string): Promise<ReviewLinkCheck> {
+    const empty = { finalUrl: null, businessName: null, placeId: null, address: null, reviewUrl: null };
+    if (!isGoogleLink(url)) {
+      return {
+        valid: false,
+        message: 'That isn’t a Google link. Paste the link from your Google Business Profile’s Share button (it starts with https://share.google/ or https://maps.app.goo.gl/).',
+        ...empty,
+      };
+    }
+
+    let resolved: Awaited<ReturnType<typeof resolveGoogleLink>>;
+    try {
+      resolved = await resolveGoogleLink(url);
+    } catch (error) {
+      this.logger.warn(`Could not resolve Google link ${url}: ${error instanceof Error ? error.message : String(error)}`);
+      return { valid: true, message: 'Couldn’t reach Google to check this link, but it looks like a Google link. You can still save it.', ...empty, finalUrl: url, reviewUrl: url };
+    }
+
+    let placeId = resolved.placeId;
+    let address: string | null = null;
+    let businessName = resolved.businessName;
+    if (!placeId && businessName && this.placesApiService.isConfigured) {
+      const place = await this.placesApiService.findPlace(businessName).catch(() => null);
+      if (place) {
+        placeId = place.placeId;
+        address = place.address;
+        businessName = place.name ?? businessName;
+      }
+    }
+
+    return {
+      valid: true,
+      message: placeId
+        ? 'Link works — customers will go straight to the “Write a review” box.'
+        : businessName
+          ? 'Link works — customers will open your Google Business Profile and tap “Write a review”.'
+          : 'Link works.',
+      finalUrl: resolved.finalUrl,
+      businessName,
+      placeId,
+      address,
+      reviewUrl: placeId ? writeReviewUrl(placeId) : url.trim(),
+    };
   }
 
   async saveConfig(clientId: string, dto: SaveReviewConfigDto): Promise<GoogleReviewConfig> {
+    const reviewLink = blankToNull(dto.reviewLink);
+    if (reviewLink && !isGoogleLink(reviewLink)) {
+      throw new BadRequestException('The Google review link must be a Google link, e.g. https://share.google/… or https://maps.app.goo.gl/…');
+    }
+
+    // A share link carries only the business name; look up its Place ID once
+    // at save time (when a Places key exists) rather than on every page view.
+    let googlePlaceId = blankToNull(dto.googlePlaceId);
+    if (!googlePlaceId && reviewLink) {
+      const existing = await this.prisma.googleReviewConfig.findUnique({ where: { clientId } });
+      if (existing?.reviewLink !== reviewLink || !existing.googlePlaceId) {
+        googlePlaceId = await this.checkReviewLink(reviewLink)
+          .then((check) => check.placeId)
+          .catch(() => null);
+      } else {
+        googlePlaceId = existing.googlePlaceId;
+      }
+    }
+
     const data = {
       sheetId: dto.sheetId ?? null,
       sheetRange: dto.sheetRange ?? null,
-      googlePlaceId: dto.googlePlaceId ?? null,
-      reviewLink: dto.reviewLink ?? null,
+      googlePlaceId,
+      reviewLink,
       feedbackWhatsappNumber: dto.feedbackWhatsappNumber ?? null,
       feedbackSheetId: dto.feedbackSheetId ?? null,
       feedbackSheetTab: dto.feedbackSheetTab ?? null,
@@ -258,47 +356,42 @@ export class ReviewsService {
   /** Helps a customer who's already rated 4-5★ write their public Google
    * review — never posts anywhere itself (no API lets any app submit a
    * review on a customer's behalf; only their own logged-in Google account
-   * can do that). Grounded in the business's real name and whatever the
-   * customer typed themselves, so it doesn't invent specifics they never
-   * mentioned — stays warm-but-generic when `notes` is blank. Stateless,
-   * nothing written to the database. */
-  async draftCustomerReview(slug: string, dto: DraftCustomerReviewDto): Promise<{ draft: string | null }> {
+   * can do that). Grounded in the business's real name and the customer's
+   * own words and picked highlights — see review-writer.ts for the rules.
+   * Without a Groq key (or when the call fails) the customer still gets a
+   * template-polished review rather than an error. Nothing is stored here;
+   * the text is recorded only if they take it to Google (`recordHandoff`). */
+  async draftCustomerReview(
+    slug: string,
+    dto: DraftCustomerReviewDto,
+  ): Promise<{ draft: string | null; source: 'ai' | 'template' | null }> {
     if (dto.website) {
       // Honeypot tripped — same silent-success convention as every other public form.
-      return { draft: null };
+      return { draft: null, source: null };
     }
 
     const client = await this.prisma.client.findUnique({ where: { slug }, select: { businessName: true } });
     if (!client) {
-      return { draft: null };
+      return { draft: null, source: null };
     }
 
-    const draft = await this.groqService.chatComplete(
-      [
-        {
-          role: 'system',
-          content:
-            'You write short, natural-sounding public Google reviews as if written by a real happy customer — 2-4 sentences, no markdown, no hashtags, no exclamation-mark overload. Only mention specific details the customer actually gave you; if they gave none, keep it warm but general rather than inventing specifics (e.g. "great service" is fine, a made-up staff name is not).',
-        },
-        {
-          role: 'user',
-          content: `Business: ${client.businessName}\nRating I'm giving: ${String(dto.rating)}/5\nWhat I liked (may be blank): ${dto.notes ?? '(nothing specific mentioned)'}`,
-        },
-      ],
-      200,
-      0.7,
-    );
+    const input = { businessName: client.businessName, rating: dto.rating, notes: dto.notes, highlights: dto.highlights, variant: dto.variant };
+    const generated = await this.groqService.chatComplete(buildReviewMessages(input), 220, dto.variant ? 0.95 : 0.7);
+    const draft = generated ? cleanGeneratedReview(generated) : '';
+    if (draft) {
+      return { draft, source: 'ai' };
+    }
 
-    return { draft };
+    return { draft: composeReviewWithoutAi(input), source: 'template' };
   }
 
   async submitFunnelResponse(
     slug: string,
     dto: SubmitFunnelDto,
-  ): Promise<{ routedToGoogle: boolean; reviewLink: string | null }> {
+  ): Promise<{ routedToGoogle: boolean; reviewLink: string | null; responseId: string | null }> {
     if (dto.website) {
       // Honeypot tripped — silent success, no row written.
-      return { routedToGoogle: false, reviewLink: null };
+      return { routedToGoogle: false, reviewLink: null, responseId: null };
     }
 
     const client = await this.prisma.client.findUnique({
@@ -306,19 +399,19 @@ export class ReviewsService {
       include: { googleReviewConfig: true, user: { select: { email: true } } },
     });
     if (!client) {
-      return { routedToGoogle: false, reviewLink: null };
+      return { routedToGoogle: false, reviewLink: null, responseId: null };
     }
 
     const routedToGoogle = dto.rating >= 4;
     const feedbackText = routedToGoogle ? null : (dto.feedbackText ?? null);
 
-    await this.prisma.reviewFunnelResponse.create({
+    const response = await this.prisma.reviewFunnelResponse.create({
       data: { clientId: client.id, ratingGiven: dto.rating, routedToGoogle, feedbackText },
     });
 
     if (!routedToGoogle) {
       await this.alertOwnerOfLowRating(client.businessName, client.user.email, dto.rating, feedbackText, client.googleReviewConfig?.feedbackWhatsappNumber ?? null);
-      await this.logFeedbackToSheet(client.googleReviewConfig, dto.rating, feedbackText);
+      await this.logToSheet(client.googleReviewConfig, { rating: dto.rating, text: feedbackText, type: 'Private feedback', customerNotes: null });
     }
 
     return {
@@ -330,17 +423,61 @@ export class ReviewsService {
         reviewLink: client.googleReviewConfig?.reviewLink,
         googlePlaceId: client.googleReviewConfig?.googlePlaceId,
       }),
+      responseId: response.id,
     };
   }
 
-  /** Appends private feedback as a new Sheet row so the owner can manage it
-   * alongside their other spreadsheets. Best-effort like the WhatsApp
-   * alert above — a Sheets outage must never block the customer's
-   * submission or hide the email alert that already fired. */
-  private async logFeedbackToSheet(
+  /** A 4-5★ customer tapped "Post on Google". Records the review they took
+   * with them against their rating, and appends it to the owner's sheet.
+   * Only fills in a response once, so a double tap doesn't double-log. */
+  async recordHandoff(slug: string, dto: ReviewHandoffDto): Promise<{ ok: true }> {
+    if (dto.website) {
+      return { ok: true };
+    }
+
+    const client = await this.prisma.client.findUnique({ where: { slug }, include: { googleReviewConfig: true } });
+    if (!client) {
+      return { ok: true };
+    }
+
+    const response = await this.prisma.reviewFunnelResponse.findUnique({ where: { id: dto.responseId } });
+    if (response?.clientId !== client.id || !response.routedToGoogle || response.handedOffAt) {
+      return { ok: true };
+    }
+
+    const reviewText = blankToNull(dto.reviewText);
+    const customerNotes = blankToNull(dto.customerNotes);
+    const aiDrafted = Boolean(dto.aiDrafted && reviewText);
+    await this.prisma.reviewFunnelResponse.update({
+      where: { id: response.id },
+      data: { reviewText, customerNotes, aiDrafted, handedOffAt: new Date() },
+    });
+
+    await this.logToSheet(client.googleReviewConfig, {
+      rating: response.ratingGiven,
+      text: reviewText,
+      type: aiDrafted ? 'Google review (AI-written)' : 'Google review',
+      customerNotes,
+    });
+    return { ok: true };
+  }
+
+  /** The owner's view of what customers did in the funnel — newest first. */
+  async listFunnelResponses(clientId: string): Promise<ReviewFunnelResponse[]> {
+    return this.prisma.reviewFunnelResponse.findMany({
+      where: { clientId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  /** Appends one funnel event — private feedback or a review taken to
+   * Google — as a new Sheet row so the owner can manage them alongside their
+   * other spreadsheets. Best-effort like the WhatsApp alert — a Sheets outage
+   * must never block the customer's submission. */
+  private async logToSheet(
     config: GoogleReviewConfig | null | undefined,
-    rating: number,
-    feedbackText: string | null,
+    row: { rating: number; text: string | null; type: string; customerNotes: string | null },
   ): Promise<void> {
     const sheetId = config?.feedbackSheetId ?? config?.sheetId ?? null;
     const tab = config?.feedbackSheetTab;
@@ -349,7 +486,7 @@ export class ReviewsService {
     }
 
     try {
-      await this.googleSheetsService.appendFeedbackRow(sheetId, tab, { rating, feedbackText, submittedAt: new Date() });
+      await this.googleSheetsService.appendFeedbackRow(sheetId, tab, { ...row, submittedAt: new Date() });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Failed to append feedback to Google Sheet ${sheetId}!${tab}: ${message}`);

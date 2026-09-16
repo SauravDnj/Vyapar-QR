@@ -24,6 +24,39 @@ export interface ReviewConfigResult {
   config: ReviewConfig | null;
   sheetsConfigured: boolean;
   whatsappConfigured: boolean;
+  aiConfigured: boolean;
+  placesConfigured: boolean;
+  effectiveReviewUrl: string | null;
+}
+
+export interface ReviewLinkCheck {
+  valid: boolean;
+  message: string;
+  finalUrl: string | null;
+  businessName: string | null;
+  placeId: string | null;
+  address: string | null;
+  reviewUrl: string | null;
+}
+
+export function checkReviewLink(accessToken: string, url: string) {
+  return apiFetch<ReviewLinkCheck>('/reviews/config/check-link', { method: 'POST', body: { url }, accessToken });
+}
+
+export interface FunnelResponse {
+  id: string;
+  ratingGiven: number;
+  routedToGoogle: boolean;
+  feedbackText: string | null;
+  customerNotes: string | null;
+  reviewText: string | null;
+  aiDrafted: boolean | null;
+  handedOffAt: string | null;
+  createdAt: string;
+}
+
+export function getFunnelResponses(accessToken: string) {
+  return apiFetch<FunnelResponse[]>('/reviews/funnel-responses', { accessToken });
 }
 
 export interface SaveReviewConfigInput {

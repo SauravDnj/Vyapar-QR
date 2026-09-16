@@ -136,7 +136,7 @@ export function TokenTheme({
 
           {reviewConfig ? (
             <Section tokens={tokens} title={reviewsCopy.heading ?? 'Rate your experience'}>
-              <ReviewFunnel slug={slug} />
+              <ReviewFunnel slug={slug} businessName={businessName} />
               <ReviewsDisplay reviews={reviews} />
             </Section>
           ) : null}

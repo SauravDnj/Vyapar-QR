@@ -139,7 +139,7 @@ export function BoldTheme({
               <h2 className="text-xl font-black uppercase">{orDefault(reviewsCopy.heading, 'Rate us')}</h2>
               {reviewConfig?.avgRatingCached ? <p className="text-2xl font-black">★ {reviewConfig.avgRatingCached}</p> : null}
               <ReviewsDisplay reviews={reviews} />
-              <ReviewFunnel slug={slug} />
+              <ReviewFunnel slug={slug} businessName={businessName} />
             </section>
           </Reveal>
         ) : null}

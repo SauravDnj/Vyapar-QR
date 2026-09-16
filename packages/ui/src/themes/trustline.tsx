@@ -140,7 +140,7 @@ export function TrustlineTheme({
               </h2>
               {reviewConfig?.avgRatingCached ? <p className="text-xl font-semibold">★ {reviewConfig.avgRatingCached}</p> : null}
               <ReviewsDisplay reviews={reviews} />
-              <ReviewFunnel slug={slug} />
+              <ReviewFunnel slug={slug} businessName={businessName} />
             </section>
           </Reveal>
         ) : null}

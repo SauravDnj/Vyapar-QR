@@ -91,13 +91,14 @@ export class GoogleSheetsService {
     return validRows;
   }
 
-  /** Appends one row to the given sheet/tab — used to log private 1–3★
-   * feedback. Uses USER_ENTERED so a date string renders as a real Sheets
-   * date rather than plain text. */
+  /** Appends one row to the given sheet/tab — private 1–3★ feedback and the
+   * reviews 4–5★ customers took to Google. Columns: Date | Rating | Text |
+   * Type | Customer's own words. Uses USER_ENTERED so a date string renders
+   * as a real Sheets date rather than plain text. */
   async appendFeedbackRow(
     sheetId: string,
     tabName: string,
-    row: { rating: number; feedbackText: string | null; submittedAt: Date },
+    row: { rating: number; text: string | null; type: string; customerNotes: string | null; submittedAt: Date },
   ): Promise<void> {
     if (!this.sheets) {
       throw new Error('Google Sheets client is not configured');
@@ -105,11 +106,11 @@ export class GoogleSheetsService {
 
     await this.sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${tabName}!A:C`,
+      range: `${tabName}!A:E`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        values: [[row.submittedAt.toISOString(), row.rating, row.feedbackText ?? '']],
+        values: [[row.submittedAt.toISOString(), row.rating, row.text ?? '', row.type, row.customerNotes ?? '']],
       },
     });
   }

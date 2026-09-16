@@ -35,6 +35,37 @@ export class PlacesApiService {
     return this.apiKey !== null;
   }
 
+  /** Finds a business's Place ID from its name (what a share.google link
+   * carries), so the review button can open Google's review box directly
+   * instead of the business profile. Returns the top match, or null. */
+  async findPlace(textQuery: string): Promise<{ placeId: string; name: string | null; address: string | null } | null> {
+    if (!this.apiKey) {
+      return null;
+    }
+
+    const response = await fetch(`${PLACES_API_URL}:searchText`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': this.apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress',
+      },
+      body: JSON.stringify({ textQuery, languageCode: 'en', regionCode: 'IN', pageSize: 1 }),
+    });
+    if (!response.ok) {
+      this.logger.warn(`Places text search failed (${String(response.status)}) for "${textQuery}".`);
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      places?: { id?: string; displayName?: { text?: string }; formattedAddress?: string }[];
+    };
+    const place = data.places?.[0];
+    return place?.id
+      ? { placeId: place.id, name: place.displayName?.text ?? null, address: place.formattedAddress ?? null }
+      : null;
+  }
+
   async fetchReviews(placeId: string): Promise<{ avgRating: number | null; rows: SheetReviewRow[] }> {
     if (!this.apiKey) {
       throw new Error('Places API is not configured');

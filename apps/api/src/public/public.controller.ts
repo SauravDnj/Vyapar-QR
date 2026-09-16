@@ -20,6 +20,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { CreateLeadDto } from '../leads/dto/create-lead.dto';
 import { PlaceOrderDto } from '../menu/dto/place-order.dto';
 import { DraftCustomerReviewDto } from '../reviews/dto/draft-customer-review.dto';
+import { ReviewHandoffDto } from '../reviews/dto/review-handoff.dto';
 import { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
 import { VISITOR_COOKIE, VISITOR_COOKIE_MAX_AGE } from '../visitors/visitors.service';
@@ -111,6 +112,12 @@ export class PublicController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   draftCustomerReview(@Param('slug') slug: string, @Body() dto: DraftCustomerReviewDto) {
     return this.publicService.draftCustomerReview(slug, dto);
+  }
+
+  @Post('landing/:slug/review-funnel/handoff')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  recordReviewHandoff(@Param('slug') slug: string, @Body() dto: ReviewHandoffDto) {
+    return this.publicService.recordReviewHandoff(slug, dto);
   }
 
   @Post('landing/:slug/payment/claim')

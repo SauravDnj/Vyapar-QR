@@ -201,7 +201,7 @@ export function NestTheme({
                 </p>
               ) : null}
               <ReviewsDisplay reviews={reviews} />
-              <ReviewFunnel slug={slug} />
+              <ReviewFunnel slug={slug} businessName={businessName} />
             </section>
           </Reveal>
         </>
