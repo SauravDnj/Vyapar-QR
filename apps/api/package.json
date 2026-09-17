@@ -21,7 +21,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "ts-node -P tsconfig.scripts.json src/jsondb/generate-types.ts",
-    "db:seed": "ts-node -P tsconfig.scripts.json prisma/seed.ts"
+    "db:seed": "ts-node -P tsconfig.scripts.json prisma/seed.ts",
+    "db:sync-themes": "ts-node -P tsconfig.scripts.json prisma/sync-themes.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.5",

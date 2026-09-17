@@ -49,9 +49,8 @@ const ANDROID_PACKAGE: Partial<Record<PaymentMethodType, string>> = {
 /**
  * Theme-aware styling.
  *
- * These read the custom properties `TokenTheme` sets, with fallbacks so the
- * component still looks right inside the thirteen bespoke themes (which don't
- * set them) and in the admin preview. Previously every button was hardcoded
+ * These read the custom properties every theme sets, with fallbacks so the
+ * component still looks right anywhere they aren't set. Previously every button was hardcoded
  * `bg-emerald-600`, so a business's pay button was green no matter what its
  * theme's brand colour was.
  */

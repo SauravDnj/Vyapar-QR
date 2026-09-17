@@ -16,9 +16,17 @@ import type {
   PublicTestimonial,
   SeoMeta,
 } from '@vyaparqr/types';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 
 export const revalidate = 300;
+
+/** `viewport-fit=cover` lets the themes run edge to edge and pad themselves
+ * with `env(safe-area-inset-*)` around the notch and home indicator. */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 
@@ -88,32 +96,39 @@ export default async function SitePage({ params, searchParams }: PageProps<'/sit
     );
   }
 
+  // Every theme is a single phone screen. On a phone the stage is the whole
+  // viewport; on a wider screen it becomes a phone-sized device in the middle,
+  // so a business checking its page on a laptop sees what customers see.
   return (
-    <>
+    <main className="qr-stage">
       <Suspense fallback={null}>
         <ScanTracker slug={slug} />
       </Suspense>
       <PageViewTracker slug={slug} />
-      <Suspense fallback={null}>
-        <LanguageSwitcher locales={page.availableLocales} />
-      </Suspense>
-      <ThemeRenderer
-        themeName={page.themeName}
-        slug={slug}
-        businessName={page.businessName}
-        content={page.content}
-        paymentMethods={page.paymentMethods}
-        socialLinks={page.socialLinks}
-        reviewConfig={page.reviewConfig}
-        reviews={page.reviews}
-        hideBranding={page.hideBranding}
-        accentColor={page.accentColor}
-        galleryImages={page.galleryImages}
-        locations={page.locations}
-        testimonials={page.testimonials}
-        loyaltyActive={page.loyaltyActive}
-      />
+      <div className="qr-device">
+        <Suspense fallback={null}>
+          <LanguageSwitcher locales={page.availableLocales} />
+        </Suspense>
+        <div className="qr-screen">
+          <ThemeRenderer
+            themeName={page.themeName}
+            slug={slug}
+            businessName={page.businessName}
+            content={page.content}
+            paymentMethods={page.paymentMethods}
+            socialLinks={page.socialLinks}
+            reviewConfig={page.reviewConfig}
+            reviews={page.reviews}
+            hideBranding={page.hideBranding}
+            accentColor={page.accentColor}
+            galleryImages={page.galleryImages}
+            locations={page.locations}
+            testimonials={page.testimonials}
+            loyaltyActive={page.loyaltyActive}
+          />
+        </div>
+      </div>
       <PwaInstall businessName={page.businessName} />
-    </>
+    </main>
   );
 }

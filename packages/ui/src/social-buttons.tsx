@@ -22,8 +22,9 @@ const STYLE: Record<SocialPlatform, string> = {
   instagram: 'bg-instagram hover:bg-instagram-hover',
 };
 
-function Icon({ platform }: { platform: SocialPlatform }) {
-  const common = { className: 'h-4 w-4', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 } as const;
+/** The platform glyph on its own, for themes that draw their own buttons. */
+export function SocialGlyph({ platform, className = 'h-4 w-4' }: { platform: SocialPlatform; className?: string }) {
+  const common = { className, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true } as const;
   switch (platform) {
     case 'whatsapp':
       return (
@@ -49,7 +50,8 @@ function Icon({ platform }: { platform: SocialPlatform }) {
   }
 }
 
-function hrefFor(link: PublicSocialLink): string {
+/** Where tapping a social link goes — a chat for WhatsApp, the profile otherwise. */
+export function socialHref(link: PublicSocialLink): string {
   switch (link.platform) {
     case 'whatsapp':
       return `https://wa.me/${link.value.replace(/\D/g, '')}`;
@@ -81,7 +83,7 @@ export function SocialButtons({ slug, socialLinks }: { slug?: string; socialLink
       {links.map((link) => (
         <a
           key={link.id}
-          href={hrefFor(link)}
+          href={socialHref(link)}
           target="_blank"
           rel="noreferrer"
           onClick={() => {
@@ -89,7 +91,7 @@ export function SocialButtons({ slug, socialLinks }: { slug?: string; socialLink
           }}
           className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium text-white shadow-sm transition ${STYLE[link.platform]}`}
         >
-          <Icon platform={link.platform} />
+          <SocialGlyph platform={link.platform} />
           {LABEL[link.platform]}
         </a>
       ))}

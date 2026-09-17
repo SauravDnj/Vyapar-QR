@@ -1,61 +1,26 @@
-import { THEME_BY_NAME } from '@vyaparqr/types';
+import { DEFAULT_THEME_NAME } from '@vyaparqr/types';
 
-import { AcademyTheme } from './academy';
-import { ApertureTheme } from './aperture';
-import { BoldTheme } from './bold';
-import { ElegantTheme } from './elegant';
-import { ExecutiveTheme } from './executive';
-import { IroncladTheme } from './ironclad';
-import { MinimalTheme } from './minimal';
-import { NestTheme } from './nest';
-import { SereneTheme } from './serene';
-import { SpiceTheme } from './spice';
-import { StorefrontTheme } from './storefront';
-import { TokenTheme } from './token-theme';
-import { TrustlineTheme } from './trustline';
-import { VitalityTheme } from './vitality';
-
+import { AuroraTheme } from './aurora';
+import { IvoryTheme } from './ivory';
+import { NoirTheme } from './noir';
 
 import type { ThemeRenderProps } from '@vyaparqr/types';
 
-/** The thirteen original bespoke themes, matched by their database `name`. */
-const BESPOKE: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
-  Academy: AcademyTheme,
-  Aperture: ApertureTheme,
-  Bold: BoldTheme,
-  Elegant: ElegantTheme,
-  Executive: ExecutiveTheme,
-  Ironclad: IroncladTheme,
-  Minimal: MinimalTheme,
-  Nest: NestTheme,
-  Serene: SereneTheme,
-  Spice: SpiceTheme,
-  Storefront: StorefrontTheme,
-  Trustline: TrustlineTheme,
-  Vitality: VitalityTheme,
+const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
+  Ivory: IvoryTheme,
+  Noir: NoirTheme,
+  Aurora: AuroraTheme,
 };
 
 /**
  * Renders the theme a client has selected, by its `name` as stored in the
  * database.
  *
- * Two generations coexist. The original thirteen are bespoke React components
- * and are matched **first**, so a client already using one keeps exactly the
- * page they published — a name that exists in both generations must not
- * silently redesign a live business's card. Everything else resolves from the
- * token catalog, where a theme is data rather than code, which is what makes a
- * hundred-plus of them maintainable. A name in neither falls back to Minimal.
+ * A name that isn't in the catalog — a theme from the retired catalog that a
+ * page still points at, or one a Super Admin created without a renderer —
+ * falls back to the default rather than breaking a live business's page.
  */
 export function ThemeRenderer({ themeName, ...props }: { themeName: string } & ThemeRenderProps) {
-  const Bespoke = BESPOKE[themeName];
-  if (Bespoke) {
-    return <Bespoke {...props} />;
-  }
-
-  const tokens = THEME_BY_NAME.get(themeName);
-  if (tokens) {
-    return <TokenTheme tokens={tokens} {...props} />;
-  }
-
-  return <MinimalTheme {...props} />;
+  const Theme = THEMES[themeName] ?? THEMES[DEFAULT_THEME_NAME] ?? IvoryTheme;
+  return <Theme {...props} />;
 }

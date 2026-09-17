@@ -5,6 +5,7 @@ import { ThemeRenderer } from '@vyaparqr/ui';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ProtectedRoute } from '../../components/protected-route';
+import { PhoneFrame } from '../../components/ui/phone-frame';
 import { useAuth } from '../../context/auth-context';
 import {
   completeOnboarding,
@@ -386,15 +387,17 @@ function OnboardingWizard() {
           </div>
 
           {selectedThemeName ? (
-            <div className="max-h-[600px] overflow-y-auto rounded border border-border-color">
-              <ThemeRenderer
-                themeName={selectedThemeName}
-                businessName={businessName}
-                content={sectionValues}
-                paymentMethods={[]}
-                socialLinks={[]}
-                reviewConfig={null}
-              />
+            <div className="w-full max-w-[380px]">
+              <PhoneFrame>
+                <ThemeRenderer
+                  themeName={selectedThemeName}
+                  businessName={businessName}
+                  content={sectionValues}
+                  paymentMethods={[]}
+                  socialLinks={[]}
+                  reviewConfig={null}
+                />
+              </PhoneFrame>
             </div>
           ) : null}
 

@@ -1,17 +1,14 @@
 import 'dotenv/config';
 
-import { DEFAULT_THEME_SCHEMA, THEME_CATALOG } from '@vyaparqr/types';
 import * as bcrypt from 'bcrypt';
 
 import { JsonDbClient } from '../src/jsondb';
 
-import type { Prisma } from '../src/jsondb';
+import { syncThemes } from './sync-themes';
 
 // Writes through whichever driver JSONDB_DRIVER selects, so the same command
 // seeds a local `data/jsondb/` directory or a Vercel Blob store.
 const prisma = new JsonDbClient();
-
-const themeSchemaJson = DEFAULT_THEME_SCHEMA as unknown as Prisma.InputJsonValue;
 
 async function main() {
   // Overridable so a real deploy doesn't ship with a published default
@@ -75,47 +72,15 @@ async function main() {
     }
   }
 
-  // The thirteen original bespoke themes, plus the generated token catalog.
-  // Both are seeded from one place so the picker and the renderer can never
-  // disagree about what exists.
-  const themes = [
-    { name: 'Minimal', category: 'General' },
-    { name: 'Bold', category: 'General' },
-    { name: 'Elegant', category: 'General' },
-    { name: 'Spice', category: 'Restaurant' },
-    { name: 'Serene', category: 'Salon & Spa' },
-    { name: 'Storefront', category: 'Retail' },
-    { name: 'Trustline', category: 'Services' },
-    { name: 'Executive', category: 'Professional' },
-    { name: 'Vitality', category: 'Healthcare & Fitness' },
-    { name: 'Ironclad', category: 'Automotive & Home Services' },
-    { name: 'Nest', category: 'Real Estate' },
-    { name: 'Aperture', category: 'Photography & Creative' },
-    { name: 'Academy', category: 'Education & Coaching' },
-    ...THEME_CATALOG.map((theme) => ({ name: theme.name, category: theme.category })),
-  ];
-
-  for (const theme of themes) {
-    const existing = await prisma.theme.findFirst({ where: { name: theme.name } });
-    if (!existing) {
-      await prisma.theme.create({
-        data: {
-          name: theme.name,
-          category: theme.category,
-          schemaJson: themeSchemaJson,
-          isPremium: false,
-        },
-      });
-    } else {
-      await prisma.theme.update({ where: { id: existing.id }, data: { schemaJson: themeSchemaJson } });
-    }
-  }
+  // Themes come from the shared catalog, so the picker and the renderer can
+  // never disagree about what exists. Anything outside it is retired.
+  const themeSync = await syncThemes(prisma);
 
   console.log('Seed complete:');
   console.log(`  Storage driver: ${prisma.store.driverName}`);
   console.log(`  Super Admin: ${superAdminEmail} / ${superAdminPassword}`);
   console.log(`  Plans: ${plans.map((p) => p.name).join(', ')}`);
-  console.log(`  Themes: ${themes.map((t) => t.name).join(', ')}`);
+  console.log(`  Themes: ${themeSync.kept.join(', ')} (${String(themeSync.removed)} retired)`);
 }
 
 main()

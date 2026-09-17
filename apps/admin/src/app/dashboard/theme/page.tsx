@@ -1,5 +1,6 @@
 'use client';
 
+import { DEFAULT_THEME_NAME } from '@vyaparqr/types';
 import { ThemeRenderer } from '@vyaparqr/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
@@ -272,7 +273,7 @@ function LandingPageEditor() {
   }
 
   const activeThemeId = pendingThemeId ?? status.landingPage.themeId;
-  const previewThemeName = themes.find((t) => t.id === activeThemeId)?.name ?? 'Minimal';
+  const previewThemeName = themes.find((t) => t.id === activeThemeId)?.name ?? DEFAULT_THEME_NAME;
 
   const previewContent: ThemeContent = {
     ...status.landingPage.contentJson,

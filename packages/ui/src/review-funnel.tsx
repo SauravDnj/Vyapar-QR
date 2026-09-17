@@ -33,7 +33,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-function GoogleG({ size = 18 }: { size?: number }) {
+export function GoogleG({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
       <path
@@ -81,7 +81,16 @@ function Star({ filled, size }: { filled: boolean; size: number }) {
  * review on a customer's behalf, so that last step is always theirs.
  * 1-3★: private feedback to the owner, never public.
  */
-export function ReviewFunnel({ slug, businessName }: { slug?: string; businessName?: string }) {
+export function ReviewFunnel({
+  slug,
+  businessName,
+  renderTrigger,
+}: {
+  slug?: string;
+  businessName?: string;
+  /** Lets a theme draw its own button; it receives the function that opens the sheet. */
+  renderTrigger?: (open: () => void) => React.ReactNode;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<Step>('rate');
   const [rating, setRating] = useState<number | null>(null);
@@ -112,7 +121,9 @@ export function ReviewFunnel({ slug, businessName }: { slug?: string; businessNa
   }, [isOpen]);
 
   if (!slug) {
-    return null;
+    // Admin previews have no page to post back to; the button still shows so
+    // the layout matches what customers will see.
+    return renderTrigger ? <>{renderTrigger(() => undefined)}</> : null;
   }
 
   const clientSlug: string = slug;
@@ -300,16 +311,22 @@ export function ReviewFunnel({ slug, businessName }: { slug?: string; businessNa
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
+      {renderTrigger ? (
+        renderTrigger(() => {
           setIsOpen(true);
-        }}
-        className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
-      >
-        <GoogleG size={16} />
-        Leave a review
-      </button>
+        })
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(true);
+          }}
+          className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full border px-6 py-2.5 text-sm font-medium transition hover:opacity-80"
+        >
+          <GoogleG size={16} />
+          Leave a review
+        </button>
+      )}
 
       {isOpen && typeof document !== 'undefined'
         ? createPortal(

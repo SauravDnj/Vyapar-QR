@@ -644,3 +644,22 @@ Google.
 | P21-03 | Review writer | 🟡 Code complete | `reviews/review-writer.ts`: Groq writes from only the customer's words and picked highlights, in their language. **`GROQ_API_KEY` is not set in production**, so it currently uses the built-in template writer, which still produces a usable review. |
 | P21-04 | Owner visibility and sheet log | 🟡 Code complete | Each "Post on Google" records the review text, the customer's words and whether help was used (`ReviewFunnelResponse`), listed under "Reviews written on your page". Feedback and reviews append to the review log sheet (Date · Rating · Text · Type · Customer's own words) — needs Google Sheets credentials, not set in production. |
 | P21-05 | Verified locally | ✅ Done | Built API + landing + admin: link check resolved the real share link to its business, the browser walkthrough opened Google with the review on the clipboard, and the admin list showed both the review and the private feedback. 19 unit tests for links and the writer. |
+
+---
+
+## Phase 22 — Single-screen mobile themes
+
+The 121-theme catalog (13 bespoke + 108 generated) was retired: every theme
+rendered the same long scrolling page and differed mostly in colour. It is
+replaced by **three** hand-designed themes that each fit one phone screen with
+no page scroll. Direction from the `ui-ux-pro-max` skill: Dark Mode (OLED),
+Aurora UI, and a light editorial style; safe areas and `dvh` sizing,
+`prefers-reduced-motion`, 44px touch targets.
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P22-01 | Three themes | ✅ Done | **Ivory** (Classic, the default): the top of the screen is a printed business card that flips into place, with a guilloche pattern and a gold foil sweep. **Noir** (Luxury): black and gold, a turning gold ring around the logo, a shimmer across the name, a sheen on Pay. **Aurora** (Modern): colour fields drifting behind frosted-glass bento tiles. All three honour the client's accent colour. |
+| P22-02 | One screen, sheets for the rest | ✅ Done | `packages/ui/src/themes/screen/`: `model.ts` decides what fits — Pay, up to four quick actions (Call, WhatsApp, Directions, Review, …) and a four-slot dock (About, Menu, Gallery, Offers, Book, … with "More" when it overflows). Everything else opens in a bottom sheet (drag, backdrop, Escape to close) that reuses the existing payment, review, menu-order, booking, gallery and contact components. Menu ordering, offers and booking slots are probed on load so the dock never offers an empty sheet. Container queries shrink or hide secondary lines on short phones. |
+| P22-03 | Mobile stage | ✅ Done | `/site/[slug]` renders in a `100dvh` stage with `viewport-fit=cover`; on a tablet or laptop the page sits in a phone-shaped device instead of stretching. Admin previews (`PhoneFrame`, onboarding) use a fixed phone height and the sheets open inside the frame. |
+| P22-04 | Catalog migration | ✅ Done | `SCREEN_THEMES` in `@vyaparqr/types` is the single list the renderer and seed read. `pnpm --filter api db:sync-themes` (also run by `db:seed`) creates the three themes, moves every landing page and client on a retired theme to Ivory, then deletes the retired rows — in that order, because a page is only served while its theme row exists. Idempotent. Unknown theme names also fall back to Ivory at render time. **Run locally only; not yet run against production.** |
+| P22-05 | Verified locally | ✅ Done | Built API + landing dev, screenshots of all three themes at 390×844 and 360×640 plus desktop: document scroll 0, no overflow, no console errors. Pay and About sheets open; Review opens the Google review sheet; WhatsApp link, Follow sheet and sheet close checked with Playwright under reduced motion. |

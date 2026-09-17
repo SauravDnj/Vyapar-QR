@@ -13,6 +13,19 @@ function buildVCard(businessName: string, phone: string | undefined, address: st
   return lines.join('\r\n');
 }
 
+/** Downloads a `.vcf` for the business, which phones offer to add to contacts. */
+export function downloadContactCard(businessName: string, phone?: string, address?: string) {
+  const url = typeof window !== 'undefined' ? window.location.href : '';
+  const vCard = buildVCard(businessName, phone, address, url);
+  const blob = new Blob([vCard], { type: 'text/vcard;charset=utf-8' });
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = `${businessName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.vcf`;
+  link.click();
+  URL.revokeObjectURL(blobUrl);
+}
+
 /** One-tap "Save Contact" — builds a `.vcf` file client-side from data the
  * page already has (no backend round trip needed) and downloads it. */
 export function SaveContactButton({
@@ -24,22 +37,12 @@ export function SaveContactButton({
   phone?: string;
   address?: string;
 }) {
-  function handleClick() {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const vCard = buildVCard(businessName, phone, address, url);
-    const blob = new Blob([vCard], { type: 'text/vcard;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = `${businessName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.vcf`;
-    link.click();
-    URL.revokeObjectURL(blobUrl);
-  }
-
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => {
+        downloadContactCard(businessName, phone, address);
+      }}
       className="rounded-full border px-5 py-2 text-sm font-medium transition hover:bg-gray-50"
     >
       Save contact

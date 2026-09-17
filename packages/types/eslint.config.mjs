@@ -5,9 +5,7 @@ import { typescriptStrict } from '@vyaparqr/config/eslint/typescript.mjs';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  // `scripts/` is plain Node tooling outside the src tsconfig, so the
-  // type-aware rules have no project for it.
-  { ignores: ['dist', 'eslint.config.mjs', 'scripts'] },
+  { ignores: ['dist', 'eslint.config.mjs'] },
   ...typescriptStrict,
   ...importOrder,
   prettierConfig,
