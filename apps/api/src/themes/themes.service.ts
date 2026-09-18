@@ -19,8 +19,15 @@ const CATALOG_ORDER = new Map(SCREEN_THEMES.map((theme, index) => [theme.name, i
  * picker is right even before the rows are deleted.
  */
 function inCatalogOrder<T extends { name: string }>(themes: T[]): T[] {
+  const seen = new Set<string>();
   return themes
-    .filter((theme) => CATALOG_ORDER.has(theme.name))
+    .filter((theme) => {
+      if (!CATALOG_ORDER.has(theme.name) || seen.has(theme.name)) {
+        return false;
+      }
+      seen.add(theme.name);
+      return true;
+    })
     .sort((a, b) => (CATALOG_ORDER.get(a.name) ?? 0) - (CATALOG_ORDER.get(b.name) ?? 0));
 }
 
@@ -46,16 +53,60 @@ export class ThemesService {
   /** Public/client-facing listing — archived themes never appear here, only
    * in the Super Admin catalog (see `listForAdmin`). */
   async list(category?: string) {
-    const themes = await this.prisma.theme.findMany({
-      where: { isArchived: false, ...(category ? { category } : {}) },
-      orderBy: { name: 'asc' },
-    });
-    return inCatalogOrder(themes);
+    const read = () =>
+      this.prisma.theme.findMany({
+        where: { isArchived: false, ...(category ? { category } : {}) },
+        orderBy: { name: 'asc' },
+      });
+
+    let themes = inCatalogOrder(await read());
+    if (themes.length === 0 && !category) {
+      await this.ensureCatalog();
+      themes = inCatalogOrder(await read());
+    }
+    return themes;
   }
 
   async listForAdmin() {
-    const themes = await this.prisma.theme.findMany({ orderBy: [{ isArchived: 'asc' }, { name: 'asc' }] });
-    return inCatalogOrder(themes);
+    const read = () => this.prisma.theme.findMany({ orderBy: [{ isArchived: 'asc' }, { name: 'asc' }] });
+
+    let themes = inCatalogOrder(await read());
+    if (themes.length === 0) {
+      await this.ensureCatalog();
+      themes = inCatalogOrder(await read());
+    }
+    return themes;
+  }
+
+  /**
+   * Creates any catalog theme the database is missing.
+   *
+   * A deploy ships a new catalog to a database that still holds the old one,
+   * and the listings above hide every row the renderer has no design for — so
+   * between the deploy and someone running `db:sync-themes`, the picker would
+   * be empty and nobody could finish onboarding. This fills that gap on the
+   * first listing that comes back empty.
+   *
+   * It only ever creates. Deleting the retired rows stays a deliberate,
+   * operator-run step (`db:sync-themes`), because that also moves live pages
+   * between themes. Duplicates from two instances racing here are harmless:
+   * the listings de-duplicate by name, and the sync collapses them.
+   */
+  private async ensureCatalog() {
+    for (const theme of SCREEN_THEMES) {
+      const existing = await this.prisma.theme.findFirst({ where: { name: theme.name } });
+      if (existing) {
+        continue;
+      }
+      await this.prisma.theme.create({
+        data: {
+          name: theme.name,
+          category: theme.category,
+          schemaJson: DEFAULT_THEME_SCHEMA as unknown as Prisma.InputJsonValue,
+          isPremium: false,
+        },
+      });
+    }
   }
 
   async findOneOrThrow(id: string) {
