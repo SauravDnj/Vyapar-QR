@@ -114,7 +114,7 @@ const APP_SHORT: Record<PaymentMethodType, string> = {
   gpay: 'GPay',
   phonepe: 'PhonePe',
   paytm: 'Paytm',
-  other: 'UPI',
+  other: 'Any UPI app',
 };
 
 /** "GPay · PhonePe · Paytm" — which apps the pay button leads to. */

@@ -729,3 +729,24 @@ the private path only for the follow-up.
 **Note:** the owner's WhatsApp alert for a payment still uses the number in
 Reviews settings (`feedbackWhatsappNumber`) — an odd home for it, kept as-is
 to avoid moving a field businesses have already filled in.
+
+---
+
+## Phase 26 — Zevar, second pass: a lit display case
+
+The theme was a dark page with a gold ring. It is now the inside of a
+jewellery case. Direction from `ui-ux-pro-max`: the skill's closest match for
+this is **skeuomorphism** — real materials, 8–12 stop gradients, layered
+shadows, grain, tactile press — not a flat "luxury" recolour. (There is no
+art-deco entry in its style set; the ornament here is the theme's own.)
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P26-01 | One gold, described like metal | ✅ Done | A single nine-stop ramp — dark edges, a hot specular band, warm shadow — cut into every gold surface: the frame, the name, the Pay bar, the tile roundels, the dock lozenges. Flat yellow is what makes gold look like paint. |
+| P26-02 | The piece on display | ✅ Done | The logo now sits in a **mehrab arch** framed in that metal, with a gleam that travels across the frame and a reflection beneath it, as on the glass shelf of a display case. |
+| P26-03 | Velvet, grain, spotlight | ✅ Done | A jeweller's velvet tray (deep maroon radials), an inline SVG grain (no download), a soft **spotlight cone** that drifts overhead, and a vignette. Four cut-stone glints twinkle on long, offset loops. |
+| P26-04 | Engraved name, jeweller's rule | ✅ Done | The business name is struck from the metal ramp with a drop shadow so it reads embossed rather than coloured, and a hairline rule with a gold lozenge sits under it. |
+| P26-05 | Collection rail, labelled | ✅ Done | "OUR COLLECTION · 5 PIECES" above gold-framed thumbnails. |
+| P26-06 | Tactile press | ✅ Done | The Pay bar presses in: it drops a pixel, the shadow tightens and the specular band slides — 300ms, the skill's tier. Tiles press too. |
+| P26-07 | Fixed: the hero crushed itself | ✅ Done | The first pass overflowed — the name and tagline overlapped, because flex children were shrinking below their own text height. Hero children are pinned, the arch and reflection are smaller, and the name clamps lower. Verified no page scroll at 390×844 and 360×640. |
+| P26-08 | Verified locally | ✅ Done | No page scroll, no console errors at both phone sizes; the collection and Pay sheets still open over the new art layers; under `prefers-reduced-motion` the page renders finished and still. |
