@@ -750,3 +750,18 @@ art-deco entry in its style set; the ornament here is the theme's own.)
 | P26-06 | Tactile press | ✅ Done | The Pay bar presses in: it drops a pixel, the shadow tightens and the specular band slides — 300ms, the skill's tier. Tiles press too. |
 | P26-07 | Fixed: the hero crushed itself | ✅ Done | The first pass overflowed — the name and tagline overlapped, because flex children were shrinking below their own text height. Hero children are pinned, the arch and reflection are smaller, and the name clamps lower. Verified no page scroll at 390×844 and 360×640. |
 | P26-08 | Verified locally | ✅ Done | No page scroll, no console errors at both phone sizes; the collection and Pay sheets still open over the new art layers; under `prefers-reduced-motion` the page renders finished and still. |
+
+---
+
+## Phase 27 — A working demo for Waloop
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P27-01 | Demo filler script | ✅ Done | `prisma/seed-demo-client.ts` (`db:demo`): fills an existing client's page so every button works — tagline, about, address, hours, phone, the "any UPI app" option beside the named one, and the live theme. Idempotent, and every value is overridable by env var. It keeps the account's real UPI ID and WhatsApp number. |
+| P27-02 | What it won't fabricate | ✅ Done | No testimonials, ratings, offers or loyalty programs, and the Google review link is only set when passed in — those are claims made to the public in the business's name, and a demo isn't a reason to invent them. The theme's hardcoded "Fine jewellery" eyebrow became a plain flourish for the same reason: it was the theme's idea of the business, not the business's own. |
+| P27-03 | Demo QR and poster | ✅ Done | `scripts/demo-qr.js` writes a 1024px PNG and an A5 poster PDF for any page; `docs/demo/` holds Waloop's. **Decoded the generated PNG** with jsQR through a browser canvas — it reads `https://qrhub-landing.vercel.app/site/waloop` — and checked the poster is one page, embeds the QR and carries the name, instruction and URL. |
+| P27-04 | Verified against a copy of production | ✅ Done | Mirrored the live Waloop account locally (same name, UPI ID, WhatsApp number, 2 photos), ran the script, then drove the page: Call `tel:+918758018050`, WhatsApp `wa.me/8758018050`, Directions to the address, Pay with both Google Pay and any UPI app — ₹499 recorded automatically on return with the customer's number saved to the CRM — the review writer produced a real review, About/Gallery/Enquire sheets opened, the enquiry submitted, and the contact card downloaded. No console errors. Local rows were removed afterwards. |
+
+**Live state before this runs:** the Waloop page has a name, a UPI ID with a
+QR, a WhatsApp number and 2 photos — and its theme is still stored as the
+retired "Notary", rendering Zevar only by fallback. The script fixes that too.

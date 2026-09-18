@@ -210,8 +210,11 @@ export function ZevarTheme(props: ThemeRenderProps) {
           {model.rating ? (
             <Stars rating={model.rating} className="qs-rise qs-hide-tiny text-[13px] text-[var(--t-accent)]" />
           ) : (
-            <span className="zv-eyebrow qs-rise qs-hide-tiny" style={{ '--i': 2 } as CSSProperties}>
-              Fine jewellery
+            /* No rating yet: a flourish, not a claim. The theme used to print
+               "Fine jewellery" here, which is the theme's idea of the business
+               rather than the business's own. */
+            <span className="zv-eyebrow qs-rise qs-hide-tiny" aria-hidden="true" style={{ '--i': 2 } as CSSProperties}>
+              <Sparkle style={{ position: 'static', opacity: 1, animation: 'none' }} />
             </span>
           )}
 
