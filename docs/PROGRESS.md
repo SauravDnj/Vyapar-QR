@@ -663,3 +663,18 @@ Aurora UI, and a light editorial style; safe areas and `dvh` sizing,
 | P22-03 | Mobile stage | ✅ Done | `/site/[slug]` renders in a `100dvh` stage with `viewport-fit=cover`; on a tablet or laptop the page sits in a phone-shaped device instead of stretching. Admin previews (`PhoneFrame`, onboarding) use a fixed phone height and the sheets open inside the frame. |
 | P22-04 | Catalog migration | ✅ Done | `SCREEN_THEMES` in `@vyaparqr/types` is the single list the renderer and seed read. `pnpm --filter api db:sync-themes` (also run by `db:seed`) creates the three themes, moves every landing page and client on a retired theme to Ivory, then deletes the retired rows — in that order, because a page is only served while its theme row exists. Idempotent. Unknown theme names also fall back to Ivory at render time. **Run locally only; not yet run against production.** |
 | P22-05 | Verified locally | ✅ Done | Built API + landing dev, screenshots of all three themes at 390×844 and 360×640 plus desktop: document scroll 0, no overflow, no console errors. Pay and About sheets open; Review opens the Google review sheet; WhatsApp link, Follow sheet and sheet close checked with Playwright under reduced motion. |
+
+---
+
+## Phase 23 — One jewellery theme
+
+The catalog is now a single theme, built for jewellery businesses. Ivory, Noir
+and Aurora were removed; the single-screen engine from Phase 22
+(`packages/ui/src/themes/screen/`) is unchanged and carries every feature.
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P23-01 | Zevar | ✅ Done | Direction from `ui-ux-pro-max` for luxury retail: Cormorant over Montserrat, near-black with a gold accent, glass surfaces, staggered entrances. Jewellery-specific on top: the client's own pieces cross-fade behind the hero under a contrast scrim, a gold halo turns around the logo, the name is struck in foil, cut-stone glints twinkle, and a collection rail puts the stock one tap from the hero. Gold is a warm 22K (`#d9b166`) rather than the palette's `#A16207`, which reads brown on black. |
+| P23-02 | Everything still on one screen | ✅ Done | Hours, share and save contact; logo, rating, name, tagline, address; collection rail; Pay; four quick actions; a four-slot dock. Sheets carry About, Catalogue, Gallery, Order, Offers, Book, Reviews, Branches, Rewards, Enquire and Follow. The rail and address hide first on short phones. |
+| P23-03 | Catalog of one | ✅ Done | `SCREEN_THEMES` holds Zevar alone and `DEFAULT_THEME_NAME` is Zevar, so `db:sync-themes` moves every page onto it and deletes the rest. `ThemesService` also filters both listings to names the renderer has a design for, so stale rows in a database that hasn't been synced never reach the picker (3 unit tests). |
+| P23-04 | Verified locally | ✅ Done | Screenshots at 390×844, 360×640 and desktop: no page scroll, no console errors. Driven with Playwright against a jewellery demo client: rail → gallery (5 photos), About, Catalogue, Pay (GPay + PhonePe), More → Book (Calendly link), Enquire (lead actually submitted), review sheet, `.vcf` download, `tel:` and Maps links. |

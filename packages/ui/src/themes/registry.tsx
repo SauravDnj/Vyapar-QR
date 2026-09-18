@@ -1,15 +1,11 @@
 import { DEFAULT_THEME_NAME } from '@vyaparqr/types';
 
-import { AuroraTheme } from './aurora';
-import { IvoryTheme } from './ivory';
-import { NoirTheme } from './noir';
+import { ZevarTheme } from './zevar';
 
 import type { ThemeRenderProps } from '@vyaparqr/types';
 
 const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
-  Ivory: IvoryTheme,
-  Noir: NoirTheme,
-  Aurora: AuroraTheme,
+  Zevar: ZevarTheme,
 };
 
 /**
@@ -21,6 +17,6 @@ const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
  * falls back to the default rather than breaking a live business's page.
  */
 export function ThemeRenderer({ themeName, ...props }: { themeName: string } & ThemeRenderProps) {
-  const Theme = THEMES[themeName] ?? THEMES[DEFAULT_THEME_NAME] ?? IvoryTheme;
+  const Theme = THEMES[themeName] ?? THEMES[DEFAULT_THEME_NAME] ?? ZevarTheme;
   return <Theme {...props} />;
 }

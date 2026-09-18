@@ -302,8 +302,8 @@ function ThemesContent() {
       >
         <h2 className="text-lg font-semibold">New theme</h2>
         <p className="text-xs text-muted">
-          Registers a catalog entry clients can select. It renders with the Minimal layout until a matching design
-          is added to the theme registry in code.
+          Registers a catalog entry. It stays hidden from this list and from clients until a matching design is added
+          to the theme registry in code — otherwise the name would promise a look the page doesn&apos;t have.
         </p>
         <input
           required
