@@ -414,6 +414,21 @@ model GoogleReviewConfig {
    */
   feedbackSheetTab String? @map("feedback_sheet_tab")
 
+  /**
+   * What this business actually sells, comma-separated ("bridal gold, temple
+   * jewellery, hallmarked chains"). The review writer may weave one or two of
+   * these in — but only where they match what the customer themselves said,
+   * since a review naming a service nobody received is both a lie and the
+   * kind of content Google filters. Reviews that mention the service and the
+   * area are what make a business findable for that search.
+   */
+  seoKeywords  String? @map("seo_keywords") @db.Text
+  /**
+   * The area or city to mention, e.g. "Jayanagar, Bengaluru". Falls back to
+   * the locality parsed from the landing page's address when unset.
+   */
+  localityHint String? @map("locality_hint")
+
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("google_review_configs")

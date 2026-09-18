@@ -119,17 +119,23 @@ export class WhatsappService {
     if (!lead) {
       throw new NotFoundException('Lead not found');
     }
-    const reviewUrl = buildGoogleReviewUrl({
+    const googleUrl = buildGoogleReviewUrl({
       reviewLink: client?.googleReviewConfig?.reviewLink,
       googlePlaceId: client?.googleReviewConfig?.googlePlaceId,
     });
-    if (!client || !reviewUrl) {
+    if (!client || !googleUrl) {
       throw new BadRequestException(
         'Add your Google Place ID or review link first (Reviews settings).',
       );
     }
 
-    const message = `Hi! This is ${client.businessName}. Thanks for stopping by — would you mind leaving us a quick review? ${reviewUrl}`;
+    // Send our own review page, not the raw Google link: it rates first, so a
+    // poor experience stays private feedback instead of becoming a public
+    // one-star, and a happy customer gets help writing something worth
+    // posting. The Google link is where that page sends them next.
+    const landingAppUrl = (process.env.LANDING_APP_URL ?? 'http://localhost:3002').replace(/\/$/, '');
+    const reviewUrl = `${landingAppUrl}/site/${client.slug}/review`;
+    const message = `Hi! This is ${client.businessName}. Thanks for stopping by — would you mind leaving us a quick review? We'll even help you write it: ${reviewUrl}`;
     return this.sendAndRecord(clientId, lead.phone, message);
   }
 

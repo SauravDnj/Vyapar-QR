@@ -14,6 +14,8 @@ import {
   getFunnelResponses,
   getFunnelStats,
   getReviewConfig,
+  getReviewShareKit,
+  previewReviewDraft,
   saveReviewConfig,
   syncReviewsNow,
   type CachedReview,
@@ -21,7 +23,9 @@ import {
   type FunnelResponse,
   type FunnelStats,
   type ReviewConfig,
+  type ReviewDraftPreview,
   type ReviewLinkCheck,
+  type ReviewShareKit,
 } from '../../../lib/reviews-api';
 
 const DEFAULT_MAPPING: ColumnMapping = {
@@ -153,6 +157,14 @@ function ReviewsContent() {
   const [feedbackWhatsappNumber, setFeedbackWhatsappNumber] = useState('');
   const [feedbackSheetId, setFeedbackSheetId] = useState('');
   const [feedbackSheetTab, setFeedbackSheetTab] = useState('');
+  const [seoKeywords, setSeoKeywords] = useState('');
+  const [localityHint, setLocalityHint] = useState('');
+  const [shareKit, setShareKit] = useState<ReviewShareKit | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [preview, setPreview] = useState<ReviewDraftPreview | null>(null);
+  const [previewNotes, setPreviewNotes] = useState('');
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewVariant, setPreviewVariant] = useState(0);
   const [mapping, setMapping] = useState<ColumnMapping>(DEFAULT_MAPPING);
   const [funnelStats, setFunnelStats] = useState<FunnelStats | null>(null);
   const [reviews, setReviews] = useState<CachedReview[]>([]);
@@ -165,12 +177,14 @@ function ReviewsContent() {
     if (!accessToken) return;
     setIsLoading(true);
     try {
-      const [result, stats, cached, responses] = await Promise.all([
+      const [result, stats, cached, responses, kit] = await Promise.all([
         getReviewConfig(accessToken),
         getFunnelStats(accessToken),
         getCachedReviews(accessToken),
         getFunnelResponses(accessToken),
+        getReviewShareKit(accessToken),
       ]);
+      setShareKit(kit);
       setConfig(result.config);
       setSheetsConfigured(result.sheetsConfigured);
       setWhatsappConfigured(result.whatsappConfigured);
@@ -185,6 +199,8 @@ function ReviewsContent() {
       setFeedbackWhatsappNumber(result.config?.feedbackWhatsappNumber ?? '');
       setFeedbackSheetId(result.config?.feedbackSheetId ?? '');
       setFeedbackSheetTab(result.config?.feedbackSheetTab ?? '');
+      setSeoKeywords(result.config?.seoKeywords ?? '');
+      setLocalityHint(result.config?.localityHint ?? '');
       setMapping(result.config?.columnMapping ?? DEFAULT_MAPPING);
       setFunnelStats(stats);
       setReviews(cached);
@@ -214,6 +230,8 @@ function ReviewsContent() {
         feedbackWhatsappNumber: feedbackWhatsappNumber || undefined,
         feedbackSheetId: feedbackSheetId || undefined,
         feedbackSheetTab: feedbackSheetTab || undefined,
+        seoKeywords: seoKeywords || undefined,
+        localityHint: localityHint || undefined,
         columnMapping: mapping,
       });
       setConfig(updated);
@@ -229,6 +247,27 @@ function ReviewsContent() {
       setMessage(error instanceof ApiError ? error.message : 'Failed to save.');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handlePreview() {
+    if (!accessToken) return;
+    setIsPreviewing(true);
+    setMessage(null);
+    try {
+      const nextVariant = preview ? previewVariant + 1 : 0;
+      const result = await previewReviewDraft(accessToken, {
+        rating: 5,
+        notes: previewNotes.trim() || undefined,
+        highlights: previewNotes.trim() ? [] : ['Service', 'Quality'],
+        variant: nextVariant,
+      });
+      setPreview(result);
+      setPreviewVariant(nextVariant);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : 'Could not write a sample.');
+    } finally {
+      setIsPreviewing(false);
     }
   }
 
@@ -404,6 +443,176 @@ function ReviewsContent() {
             to this deployment for full AI-written reviews in any language.
           </p>
         ) : null}
+      </div>
+
+      {/* Asking for the review is the half of this that isn't software: the
+          link, a QR for the counter, and a message ready to send. */}
+      <div
+        className="flex flex-col gap-4 rounded-lg border border-border-color bg-surface p-4"
+        style={{ boxShadow: 'var(--shadow-card)' }}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-medium">Ask customers for a review</p>
+          <Badge tone={effectiveReviewUrl ? 'success' : 'warning'}>
+            {effectiveReviewUrl ? 'Ready to share' : 'Add your Google link first'}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted">
+          Send this link, not your Google link. It asks for a rating first &mdash; 1&ndash;3&#9733; comes to
+          you privately, 4&ndash;5&#9733; gets help writing the review and then goes to Google.
+        </p>
+
+        {shareKit ? (
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="flex flex-col gap-1 text-sm">
+                <label htmlFor="review-share-link">Your review link</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="review-share-link"
+                    readOnly
+                    value={shareKit.reviewPageUrl}
+                    onFocus={(event) => {
+                      event.currentTarget.select();
+                    }}
+                    className="min-w-0 flex-1 rounded-md border border-border-color bg-background px-3 py-2 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(shareKit.reviewPageUrl).then(() => {
+                        setShareCopied(true);
+                      });
+                    }}
+                    className="rounded-md border border-border-color px-3 py-2 text-sm font-medium"
+                  >
+                    {shareCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={shareKit.whatsappShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md bg-whatsapp px-3 py-2 text-sm font-medium text-white"
+                >
+                  Send on WhatsApp
+                </a>
+                <a
+                  href={shareKit.reviewPageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-border-color px-3 py-2 text-sm font-medium"
+                >
+                  Open it yourself
+                </a>
+                {shareKit.qrDataUrl ? (
+                  <a
+                    href={shareKit.qrDataUrl}
+                    download="review-qr.png"
+                    className="rounded-md border border-border-color px-3 py-2 text-sm font-medium"
+                  >
+                    Download QR
+                  </a>
+                ) : null}
+              </div>
+
+              <p className="rounded-md bg-background px-3 py-2 text-xs text-muted">
+                {shareKit.whatsappMessage}
+              </p>
+            </div>
+
+            {shareKit.qrDataUrl ? (
+              <div className="flex shrink-0 flex-col items-center gap-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={shareKit.qrDataUrl}
+                  alt="QR code for your review link"
+                  className="size-32 rounded-md border border-border-color bg-white p-1"
+                />
+                <p className="text-[11px] text-muted">Print for the counter</p>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Loading your link&hellip;</p>
+        )}
+      </div>
+
+      {/* What the writer is allowed to say, and proof of what it writes. */}
+      <div
+        className="flex flex-col gap-4 rounded-lg border border-border-color bg-surface p-4"
+        style={{ boxShadow: 'var(--shadow-card)' }}
+      >
+        <p className="font-medium">What the review should mention</p>
+        <p className="text-sm text-muted">
+          Reviews that name the service and the area are the ones that bring your business up in
+          searches like &ldquo;jewellery shop near me&rdquo;. These are used only where the
+          customer&apos;s own words already support them &mdash; a review never claims something they
+          didn&apos;t say.
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1 text-sm">
+            <label htmlFor="seo-keywords">What you sell (comma separated)</label>
+            <input
+              id="seo-keywords"
+              value={seoKeywords}
+              onChange={(event) => setSeoKeywords(event.target.value)}
+              placeholder="bridal gold, temple jewellery, hallmarked chains"
+              className="rounded-md border border-border-color bg-background px-3 py-2"
+            />
+          </div>
+          <div className="flex flex-col gap-1 text-sm">
+            <label htmlFor="locality-hint">Area / city</label>
+            <input
+              id="locality-hint"
+              value={localityHint}
+              onChange={(event) => setLocalityHint(event.target.value)}
+              placeholder="Jayanagar, Bengaluru"
+              className="rounded-md border border-border-color bg-background px-3 py-2"
+            />
+            <p className="text-xs text-muted">Leave blank to use the address on your page.</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-border-color pt-3">
+          <label htmlFor="preview-notes" className="text-sm">
+            Try it: type what a customer might say
+          </label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              id="preview-notes"
+              value={previewNotes}
+              onChange={(event) => setPreviewNotes(event.target.value)}
+              placeholder="bought a bridal set, staff was very patient"
+              className="min-w-0 flex-1 rounded-md border border-border-color bg-background px-3 py-2"
+            />
+            <button
+              type="button"
+              disabled={isPreviewing}
+              onClick={() => void handlePreview()}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-50"
+            >
+              {isPreviewing ? 'Writing\u2026' : preview ? 'Try another' : 'Write a sample review'}
+            </button>
+          </div>
+          <p className="text-xs text-muted">
+            Save first &mdash; the sample uses what is stored, exactly as a customer&apos;s would.
+          </p>
+          {preview?.draft ? (
+            <div className="flex flex-col gap-1 rounded-md border border-border-color bg-background p-3">
+              <p className="text-sm">{preview.draft}</p>
+              <p className="text-[11px] text-muted">
+                {preview.source === 'ai'
+                  ? 'Written by AI'
+                  : 'Written by the built-in writer (no AI key set)'}
+              </p>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {!sheetsConfigured && (

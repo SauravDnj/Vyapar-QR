@@ -19,6 +19,42 @@ export interface ReviewWriterInput {
   highlights?: string[];
   /** 0 for the first draft; each "Try another" bumps it for variety. */
   variant?: number;
+  /** Area or city to name once, e.g. "Jayanagar, Bengaluru". */
+  locality?: string;
+  /** What the business sells, from its own settings. Only ever used to pick
+   * wording for something the customer already said. */
+  keywords?: string[];
+}
+
+/**
+ * Which of the business's own service words the customer's message supports.
+ *
+ * This is the whole SEO idea, and its limit. A review that names the service
+ * and the place — "the bridal set we picked up in Jayanagar" — is what makes
+ * a business findable for that search. But only the customer can say it
+ * happened, so a keyword is offered to the writer only when their own notes
+ * or picked highlights already point at it. The rest are dropped.
+ */
+export function matchedKeywords(input: ReviewWriterInput): string[] {
+  const keywords = (input.keywords ?? []).map((item) => item.trim()).filter(Boolean);
+  if (keywords.length === 0) {
+    return [];
+  }
+
+  const said = [input.notes ?? '', ...(input.highlights ?? [])].join(' ').toLowerCase();
+  if (!said.trim()) {
+    return [];
+  }
+
+  return keywords
+    .filter((keyword) => {
+      const words = keyword
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((word) => word.length > 3);
+      return words.some((word) => said.includes(word));
+    })
+    .slice(0, 2);
 }
 
 export function buildReviewMessages(input: ReviewWriterInput): GroqChatMessage[] {
@@ -34,6 +70,10 @@ export function buildReviewMessages(input: ReviewWriterInput): GroqChatMessage[]
         '- If the notes are in Hindi, Hinglish or any other language, write the review in that same language and script.',
         '- 2 to 4 sentences, roughly 25 to 70 words. Specific and genuine, not salesy.',
         '- Match the rating: 5 stars is very positive, 4 stars is positive.',
+        '- Name the business once, naturally, the way a person would.',
+        '- If an area is given, work it in once and only once ("...in Jayanagar").',
+        '- Service words are suggested wording for what the customer already said. If their notes do not support one, leave it out.',
+        '- Never stuff keywords. It has to read like one person describing one visit.',
         '- No emojis, hashtags, markdown, or surrounding quotation marks. Output only the review text.',
       ].join('\n'),
     },
@@ -41,6 +81,10 @@ export function buildReviewMessages(input: ReviewWriterInput): GroqChatMessage[]
       role: 'user',
       content: [
         `Business: ${input.businessName}`,
+        blankToNull(input.locality) ? `Area: ${input.locality ?? ''}` : '',
+        matchedKeywords(input).length > 0
+          ? `Service words I may use where they fit what I said: ${matchedKeywords(input).join(', ')}`
+          : '',
         `My rating: ${String(input.rating)}/5`,
         `What stood out: ${highlights.length > 0 ? highlights.join(', ') : '(none picked)'}`,
         `My own words: ${blankToNull(input.notes) ?? '(nothing written)'}`,
@@ -81,17 +125,22 @@ export function composeReviewWithoutAi(input: ReviewWriterInput): string {
     return notes;
   }
 
+  // The area, named once, is what makes the review searchable for "<service>
+  // near me" — and it is a fact about the business, not a claim about the
+  // customer's visit, so the template may add it where the AI may not.
+  const place = blankToNull(input.locality) ? `${name} in ${(input.locality ?? '').trim()}` : name;
+
   const openers =
     input.rating >= 5
       ? [
-          `Had a wonderful experience at ${name}.`,
-          `Really enjoyed my visit to ${name}.`,
-          `${name} is a place I'd happily recommend.`,
+          `Had a wonderful experience at ${place}.`,
+          `Really enjoyed my visit to ${place}.`,
+          `${place} is a place I'd happily recommend.`,
         ]
       : [
-          `Had a good experience at ${name}.`,
-          `Nice experience at ${name}.`,
-          `Enjoyed my visit to ${name}.`,
+          `Had a good experience at ${place}.`,
+          `Nice experience at ${place}.`,
+          `Enjoyed my visit to ${place}.`,
         ];
   const closers =
     input.rating >= 5
@@ -105,6 +154,19 @@ export function composeReviewWithoutAi(input: ReviewWriterInput): string {
   if (highlights.length > 0) {
     parts.push(
       `${pick(['Loved the', 'Really liked the', 'Special mention for the'], variant)} ${joinList(highlights)}.`,
+    );
+  }
+  // Only ever a service the customer's own words already pointed at — and
+  // only when those words aren't already in the review, or the template would
+  // say "filter coffee" twice in three sentences, which is the keyword
+  // stuffing this is supposed to avoid.
+  const said = notes.toLowerCase();
+  const keywords = matchedKeywords(input)
+    .map((item) => item.toLowerCase())
+    .filter((keyword) => !keyword.split(/\s+/).some((word) => word.length > 3 && said.includes(word)));
+  if (keywords.length > 0) {
+    parts.push(
+      `${pick(['Happy with the', 'Really pleased with the', 'No complaints about the'], variant)} ${joinList(keywords)}.`,
     );
   }
   if (!notes && highlights.length === 0) {

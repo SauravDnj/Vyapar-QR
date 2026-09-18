@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as QRCode from 'qrcode';
 
 import { GroqService } from '../ai/groq.service';
 import { EmailService } from '../email/email.service';
@@ -41,6 +42,17 @@ export interface ReviewLinkCheck {
   /** What customers will be sent to: the review box when a Place ID is known,
    * otherwise the business profile the link opens. */
   reviewUrl: string | null;
+}
+
+export interface ReviewShareKit {
+  /** Our own review page — rating gate, then the writer. */
+  reviewPageUrl: string;
+  /** Where that page sends a happy customer; null until a link is saved. */
+  googleUrl: string | null;
+  whatsappMessage: string;
+  whatsappShareUrl: string;
+  /** PNG data URL of the review page's QR, for printing at the counter. */
+  qrDataUrl: string | null;
 }
 
 export interface FunnelStats {
@@ -176,6 +188,8 @@ export class ReviewsService {
       feedbackWhatsappNumber: dto.feedbackWhatsappNumber ?? null,
       feedbackSheetId: dto.feedbackSheetId ?? null,
       feedbackSheetTab: dto.feedbackSheetTab ?? null,
+      seoKeywords: blankToNull(dto.seoKeywords),
+      localityHint: blankToNull(dto.localityHint),
       columnMapping: dto.columnMapping
         ? {
             reviewerName: dto.columnMapping.reviewerName,
@@ -370,12 +384,41 @@ export class ReviewsService {
       return { draft: null, source: null };
     }
 
-    const client = await this.prisma.client.findUnique({ where: { slug }, select: { businessName: true } });
+    const client = await this.prisma.client.findUnique({ where: { slug }, select: { id: true, businessName: true } });
     if (!client) {
       return { draft: null, source: null };
     }
 
-    const input = { businessName: client.businessName, rating: dto.rating, notes: dto.notes, highlights: dto.highlights, variant: dto.variant };
+    return this.writeDraft(client.id, client.businessName, dto);
+  }
+
+  /**
+   * Writes one draft for a client, with their own SEO settings folded in.
+   *
+   * Shared by the public funnel and the admin preview so a business sees
+   * exactly what its customers will be offered — a preview written by
+   * different code would be a demo, not a check.
+   */
+  private async writeDraft(
+    clientId: string,
+    businessName: string,
+    dto: DraftCustomerReviewDto,
+  ): Promise<{ draft: string | null; source: 'ai' | 'template' | null }> {
+    const [config, landingPage] = await Promise.all([
+      this.prisma.googleReviewConfig.findUnique({ where: { clientId } }),
+      this.prisma.landingPage.findUnique({ where: { clientId }, select: { contentJson: true } }),
+    ]);
+
+    const input = {
+      businessName,
+      rating: dto.rating,
+      notes: dto.notes,
+      highlights: dto.highlights,
+      variant: dto.variant,
+      locality: blankToNull(config?.localityHint) ?? localityFromAddress(landingPage?.contentJson),
+      keywords: splitKeywords(config?.seoKeywords),
+    };
+
     const generated = await this.groqService.chatComplete(buildReviewMessages(input), 220, dto.variant ? 0.95 : 0.7);
     const draft = generated ? cleanGeneratedReview(generated) : '';
     if (draft) {
@@ -383,6 +426,58 @@ export class ReviewsService {
     }
 
     return { draft: composeReviewWithoutAi(input), source: 'template' };
+  }
+
+  /** The same writer the customer gets, run from the dashboard so a business
+   * can read a sample before sending the link to anyone. */
+  async previewDraft(clientId: string, dto: DraftCustomerReviewDto) {
+    const client = await this.prisma.client.findUnique({ where: { id: clientId }, select: { businessName: true } });
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+    return this.writeDraft(clientId, client.businessName, dto);
+  }
+
+  /**
+   * Everything a business needs to ask for a review: the link, a QR for the
+   * counter, and a WhatsApp message with the link already in it.
+   *
+   * The link points at our own review page rather than straight at Google.
+   * That is the whole product: the customer rates first, a poor rating stays
+   * private, and a good one gets help writing something worth posting. A raw
+   * Google link throws all of that away.
+   */
+  async getShareKit(clientId: string): Promise<ReviewShareKit> {
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: { slug: true, businessName: true, googleReviewConfig: true },
+    });
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+
+    const landingAppUrl = this.configService.get<string>('LANDING_APP_URL') ?? 'http://localhost:3002';
+    const reviewPageUrl = `${landingAppUrl.replace(/\/$/, '')}/site/${client.slug}/review`;
+    const message = `Hi! Thanks for visiting ${client.businessName}. Could you take 30 seconds to rate us? We'll even help you write it: ${reviewPageUrl}`;
+
+    let qrDataUrl: string | null = null;
+    try {
+      qrDataUrl = await QRCode.toDataURL(reviewPageUrl, { width: 512, margin: 1, errorCorrectionLevel: 'M' });
+    } catch (error) {
+      // A missing QR is a degraded card, not a failed request.
+      this.logger.warn(`Review QR generation failed: ${String(error)}`);
+    }
+
+    return {
+      reviewPageUrl,
+      googleUrl: buildGoogleReviewUrl({
+        reviewLink: client.googleReviewConfig?.reviewLink,
+        googlePlaceId: client.googleReviewConfig?.googlePlaceId,
+      }),
+      whatsappMessage: message,
+      whatsappShareUrl: `https://wa.me/?text=${encodeURIComponent(message)}`,
+      qrDataUrl,
+    };
   }
 
   async submitFunnelResponse(
@@ -522,4 +617,35 @@ export class ReviewsService {
       await this.smsService.sendText(whatsappNumber, `${businessName}: new ${String(rating)}★ private feedback received. Not posted publicly. View: ${reviewsUrl}`);
     }
   }
+}
+
+/** Splits the client's comma-separated services into keywords. */
+function splitKeywords(value: string | null | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 1)
+    .slice(0, 8);
+}
+
+/**
+ * The locality to name in a review, taken from the landing page's address
+ * when the client hasn't set one: the last two comma-separated parts, minus
+ * anything that looks like a PIN code — "12 MG Road, Jayanagar, Bengaluru
+ * 560011" becomes "Jayanagar, Bengaluru". A street number in a review reads
+ * like an address, an area reads like a person.
+ */
+function localityFromAddress(contentJson: unknown): string | undefined {
+  const content = contentJson as { about?: { address?: string } } | null | undefined;
+  const address = content?.about?.address?.trim();
+  if (!address) {
+    return undefined;
+  }
+
+  const parts = address
+    .split(',')
+    .map((part) => part.replace(/\b\d{6}\b/g, '').trim())
+    .filter((part) => part.length > 1 && !/^\d+$/.test(part));
+
+  return parts.slice(-2).join(', ') || undefined;
 }

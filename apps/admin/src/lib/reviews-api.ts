@@ -18,6 +18,34 @@ export interface ReviewConfig {
   columnMapping: ColumnMapping | null;
   avgRatingCached: string | null;
   lastSyncedAt: string | null;
+  seoKeywords: string | null;
+  localityHint: string | null;
+}
+
+export interface ReviewShareKit {
+  reviewPageUrl: string;
+  googleUrl: string | null;
+  whatsappMessage: string;
+  whatsappShareUrl: string;
+  qrDataUrl: string | null;
+}
+
+export interface ReviewDraftPreview {
+  draft: string | null;
+  source: 'ai' | 'template' | null;
+}
+
+/** The link, QR and WhatsApp message a business sends to ask for reviews. */
+export function getReviewShareKit(accessToken: string) {
+  return apiFetch<ReviewShareKit>('/reviews/share', { accessToken });
+}
+
+/** Runs the customer's own writer so the business can read a sample. */
+export function previewReviewDraft(
+  accessToken: string,
+  input: { rating: number; notes?: string; highlights?: string[]; variant?: number },
+) {
+  return apiFetch<ReviewDraftPreview>('/reviews/preview-draft', { method: 'POST', body: input, accessToken });
 }
 
 export interface ReviewConfigResult {
@@ -67,6 +95,8 @@ export interface SaveReviewConfigInput {
   feedbackWhatsappNumber?: string;
   feedbackSheetId?: string;
   feedbackSheetTab?: string;
+  seoKeywords?: string;
+  localityHint?: string;
   columnMapping?: ColumnMapping;
 }
 

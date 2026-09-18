@@ -85,11 +85,14 @@ export function ReviewFunnel({
   slug,
   businessName,
   renderTrigger,
+  autoOpen = false,
 }: {
   slug?: string;
   businessName?: string;
   /** Lets a theme draw its own button; it receives the function that opens the sheet. */
   renderTrigger?: (open: () => void) => React.ReactNode;
+  /** Opens the sheet on mount — for the share link, whose only purpose is this. */
+  autoOpen?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<Step>('rate');
@@ -108,6 +111,24 @@ export function ReviewFunnel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inAppBrowser, setInAppBrowser] = useState(false);
+  const [isBack, setIsBack] = useState(false);
+
+  // Opened after mount, not during render: the sheet is a portal, so starting
+  // it open on the server produced markup the client didn't match and React
+  // threw the whole tree away and re-rendered it.
+  useEffect(() => {
+    if (autoOpen) {
+      setIsOpen(true);
+    }
+  }, [autoOpen]);
+
+  // Posting needs the visitor signed in to Google, and the browser inside
+  // WhatsApp or Instagram has no Google session — the review box asks them to
+  // sign in and the post is lost. Detect it so the sheet can say so up front.
+  useEffect(() => {
+    setInAppBrowser(/FBAN|FBAV|Instagram|Line\/|WhatsApp|GSA\//i.test(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -175,6 +196,21 @@ export function ReviewFunnel({
     }
   }
 
+  // Coming back to this tab means they've been to Google — swap the steps for
+  // a short "did it post?" so the owner learns whether the hand-off landed.
+  useEffect(() => {
+    if (step !== 'posted') return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setIsBack(true);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [step]);
+
   function toggleHighlight(item: string) {
     setHighlights((current) =>
       current.includes(item) ? current.filter((value) => value !== item) : [...current, item],
@@ -225,21 +261,20 @@ export function ReviewFunnel({
     }
   }
 
+  /**
+   * Runs on the tap that opens Google.
+   *
+   * The link itself is a real `<a target="_blank">` rather than
+   * `window.open`: pop-up blockers and the in-app browsers inside WhatsApp and
+   * Instagram routinely swallow a scripted open, and a plain link is what
+   * those browsers offer to hand to the real browser — which is where the
+   * visitor's Google session lives. This only copies the text and records the
+   * hand-off; navigation is the browser's job.
+   */
   function handlePostOnGoogle() {
     const text = finalText();
-    // Both must start inside the tap itself: browsers only allow clipboard
-    // writes and new tabs as a direct result of a user gesture.
-    const copying = copyText(text);
-    if (reviewLink) {
-      const opened = window.open(reviewLink, '_blank');
-      if (!opened) {
-        // Popup blocked — go in the same tab; the text is already on the clipboard.
-        window.setTimeout(() => {
-          window.location.href = reviewLink;
-        }, 400);
-      }
-    }
-    void copying.then((ok) => {
+    // Clipboard writes are only allowed as a direct result of a tap.
+    void copyText(text).then((ok) => {
       setCopied(ok);
     });
 
@@ -259,7 +294,6 @@ export function ReviewFunnel({
         }),
       }).catch(() => undefined);
     }
-    setStep('posted');
   }
 
   async function handleFeedbackSubmit() {
@@ -485,15 +519,35 @@ export function ReviewFunnel({
 
                       {error ? <p className="text-center text-sm text-[#d93025]">{error}</p> : null}
 
+                      {inAppBrowser ? (
+                        <p className="rounded-lg bg-[#fef7e0] px-3 py-2 text-xs leading-snug text-[#7a5900]">
+                          You&apos;re inside another app&apos;s browser. Posting needs your Google
+                          account, so choose <span className="font-medium">Open in browser</span> (or
+                          Chrome) when Google opens.
+                        </p>
+                      ) : null}
+
                       {reviewLink ? (
-                        <button
-                          type="button"
-                          onClick={handlePostOnGoogle}
-                          disabled={!finalText()}
-                          className="flex items-center justify-center gap-2 rounded-full bg-[#1a73e8] px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-[#1765cc] disabled:opacity-50"
+                        <a
+                          href={finalText() ? reviewLink : undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-disabled={!finalText()}
+                          onClick={(event) => {
+                            if (!finalText()) {
+                              event.preventDefault();
+                              return;
+                            }
+                            handlePostOnGoogle();
+                            setStep('posted');
+                          }}
+                          className={`flex items-center justify-center gap-2 rounded-full bg-[#1a73e8] px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-[#1765cc] ${
+                            finalText() ? '' : 'pointer-events-none opacity-50'
+                          }`}
                         >
+                          <GoogleG size={16} />
                           Copy &amp; post on Google
-                        </button>
+                        </a>
                       ) : (
                         <button
                           type="button"
@@ -532,10 +586,12 @@ export function ReviewFunnel({
                           ✓
                         </span>
                         <p className="text-base font-medium">
-                          {copied ? 'Review copied!' : 'Almost done!'}
+                          {isBack ? 'Did your review post?' : copied ? 'Review copied!' : 'Almost done!'}
                         </p>
                         <p className="text-sm text-[#5f6368]">
-                          Finish on Google — it takes 10 seconds:
+                          {isBack
+                            ? 'If it didn’t go through, your text is still copied — try again.'
+                            : 'Finish on Google — it takes 10 seconds:'}
                         </p>
                       </div>
                       <ol className="flex flex-col gap-2 text-sm">
@@ -557,9 +613,22 @@ export function ReviewFunnel({
                         ))}
                       </ol>
                       {finalText() ? (
-                        <p className="rounded-lg border border-[#e8eaed] px-3 py-2 text-sm italic text-[#3c4043]">
-                          {finalText()}
-                        </p>
+                        <>
+                          {copied ? null : (
+                            <p className="text-center text-xs text-[#d93025]">
+                              Couldn&apos;t copy automatically — select the text below and copy it.
+                            </p>
+                          )}
+                          <textarea
+                            readOnly
+                            rows={4}
+                            value={finalText()}
+                            onFocus={(event) => {
+                              event.currentTarget.select();
+                            }}
+                            className="rounded-lg border border-[#e8eaed] bg-[#f8f9fa] px-3 py-2 text-sm leading-relaxed text-[#3c4043]"
+                          />
+                        </>
                       ) : null}
                       <div className="grid grid-cols-2 gap-2">
                         <button

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 
 export class ColumnMappingDto {
   @IsString()
@@ -43,6 +43,18 @@ export class SaveReviewConfigDto {
   @IsOptional()
   @IsString()
   feedbackSheetTab?: string;
+
+  /** Comma-separated services the review may mention, e.g. "bridal gold, temple jewellery". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  seoKeywords?: string;
+
+  /** Area or city a review should name once, e.g. "Jayanagar, Bengaluru". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  localityHint?: string;
 
   @IsOptional()
   @ValidateNested()

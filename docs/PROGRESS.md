@@ -678,3 +678,36 @@ and Aurora were removed; the single-screen engine from Phase 22
 | P23-02 | Everything still on one screen | ✅ Done | Hours, share and save contact; logo, rating, name, tagline, address; collection rail; Pay; four quick actions; a four-slot dock. Sheets carry About, Catalogue, Gallery, Order, Offers, Book, Reviews, Branches, Rewards, Enquire and Follow. The rail and address hide first on short phones. |
 | P23-03 | Catalog of one | ✅ Done | `SCREEN_THEMES` holds Zevar alone and `DEFAULT_THEME_NAME` is Zevar, so `db:sync-themes` moves every page onto it and deletes the rest. `ThemesService` also filters both listings to names the renderer has a design for, so stale rows in a database that hasn't been synced never reach the picker (3 unit tests). |
 | P23-04 | Verified locally | ✅ Done | Screenshots at 390×844, 360×640 and desktop: no page scroll, no console errors. Driven with Playwright against a jewellery demo client: rail → gallery (5 photos), About, Catalogue, Pay (GPay + PhonePe), More → Book (Calendly link), Enquire (lead actually submitted), review sheet, `.vcf` download, `tel:` and Maps links. |
+
+---
+
+## Phase 24 — Google reviews: share link, SEO writer, cleaner hand-off
+
+**The hard limit, stated once:** no app can pre-fill or post a Google review.
+Google has no API for writing reviews, no URL parameter for the text, and
+[its policy forbids links that pre-fill a rating or content][g-policy]. The
+closest possible is what this now does: write the review here, copy it on the
+tap that opens Google, and land the customer in the review box to paste and
+post. Anything claiming to auto-fill Google is either faking it or breaking
+Google's terms.
+
+[g-policy]: https://support.google.com/business/thread/136677305
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P24-01 | A review link to send customers | ✅ Done | `GET /reviews/share` returns the link (`/site/:slug/review`), a QR PNG for the counter, and a ready WhatsApp message. New admin card: copy, "Send on WhatsApp", "Download QR". The link goes to **our** page, not Google, so the rating gate still applies — 1–3★ stays private, 4–5★ gets the writer. The CRM's "Request review" WhatsApp now sends the same link instead of a raw Google link, which previously skipped the funnel entirely. |
+| P24-02 | A page behind that link | ✅ Done | `apps/landing/src/app/site/[slug]/review/page.tsx`: business name and logo, and the review sheet opens by itself (after mount — opening it during SSR broke hydration and React re-rendered the tree). Same component as the landing page, so there is one funnel to maintain. Not indexed. |
+| P24-03 | Reviews written for local search | ✅ Done | The writer now knows the area and what the business sells. It names the area once, and may use a service word **only where the customer's own words already support it** — an unsupported keyword is dropped, and the template skips a word the customer already used rather than repeating it. New `seoKeywords` / `localityHint` on `GoogleReviewConfig`, with the area falling back to the address on the page. This matters because a review naming service and area is what surfaces a business for "<service> near me"; inventing either would be a fake review, which Google filters. |
+| P24-04 | Admin can see what it writes | ✅ Done | `POST /reviews/preview-draft` runs the customer's own writer from the dashboard, so a business reads a real sample before sending the link — a preview written by different code would be a demo, not a check. |
+| P24-05 | The hand-off actually opens | ✅ Done | "Copy & post on Google" is now a real `<a target="_blank">` rather than `window.open`, which pop-up blockers and the in-app browsers inside WhatsApp and Instagram swallow. Those browsers also have no Google session, so the sheet now warns to open in the real browser. If the clipboard is blocked the review is shown in a selectable box instead, and coming back to the tab asks whether it posted. |
+| P24-06 | Verified locally | ✅ Done | 28 unit tests (link parsing, writer, keyword matching, no-stuffing, area-once). Driven in a browser end to end: the link opens on the stars; 2★ went to private feedback and saved; 5★ wrote a review mentioning the area, "Try another" changed it, the button opened Google in a new tab with the review on the clipboard, and the paste steps appeared. A Hindi note came back as the customer's own Devanagari sentence, untouched. No console errors. |
+
+**Still needs your keys** (both free, neither set in production): `GROQ_API_KEY`
+turns the built-in writer into a full AI one, and `GOOGLE_PLACES_API_KEY` lets
+a share link resolve to a Place ID so customers land in the write-review box
+instead of the profile page.
+
+**Worth knowing:** sending only happy customers to Google ("review gating") is
+against Google's review policy, however common it is. The funnel is built that
+way by product decision; the alternative is to send everyone to Google and use
+the private path only for the follow-up.

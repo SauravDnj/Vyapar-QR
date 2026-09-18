@@ -273,6 +273,8 @@ export interface GoogleReviewConfig {
   feedbackWhatsappNumber: string | null;
   feedbackSheetId: string | null;
   feedbackSheetTab: string | null;
+  seoKeywords: string | null;
+  localityHint: string | null;
 }
 
 export interface ReviewCache {

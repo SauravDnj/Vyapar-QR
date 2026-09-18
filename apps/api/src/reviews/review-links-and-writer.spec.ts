@@ -1,5 +1,5 @@
 import { buildGoogleReviewUrl, isGoogleLink, parseGoogleLink } from './google-review-link';
-import { buildReviewMessages, cleanGeneratedReview, composeReviewWithoutAi } from './review-writer';
+import { buildReviewMessages, cleanGeneratedReview, composeReviewWithoutAi, matchedKeywords } from './review-writer';
 
 describe('Google review links', () => {
   it.each([
@@ -64,5 +64,72 @@ describe('review writer', () => {
 
   it('strips wrapping quotes and preambles from model output', () => {
     expect(cleanGeneratedReview('Here is your review:\n"Great coffee and friendly staff."')).toBe('Great coffee and friendly staff.');
+  });
+});
+
+describe('review writer — service words and area (SEO)', () => {
+  const base = { businessName: 'Shree Gold Jewellers', rating: 5 as const, locality: 'Jayanagar, Bengaluru' };
+  const keywords = ['bridal gold sets', 'temple jewellery', 'hallmarked chains'];
+
+  it('offers a service word only when the customer already said it', () => {
+    expect(matchedKeywords({ ...base, keywords, notes: 'bought a bridal set for my sister' })).toEqual([
+      'bridal gold sets',
+    ]);
+  });
+
+  it('offers nothing when the customer never mentioned any of them', () => {
+    expect(matchedKeywords({ ...base, keywords, notes: 'staff was very polite' })).toEqual([]);
+  });
+
+  it('offers nothing when the customer wrote nothing at all', () => {
+    expect(matchedKeywords({ ...base, keywords })).toEqual([]);
+  });
+
+  it('never offers more than two, so a review cannot become a keyword list', () => {
+    const matched = matchedKeywords({
+      ...base,
+      keywords,
+      notes: 'bridal and temple pieces, all hallmarked chains too',
+    });
+    expect(matched).toHaveLength(2);
+  });
+
+  it('names the area once in the template review', () => {
+    const review = composeReviewWithoutAi({ ...base, notes: 'lovely bangles' });
+    expect(review).toContain('Jayanagar, Bengaluru');
+    expect(review.match(/Jayanagar/g)).toHaveLength(1);
+  });
+
+  it('puts the area and the allowed service words in the AI prompt', () => {
+    const messages = buildReviewMessages({ ...base, keywords, notes: 'bought a bridal set' });
+    const user = messages[1]?.content ?? '';
+    expect(user).toContain('Area: Jayanagar, Bengaluru');
+    expect(user).toContain('bridal gold sets');
+    expect(messages[0]?.content).toMatch(/Never stuff keywords/);
+  });
+
+  it('leaves a review with no area exactly as it was', () => {
+    const review = composeReviewWithoutAi({ businessName: 'Blue Bean Cafe', rating: 5, notes: 'great filter coffee' });
+    expect(review).toContain('Blue Bean Cafe');
+    expect(review).not.toContain('undefined');
+  });
+});
+
+describe('review writer — no stuffing', () => {
+  const base = {
+    businessName: 'Shree Gold Jewellers',
+    rating: 5 as const,
+    locality: 'Jayanagar',
+    keywords: ['bridal gold sets', 'temple jewellery'],
+  };
+
+  it('does not repeat a service the customer already named', () => {
+    const review = composeReviewWithoutAi({ ...base, notes: 'bought a lovely bridal set here' });
+    expect(review.toLowerCase().match(/bridal/g)).toHaveLength(1);
+  });
+
+  it('still adds one when only a chip pointed at it', () => {
+    const review = composeReviewWithoutAi({ ...base, highlights: ['Bridal gold'], notes: 'staff were patient' });
+    expect(review.toLowerCase()).toContain('bridal gold sets');
   });
 });

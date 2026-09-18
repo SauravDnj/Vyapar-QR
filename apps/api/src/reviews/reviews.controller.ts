@@ -7,6 +7,7 @@ import { ClientScopeGuard } from '../common/guards/client-scope.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 
 import { CheckReviewLinkDto } from './dto/check-review-link.dto';
+import { DraftCustomerReviewDto } from './dto/draft-customer-review.dto';
 import { SaveReviewConfigDto } from './dto/save-review-config.dto';
 import { ReviewsService } from './reviews.service';
 
@@ -38,6 +39,19 @@ export class ReviewsController {
   @Roles('client_admin')
   sync(@CurrentClientId() clientId: string) {
     return this.reviewsService.syncNow(clientId);
+  }
+
+  /** The link, QR and WhatsApp message a business sends to ask for reviews. */
+  @Get('share')
+  getShareKit(@CurrentClientId() clientId: string) {
+    return this.reviewsService.getShareKit(clientId);
+  }
+
+  /** Runs the customer's own review writer, so a business can read a sample
+   * before it sends the link to anyone. */
+  @Post('preview-draft')
+  previewDraft(@CurrentClientId() clientId: string, @Body() dto: DraftCustomerReviewDto) {
+    return this.reviewsService.previewDraft(clientId, dto);
   }
 
   @Get('funnel-stats')
