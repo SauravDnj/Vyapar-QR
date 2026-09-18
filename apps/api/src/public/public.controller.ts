@@ -25,6 +25,7 @@ import { SubmitFunnelDto } from '../reviews/dto/submit-funnel.dto';
 import { SubmitTestimonialDto } from '../testimonials/dto/submit-testimonial.dto';
 import { VISITOR_COOKIE, VISITOR_COOKIE_MAX_AGE } from '../visitors/visitors.service';
 
+import { AttachPaymentCustomerDto } from './dto/attach-payment-customer.dto';
 import { ClaimPaymentDto } from './dto/claim-payment.dto';
 import { PublicService } from './public.service';
 
@@ -124,6 +125,24 @@ export class PublicController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   claimPayment(@Param('slug') slug: string, @Body() dto: ClaimPaymentDto) {
     return this.publicService.claimPayment(slug, dto);
+  }
+
+  /** Undo, for a customer who came back from the app without paying. */
+  @Post('landing/:slug/payment/claim/:id/cancel')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  cancelPaymentClaim(@Param('slug') slug: string, @Param('id') id: string) {
+    return this.publicService.cancelPaymentClaim(slug, id);
+  }
+
+  /** The optional name/number on the thank-you screen. */
+  @Post('landing/:slug/payment/claim/:id/customer')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  attachPaymentCustomer(
+    @Param('slug') slug: string,
+    @Param('id') id: string,
+    @Body() dto: AttachPaymentCustomerDto,
+  ) {
+    return this.publicService.attachPaymentCustomer(slug, id, dto);
   }
 
   @Post('landing/:slug/event')

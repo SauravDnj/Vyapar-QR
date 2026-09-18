@@ -1,6 +1,6 @@
 import { ArrayMinSize, IsArray, IsIn, IsUrl } from 'class-validator';
 
-export const WEBHOOK_EVENT_TYPES = ['lead.created', 'review.synced', 'subscription.updated', 'order.created'] as const;
+export const WEBHOOK_EVENT_TYPES = ['lead.created', 'review.synced', 'subscription.updated', 'order.created', 'payment.claimed'] as const;
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 export class CreateWebhookDto {

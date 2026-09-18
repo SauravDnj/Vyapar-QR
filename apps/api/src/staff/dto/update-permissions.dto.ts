@@ -24,4 +24,7 @@ export class UpdatePermissionsDto {
 
   @IsBoolean()
   orders!: boolean;
+
+  @IsBoolean()
+  payments!: boolean;
 }

@@ -711,3 +711,21 @@ instead of the profile page.
 against Google's review policy, however common it is. The funnel is built that
 way by product decision; the alternative is to send everyone to Google and use
 the private path only for the follow-up.
+
+---
+
+## Phase 25 — Payments in the CRM, and customer data in full
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| P25-01 | Payments are records now | ✅ Done | New `PaymentClaim` model (amount — nullable, method, status `claimed`/`confirmed`/`cancelled`, customer name/phone, linked lead). Previously a payment existed only as an analytics event inside `meta_json`, which is why no report, export or CRM entry was possible. **Nothing here is verified**: a UPI deep link reports nothing back, the money lands in the business's own app, so every row is what the customer said and the owner marks it confirmed. |
+| P25-02 | The page records it by itself | ✅ Done | Tapping Pay opens the UPI app; coming back records the payment and shows "Thank you for ₹340!" with no second tap — the manual "I've paid — notify …" button is gone. "I didn't pay — undo" cancels it, and a failed save falls back to a manual button. The amount is optional, since a customer can type it in their app. |
+| P25-03 | Any UPI app | ✅ Done | The `other` method was in the schema and the renderer but unreachable — the admin only offered GPay/PhonePe/Paytm. It is now a fourth card, "Any UPI app": a plain `upi://pay` link, so the phone lists every UPI app installed (BHIM, Amazon Pay, CRED, bank apps) and the customer picks. The three named cards still deep-link straight into one app. |
+| P25-04 | Payments in the CRM | ✅ Done | After paying, the customer can leave a name and number — optional, and asked only after the payment. That creates or matches a CRM lead with source `payment_claim` (an enum value that existed but nothing ever wrote), and links it to the payment. |
+| P25-05 | Payments report and Excel export | ✅ Done | New `/dashboard/payments`: today / 7-day / 30-day totals, totals per app, a filterable list, and "Got it" / "Never came" per payment. "Download for Excel" gives a CSV whose first bytes are a UTF-8 BOM — without it Excel on Windows turns ₹ and every Hindi name into mojibake. The leads CSV got the same fix. New `payments` staff permission. |
+| P25-06 | Customer numbers shown in full | ✅ Done | The CRM masked phone numbers as `+91••••••78` on the board and the table. A masked number can't be dialled, copied or matched against a WhatsApp chat — and it is the business's own customer on their own dashboard. Numbers now show in full, as `tel:` links, with a copy button in the drawer. No masking remains anywhere in the product. |
+| P25-07 | Verified locally | ✅ Done | 12 unit tests (claim recording, lead creation and reuse, honeypot, cancelled claims excluded from every total, 7/30-day windows, CSV BOM and quoting). Driven in a browser: paid ₹340 with "any UPI app", came back, got the thank-you automatically, saved a number — then in the admin the payment showed ₹590 in totals, the customer's full number appeared, "Got it" confirmed it, and the CSV downloaded with the BOM and the right rows. Leads page showed no masked numbers and the payment contact in the CRM. |
+
+**Note:** the owner's WhatsApp alert for a payment still uses the number in
+Reviews settings (`feedbackWhatsappNumber`) — an odd home for it, kept as-is
+to avoid moving a field businesses have already filled in.

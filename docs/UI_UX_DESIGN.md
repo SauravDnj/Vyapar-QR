@@ -185,7 +185,7 @@ Two-column layout:
 
 - Tab bar: All / New / Contacted / Converted.
 - "Export CSV" button top-right.
-- Table: Name, Phone (partially masked), Source badge (Contact form / WhatsApp click / QR scan — each a distinct badge color), Status badge, Notes.
+- Table: Name, Phone (in full, tap to call), Source badge (Contact form / WhatsApp click / QR scan — each a distinct badge color), Status badge, Notes.
 - Clicking a row opens a detail drawer to change status, add notes/tags — no separate page needed for something this lightweight.
 
 ### 3.7 Analytics

@@ -12,6 +12,7 @@ export interface StaffPermissions {
   whatsapp: boolean;
   menu: boolean;
   orders: boolean;
+  payments: boolean;
 }
 
 /** Applied when `permissionsJson` is null — every staff member invited
@@ -25,4 +26,5 @@ export const DEFAULT_STAFF_PERMISSIONS: StaffPermissions = {
   whatsapp: true,
   menu: true,
   orders: true,
+  payments: true,
 };

@@ -132,6 +132,13 @@ export const OrderStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type PaymentClaimStatus = 'claimed' | 'confirmed' | 'cancelled';
+export const PaymentClaimStatus = {
+  claimed: 'claimed',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
 export interface User {
   id: string;
   email: string;
@@ -421,6 +428,20 @@ export interface QrCode {
   createdAt: Date;
 }
 
+export interface PaymentClaim {
+  id: string;
+  clientId: string;
+  amount: number | null;
+  method: PaymentMethodType;
+  status: PaymentClaimStatus;
+  customerName: string | null;
+  customerPhone: string | null;
+  note: string | null;
+  leadId: string | null;
+  confirmedAt: Date | null;
+  createdAt: Date;
+}
+
 export interface AnalyticsEvent {
   id: string;
   clientId: string;
@@ -530,6 +551,7 @@ export interface ClientRelations {
   subscriptions: ToMany<Subscription, SubscriptionRelations>;
   invoices: ToMany<Invoice, InvoiceRelations>;
   paymentMethods: ToMany<PaymentMethod, PaymentMethodRelations>;
+  paymentClaims: ToMany<PaymentClaim, PaymentClaimRelations>;
   socialLinks: ToMany<SocialLink, SocialLinkRelations>;
   galleryImages: ToMany<GalleryImage, GalleryImageRelations>;
   locations: ToMany<Location, LocationRelations>;
@@ -675,6 +697,11 @@ export interface OrderRelations {
 }
 
 export interface QrCodeRelations {
+  client: ToOne<Client, ClientRelations>;
+  _count: Record<string, number>;
+}
+
+export interface PaymentClaimRelations {
   client: ToOne<Client, ClientRelations>;
   _count: Record<string, number>;
 }
@@ -939,6 +966,14 @@ export namespace Prisma {
   export type QrCodeSelect = Record<string, unknown>;
   export type QrCodeInclude = Record<string, unknown>;
   export type QrCodeGetPayload<T = unknown> = QrCode & Partial<ResolvedRelations<QrCodeRelations>>;
+  export type PaymentClaimWhereInput = Record<string, unknown>;
+  export type PaymentClaimWhereUniqueInput = Record<string, unknown>;
+  export type PaymentClaimCreateInput = Record<string, unknown>;
+  export type PaymentClaimUpdateInput = Record<string, unknown>;
+  export type PaymentClaimOrderByWithRelationInput = Record<string, unknown>;
+  export type PaymentClaimSelect = Record<string, unknown>;
+  export type PaymentClaimInclude = Record<string, unknown>;
+  export type PaymentClaimGetPayload<T = unknown> = PaymentClaim & Partial<ResolvedRelations<PaymentClaimRelations>>;
   export type AnalyticsEventWhereInput = Record<string, unknown>;
   export type AnalyticsEventWhereUniqueInput = Record<string, unknown>;
   export type AnalyticsEventCreateInput = Record<string, unknown>;
@@ -1145,6 +1180,7 @@ export interface JsonDbDelegates {
   menuItem: JsonDelegate<MenuItem, MenuItemRelations>;
   order: JsonDelegate<Order, OrderRelations>;
   qrCode: JsonDelegate<QrCode, QrCodeRelations>;
+  paymentClaim: JsonDelegate<PaymentClaim, PaymentClaimRelations>;
   analyticsEvent: JsonDelegate<AnalyticsEvent, AnalyticsEventRelations>;
   auditLog: JsonDelegate<AuditLog, AuditLogRelations>;
   setting: JsonDelegate<Setting, SettingRelations>;

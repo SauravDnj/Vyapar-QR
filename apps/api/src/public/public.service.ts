@@ -7,6 +7,7 @@ import { DomainsService } from '../domains/domains.service';
 import { LeadsService } from '../leads/leads.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { MenuService } from '../menu/menu.service';
+import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QrService } from '../qr/qr.service';
 import { buildGoogleReviewUrl } from '../reviews/google-review-link';
@@ -17,6 +18,7 @@ import { VisitorsService, type ScanSignals } from '../visitors/visitors.service'
 import { WalletService } from '../wallet/wallet.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
+import type { AttachPaymentCustomerDto } from './dto/attach-payment-customer.dto';
 import type { ClaimPaymentDto } from './dto/claim-payment.dto';
 import type { CaptureEventDto } from '../analytics/dto/capture-event.dto';
 import type { BookSlotDto } from '../bookings/dto/book-slot.dto';
@@ -81,6 +83,7 @@ export class PublicService {
     private readonly walletService: WalletService,
     private readonly whatsappService: WhatsappService,
     private readonly visitorsService: VisitorsService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   resolveCustomDomain(hostname: string): Promise<{ slug: string }> {
@@ -165,48 +168,23 @@ export class PublicService {
     return this.reviewsService.recordHandoff(slug, dto);
   }
 
-  /** A customer taps "I've paid" after being sent to their UPI app. There's
-   * no payment gateway behind a raw `upi://pay` deep-link, so this is
-   * self-reported, not a verified receipt — the WhatsApp alert to the
-   * owner says so explicitly, so it never gets mistaken for confirmed
-   * money in the bank. Goes through `WhatsappService.resolveSend` so the
-   * owner's auto/api/url send-mode toggle applies here too: when the
-   * Cloud API isn't configured (or the owner has it set to `url`),
-   * `whatsappUrl` comes back populated so the *customer's own device* can
-   * open WhatsApp and send the confirmation themselves — no credentials
-   * needed for that path at all. */
-  async claimPayment(slug: string, dto: ClaimPaymentDto): Promise<{ notified: boolean; whatsappUrl: string | null }> {
-    if (dto.website) {
-      // Honeypot tripped — same silent-success convention as every other public form.
-      return { notified: false, whatsappUrl: null };
-    }
+  /** A customer says they paid, after being sent to their UPI app. There is
+   * no gateway behind a raw `upi://pay` deep link, so this is self-reported,
+   * not a verified receipt — `PaymentsService` records it as a claim the
+   * owner still has to confirm, and every owner-facing message says so. */
+  claimPayment(slug: string, dto: ClaimPaymentDto) {
+    return this.paymentsService.claim(slug, dto);
+  }
 
-    const client = await this.prisma.client.findUnique({
-      where: { slug },
-      include: { googleReviewConfig: true },
-    });
-    if (!client) {
-      return { notified: false, whatsappUrl: null };
-    }
+  /** The customer's own undo, if the app closed without paying. */
+  cancelPaymentClaim(slug: string, claimId: string) {
+    return this.paymentsService.cancelOwnClaim(slug, claimId);
+  }
 
-    await this.prisma.analyticsEvent.create({
-      data: {
-        clientId: client.id,
-        eventType: 'button_click',
-        metaJson: { label: 'payment_claimed', amount: dto.amount, method: dto.method ?? null },
-      },
-    });
-
-    const whatsappNumber = client.googleReviewConfig?.feedbackWhatsappNumber ?? null;
-    if (!whatsappNumber) {
-      return { notified: false, whatsappUrl: null };
-    }
-
-    const methodLabel = dto.method ? ` via ${dto.method}` : '';
-    const message = `${client.businessName}: a customer marked a ₹${dto.amount.toFixed(2)} UPI payment as PAID${methodLabel}. This is self-reported, not a verified receipt — please confirm it actually landed in your UPI app before treating it as confirmed.`;
-    const result = await this.whatsappService.resolveSend(client.id, whatsappNumber, message);
-
-    return { notified: result.sent, whatsappUrl: result.url };
+  /** Optional name/number the customer adds on the thank-you screen, which
+   * is what turns an anonymous payment into a CRM contact. */
+  attachPaymentCustomer(slug: string, claimId: string, dto: AttachPaymentCustomerDto) {
+    return this.paymentsService.attachCustomer(slug, claimId, dto);
   }
 
   submitTestimonial(slug: string, dto: SubmitTestimonialDto): Promise<void> {

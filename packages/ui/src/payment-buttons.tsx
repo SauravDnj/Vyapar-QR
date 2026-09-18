@@ -12,7 +12,9 @@ const APP_LABEL: Record<PaymentMethodType, string> = {
   gpay: 'Google Pay',
   phonepe: 'PhonePe',
   paytm: 'Paytm',
-  other: 'UPI',
+  // Not one app: the plain `upi://` scheme makes the phone list every UPI app
+  // installed on it, so the customer pays with whichever they actually use.
+  other: 'any UPI app',
 };
 
 /** Bare app schemes, for opening an app so the visitor can scan an on-screen QR. */
@@ -116,7 +118,7 @@ function trackClick(slug: string | undefined, label: string) {
   });
 }
 
-async function claimPayment(slug: string, amount: number, method: PaymentMethodType) {
+async function claimPayment(slug: string, amount: number | undefined, method: PaymentMethodType) {
   const response = await fetch(`${API_URL}/public/landing/${slug}/payment/claim`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -125,7 +127,28 @@ async function claimPayment(slug: string, amount: number, method: PaymentMethodT
   if (!response.ok) {
     throw new Error('Request failed');
   }
-  return (await response.json()) as { notified: boolean; whatsappUrl: string | null };
+  return (await response.json()) as { claimId: string | null; notified: boolean; whatsappUrl: string | null };
+}
+
+/** Undo, for someone who came back from their UPI app without paying. */
+async function cancelClaim(slug: string, claimId: string) {
+  await fetch(`${API_URL}/public/landing/${slug}/payment/claim/${claimId}/cancel`, {
+    method: 'POST',
+    keepalive: true,
+  });
+}
+
+/** The optional name and number, which is what puts the payment in the CRM
+ * against a contact the business can follow up with. */
+async function attachCustomer(slug: string, claimId: string, body: { name?: string; phone?: string }) {
+  const response = await fetch(`${API_URL}/public/landing/${slug}/payment/claim/${claimId}/customer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error('Request failed');
+  }
 }
 
 type ClaimState = 'idle' | 'sending' | 'sent' | 'needs-manual-send' | 'error';
@@ -150,7 +173,14 @@ function AmountPayCard({
   const [copied, setCopied] = useState(false);
   const [claimState, setClaimState] = useState<ClaimState>('idle');
   const [manualSendUrl, setManualSendUrl] = useState<string | null>(null);
+  const [claimId, setClaimId] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [detailsState, setDetailsState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Set while the customer is away in their UPI app, so coming back records
+   * the payment without them having to tap anything else. */
+  const awaitingReturn = useRef(false);
 
   useEffect(
     () => () => {
@@ -158,6 +188,32 @@ function AmountPayCard({
     },
     [],
   );
+
+  /**
+   * Records the payment when the customer comes back from their UPI app.
+   *
+   * They tapped Pay, the app took over, and they returned — that is the whole
+   * signal we get, because a UPI deep link reports nothing back. So the page
+   * stops asking "did you pay?" and simply says thank you, while the record
+   * itself is stored as an unverified claim for the owner to confirm against
+   * their own UPI app. "Not paid" undoes it in one tap.
+   */
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== 'visible' || !awaitingReturn.current) {
+        return;
+      }
+      awaitingReturn.current = false;
+      void recordPayment();
+    }
+
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+    // `recordPayment` closes over the amount, which the customer can still be
+    // editing when they tap Pay, so the listener is re-attached as it changes.
+  }, [amount, slug, method]);
 
   function handlePay() {
     trackClick(slug, method);
@@ -184,6 +240,7 @@ function AmountPayCard({
 
     setHasOpened(true);
     setNoAppFound(false);
+    awaitingReturn.current = true;
     const isAndroid = /android/i.test(navigator.userAgent);
     window.location.href = upiLink(method, upiId, businessName, amount, isAndroid);
 
@@ -191,20 +248,22 @@ function AmountPayCard({
     // is still visible shortly after, nothing handled the link — fall back to
     // the same QR and UPI ID.
     timer.current = setTimeout(() => {
-      if (document.visibilityState === 'visible') setNoAppFound(true);
+      if (document.visibilityState === 'visible') {
+        setNoAppFound(true);
+        awaitingReturn.current = false;
+      }
     }, 1500);
   }
 
-  async function handleClaimPaid() {
-    if (!slug) return;
+  async function recordPayment() {
+    if (!slug || claimState === 'sending' || claimState === 'sent') return;
     const parsed = Number(amount);
-    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    const paidAmount = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
     setClaimState('sending');
     try {
-      const result = await claimPayment(slug, parsed, method);
-      if (result.notified) {
-        setClaimState('sent');
-      } else if (result.whatsappUrl) {
+      const result = await claimPayment(slug, paidAmount, method);
+      setClaimId(result.claimId);
+      if (!result.notified && result.whatsappUrl) {
         setManualSendUrl(result.whatsappUrl);
         setClaimState('needs-manual-send');
       } else {
@@ -212,6 +271,26 @@ function AmountPayCard({
       }
     } catch {
       setClaimState('error');
+    }
+  }
+
+  async function handleNotPaid() {
+    if (slug && claimId) {
+      await cancelClaim(slug, claimId);
+    }
+    setClaimId(null);
+    setClaimState('idle');
+    setHasOpened(false);
+  }
+
+  async function handleSaveDetails() {
+    if (!slug || !claimId || !customerPhone.trim()) return;
+    setDetailsState('saving');
+    try {
+      await attachCustomer(slug, claimId, { name: customerName.trim() || undefined, phone: customerPhone.trim() });
+      setDetailsState('saved');
+    } catch {
+      setDetailsState('idle');
     }
   }
 
@@ -300,52 +379,111 @@ function AmountPayCard({
         </div>
       ) : null}
 
-      {hasOpened ? (
-        <div className="flex flex-col gap-1.5 border-t pt-3" style={{ borderColor: 'var(--t-border, #e5e7eb)' }}>
-          {claimState === 'sent' ? (
-            <p className="flex items-center justify-center gap-2 text-center text-sm font-medium">
-              <Icon name="check" className="size-4" />
-              Thanks — we&apos;ve let {businessName} know.
+      {hasOpened && !noAppFound ? (
+        <div className="flex flex-col gap-2 border-t pt-3" style={{ borderColor: 'var(--t-border, #e5e7eb)' }}>
+          {claimState === 'sending' ? (
+            <p className="text-center text-sm" style={MUTED}>
+              Saving your payment&hellip;
             </p>
-          ) : claimState === 'needs-manual-send' && manualSendUrl ? (
+          ) : null}
+
+          {claimState === 'sent' || claimState === 'needs-manual-send' ? (
             <>
-              <a
-                href={manualSendUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-opacity duration-200 hover:opacity-90"
-                style={ACCENT_BUTTON}
-              >
-                <Icon name="external" className="size-4" />
-                Open WhatsApp to confirm
-              </a>
-              <p className="text-center text-xs" style={MUTED}>
-                Opens WhatsApp with the message ready — just tap send.
+              <p className="flex items-center justify-center gap-2 text-center text-sm font-medium">
+                <Icon name="check" className="size-4" />
+                Thank you{amountValid ? ` for \u20B9${amount}` : ''}! {businessName} has been told.
+              </p>
+
+              {claimState === 'needs-manual-send' && manualSendUrl ? (
+                <a
+                  href={manualSendUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-opacity duration-200 hover:opacity-90"
+                  style={ACCENT_BUTTON}
+                >
+                  <Icon name="external" className="size-4" />
+                  Send the confirmation on WhatsApp
+                </a>
+              ) : null}
+
+              {/* A number turns this payment into a customer the business can
+                  thank or follow up with. Asked after paying, never before. */}
+              {detailsState === 'saved' ? (
+                <p className="text-center text-xs" style={MUTED}>
+                  Saved — {businessName} has your number.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-center text-xs" style={MUTED}>
+                    Want the receipt or offers on WhatsApp? (optional)
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={customerName}
+                      onChange={(event) => {
+                        setCustomerName(event.target.value);
+                      }}
+                      placeholder="Name"
+                      className="min-h-11 w-1/3 border px-3 py-2 text-sm"
+                      style={CARD}
+                    />
+                    <input
+                      value={customerPhone}
+                      onChange={(event) => {
+                        setCustomerPhone(event.target.value);
+                      }}
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Your number"
+                      className="min-h-11 min-w-0 flex-1 border px-3 py-2 text-sm"
+                      style={CARD}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveDetails()}
+                      disabled={detailsState === 'saving' || customerPhone.trim() === ''}
+                      className="min-h-11 cursor-pointer px-4 py-2 text-sm font-medium disabled:opacity-50"
+                      style={ACCENT_BUTTON}
+                    >
+                      {detailsState === 'saving' ? '\u2026' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-center gap-4 pt-1">
+                <button
+                  type="button"
+                  onClick={() => void handleNotPaid()}
+                  className="cursor-pointer text-xs underline underline-offset-2"
+                  style={MUTED}
+                >
+                  I didn&apos;t pay &mdash; undo
+                </button>
+              </div>
+
+              <p className="text-center text-[11px]" style={MUTED}>
+                This records what you paid; it is not a verified receipt. Keep your UPI
+                app&apos;s confirmation for that.
               </p>
             </>
-          ) : (
+          ) : null}
+
+          {claimState === 'error' ? (
             <>
+              <p className="text-center text-xs font-medium text-red-700" role="alert">
+                Couldn&apos;t save that automatically.
+              </p>
               <button
                 type="button"
-                onClick={() => void handleClaimPaid()}
-                disabled={claimState === 'sending' || !amountValid}
-                title={amountValid ? undefined : 'Enter the amount you paid first'}
-                className="flex min-h-11 cursor-pointer items-center justify-center gap-2 text-center text-sm font-medium underline underline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void recordPayment()}
+                className="min-h-11 cursor-pointer text-center text-sm font-medium underline underline-offset-2"
               >
-                <Icon name="check" className="size-4" />
-                {claimState === 'sending' ? 'Letting them know…' : `I've paid — notify ${businessName}`}
+                Tell {businessName} I&apos;ve paid
               </button>
-              <p className="text-center text-xs" style={MUTED}>
-                This only tells {businessName} you paid — it is not a verified receipt.
-                Keep your UPI app&apos;s confirmation for that.
-              </p>
-              {claimState === 'error' ? (
-                <p className="text-center text-xs font-medium text-red-700" role="alert">
-                  Couldn&apos;t send that — please try again.
-                </p>
-              ) : null}
             </>
-          )}
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -112,7 +112,9 @@ export class LeadsService {
       return values.map((value) => csvEscape(value)).join(',');
     });
 
-    return [CSV_COLUMNS.join(','), ...rows].join('\n');
+    // Leading byte-order mark: without it Excel on Windows opens the file as
+    // the system code page, and every Hindi name becomes mojibake.
+    return `\uFEFF${[CSV_COLUMNS.join(','), ...rows].join('\n')}`;
   }
 
   async createFromContactForm(slug: string, dto: CreateLeadDto, visitorKey?: string): Promise<void> {

@@ -24,12 +24,6 @@ function asText(value: unknown): string | null {
   return null;
 }
 
-interface PaymentClaimRow {
-  id: string;
-  amount: string | null;
-  method: string | null;
-  created_at: Date;
-}
 
 /** A derived, read-only activity feed — deliberately not a stateful
  * "notifications" table with read/unread tracking (that's a bigger feature
@@ -64,31 +58,13 @@ export class NotificationsService {
         orderBy: { createdAt: 'desc' },
         take: PER_SOURCE_LIMIT,
       }),
-      // Payment claims live in `metaJson`, which SQL reached with
-      // JSON_EXTRACT. Narrow on the indexed columns, then unpack in memory
-      // and apply the per-source limit afterwards.
-      this.prisma.analyticsEvent
-        .findMany({
-          where: { clientId, eventType: 'button_click', createdAt: { gte: since } },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true, metaJson: true, createdAt: true },
-        })
-        .then((events) =>
-          events
-            .flatMap((event) => {
-              const meta = event.metaJson as Record<string, unknown> | null;
-              if (meta?.label !== 'payment_claimed') return [];
-              return [
-                {
-                  id: event.id,
-                  amount: asText(meta.amount),
-                  method: asText(meta.method),
-                  created_at: event.createdAt,
-                } satisfies PaymentClaimRow,
-              ];
-            })
-            .slice(0, PER_SOURCE_LIMIT),
-        ),
+      // Claims are their own rows now (P25-01), so this is a plain query
+      // rather than unpacking analytics `metaJson` in memory.
+      this.prisma.paymentClaim.findMany({
+        where: { clientId, createdAt: { gte: since }, status: 'claimed' },
+        orderBy: { createdAt: 'desc' },
+        take: PER_SOURCE_LIMIT,
+      }),
     ]);
 
     const items: NotificationItem[] = [
@@ -130,9 +106,9 @@ export class NotificationsService {
       ...paymentClaims.map((claim) => ({
         id: `payment-claim-${claim.id}`,
         type: 'payment_claimed' as const,
-        message: `Customer marked ₹${claim.amount ?? '?'} as paid${claim.method ? ` via ${claim.method}` : ''} (self-reported, not verified)`,
-        createdAt: claim.created_at.toISOString(),
-        link: '/dashboard/analytics',
+        message: `Customer marked ${claim.amount === null ? 'a payment' : `₹${claim.amount.toString()}`} as paid via ${claim.method} (self-reported, not verified)`,
+        createdAt: claim.createdAt.toISOString(),
+        link: '/dashboard/payments',
       })),
     ];
 

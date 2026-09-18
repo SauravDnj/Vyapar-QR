@@ -25,6 +25,9 @@ export class StaffPermissionsDto {
 
   @IsBoolean()
   orders!: boolean;
+
+  @IsBoolean()
+  payments!: boolean;
 }
 
 export class InviteStaffDto {

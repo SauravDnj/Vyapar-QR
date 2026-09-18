@@ -28,7 +28,7 @@ export class LeadsController {
   }
 
   @Get('export')
-  @Header('Content-Type', 'text/csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="leads.csv"')
   exportCsv(@CurrentClientId() clientId: string) {
     return this.leadsService.exportCsv(clientId);

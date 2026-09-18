@@ -7,6 +7,7 @@ import { DomainsModule } from '../domains/domains.module';
 import { LeadsModule } from '../leads/leads.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { MenuModule } from '../menu/menu.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { QrModule } from '../qr/qr.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { TestimonialsModule } from '../testimonials/testimonials.module';
@@ -33,6 +34,7 @@ import { PublicService } from './public.service';
     MenuModule,
     WalletModule,
     WhatsappModule,
+    PaymentsModule,
   ],
   controllers: [PublicController],
   providers: [PublicService],

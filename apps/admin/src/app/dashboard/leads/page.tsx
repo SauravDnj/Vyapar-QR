@@ -46,12 +46,42 @@ const SOURCE_TONE: Record<LeadSource, BadgeTone> = {
   payment_claim: 'warning',
 };
 
-function maskPhone(phone: string): string {
-  const digitsOnly = phone.replace(/\D/g, '');
-  if (digitsOnly.length <= 4) return phone;
-  const visibleStart = phone.slice(0, phone.length - digitsOnly.length + 2);
-  const visibleEnd = phone.slice(-2);
-  return `${visibleStart}${'•'.repeat(digitsOnly.length - 4)}${visibleEnd}`;
+/**
+ * A customer's number is the reason the CRM exists — it is shown in full.
+ * These are the business's own leads, on their own dashboard, and a masked
+ * number cannot be dialled, copied, or checked against a WhatsApp chat.
+ */
+function PhoneLink({ phone, className }: { phone: string; className?: string }) {
+  return (
+    <a
+      href={`tel:${phone.replace(/\s+/g, '')}`}
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
+      className={className ? `hover:underline ${className}` : 'hover:underline'}
+    >
+      {phone}
+    </a>
+  );
+}
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        void navigator.clipboard.writeText(value).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+      className="text-xs text-accent underline"
+    >
+      {copied ? 'Copied' : label}
+    </button>
+  );
 }
 
 async function downloadBlob(blob: Blob, filename: string) {
@@ -137,7 +167,10 @@ function LeadDrawer({
       <div className="flex items-start justify-between">
         <div>
           <p className="text-lg font-semibold">{displayLead.name}</p>
-          <p className="font-mono text-sm text-muted">{displayLead.phone}</p>
+          <div className="flex items-center gap-3">
+            <PhoneLink phone={displayLead.phone} className="font-mono text-sm" />
+            <CopyButton value={displayLead.phone} label="Copy" />
+          </div>
         </div>
         <button onClick={onClose} className="text-muted hover:text-foreground" aria-label="Close drawer">
           ✕
@@ -288,7 +321,7 @@ function LeadsBoard({
                 style={{ boxShadow: 'var(--shadow-card)' }}
               >
                 <p className="font-medium">{lead.name}</p>
-                <p className="font-mono text-xs text-muted">{maskPhone(lead.phone)}</p>
+                <PhoneLink phone={lead.phone} className="font-mono text-xs text-muted" />
                 <Badge tone={SOURCE_TONE[lead.source]}>{SOURCE_LABEL[lead.source]}</Badge>
               </div>
             ))}
@@ -454,7 +487,9 @@ function LeadsContent() {
                   className="cursor-pointer border-b border-border-color last:border-0 hover:bg-border-color/20"
                 >
                   <td className="px-4 py-3 font-medium">{lead.name}</td>
-                  <td className="px-4 py-3 font-mono">{maskPhone(lead.phone)}</td>
+                  <td className="px-4 py-3 font-mono">
+                    <PhoneLink phone={lead.phone} />
+                  </td>
                   <td className="px-4 py-3">
                     <Badge tone={SOURCE_TONE[lead.source]}>{SOURCE_LABEL[lead.source]}</Badge>
                   </td>

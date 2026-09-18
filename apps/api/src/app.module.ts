@@ -20,6 +20,7 @@ import { DomainsModule } from './domains/domains.module';
 import { bullRootImports, createThrottlerStorage } from './jobs/jobs.config';
 import { JobsModule } from './jobs/jobs.module';
 import { LeadsModule } from './leads/leads.module';
+import { PaymentsModule } from './payments/payments.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { MenuModule } from './menu/menu.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -58,6 +59,7 @@ import { WhatsappModule } from './whatsapp/whatsapp.module';
     QrModule,
     OnboardingModule,
     LeadsModule,
+    PaymentsModule,
     ReviewsModule,
     AnalyticsModule,
     DomainsModule,

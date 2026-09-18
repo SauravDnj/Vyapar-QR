@@ -25,6 +25,7 @@ const PERMISSION_LABELS: { key: keyof StaffPermissions; label: string }[] = [
   { key: 'whatsapp', label: 'WhatsApp' },
   { key: 'menu', label: 'Menu' },
   { key: 'orders', label: 'Orders' },
+  { key: 'payments', label: 'Payments' },
 ];
 
 const FULL_ACCESS: StaffPermissions = {
@@ -36,6 +37,7 @@ const FULL_ACCESS: StaffPermissions = {
   whatsapp: true,
   menu: true,
   orders: true,
+  payments: true,
 };
 
 function PermissionCheckboxes({

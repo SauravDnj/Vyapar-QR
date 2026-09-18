@@ -170,6 +170,7 @@ model Client {
   subscriptions         Subscription[]
   invoices              Invoice[]
   paymentMethods        PaymentMethod[]
+  paymentClaims         PaymentClaim[]
   socialLinks           SocialLink[]
   galleryImages         GalleryImage[]
   locations             Location[]
@@ -725,6 +726,48 @@ model QrCode {
 
   @@index([clientId])
   @@map("qr_codes")
+}
+
+/**
+ * P25-01: a customer saying they paid.
+ *
+ * There is no gateway behind a UPI deep link, so nothing here is a verified
+ * receipt — the money lands in the business's own UPI app and only they can
+ * confirm it. This row is the record of the claim: what the customer said
+ * they paid, with which app, when, and whether the owner has since marked it
+ * confirmed. Keeping it as its own table (rather than an analytics event)
+ * is what makes a payments report, a CSV for the accountant and a CRM entry
+ * possible at all.
+ */
+model PaymentClaim {
+  id       String            @id @default(uuid())
+  clientId String            @map("client_id")
+  /** Null when the customer typed no amount and paid straight in the app. */
+  amount   Decimal?          @db.Decimal(10, 2)
+  method   PaymentMethodType
+  status   PaymentClaimStatus @default(claimed)
+  /** Optional, and only ever given by the customer after paying. */
+  customerName  String? @map("customer_name")
+  customerPhone String? @map("customer_phone")
+  note          String? @db.Text
+  /** The CRM lead this created or matched, when a phone number was given. */
+  leadId      String?   @map("lead_id")
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+  @@map("payment_claims")
+}
+
+enum PaymentClaimStatus {
+  /** The customer said they paid; nobody has checked yet. */
+  claimed
+  /** The owner saw the money in their UPI app. */
+  confirmed
+  /** Never arrived, or the customer undid it. */
+  cancelled
 }
 
 model AnalyticsEvent {

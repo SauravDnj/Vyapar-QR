@@ -9,10 +9,18 @@ import { getOnboardingStatus, savePaymentMethods, uploadImage, type OnboardingPa
 
 import type { PaymentMethodType } from '@vyaparqr/types';
 
-const APPS: { type: PaymentMethodType; label: string }[] = [
-  { type: 'gpay', label: 'GPay' },
-  { type: 'phonepe', label: 'PhonePe' },
-  { type: 'paytm', label: 'Paytm' },
+const APPS: { type: PaymentMethodType; label: string; hint: string }[] = [
+  { type: 'gpay', label: 'GPay', hint: 'Opens Google Pay directly.' },
+  { type: 'phonepe', label: 'PhonePe', hint: 'Opens PhonePe directly.' },
+  { type: 'paytm', label: 'Paytm', hint: 'Opens Paytm directly.' },
+  {
+    type: 'other',
+    label: 'Any UPI app',
+    // The three above deep-link into one named app. This one uses the plain
+    // `upi://` scheme, so the phone itself lists every UPI app installed —
+    // BHIM, Amazon Pay, CRED, a bank's own app — and the customer picks.
+    hint: 'Lets the customer choose from every UPI app on their phone (BHIM, Amazon Pay, bank apps).',
+  },
 ];
 
 interface Row {
@@ -94,8 +102,8 @@ function PaymentMethodsContent() {
       <h1 className="text-2xl font-semibold">Payment methods</h1>
       <p className="text-sm text-muted">The no-gateway payment setup — one card per app.</p>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {APPS.map(({ type, label }) => {
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {APPS.map(({ type, label, hint }) => {
           const row = rows[type];
           const isConnected = Boolean(row.qrImageUrl || row.upiId);
           return (
@@ -104,6 +112,7 @@ function PaymentMethodsContent() {
                 <p className="font-medium">{label}</p>
                 <Badge tone={isConnected ? 'success' : 'neutral'}>{isConnected ? 'Connected' : 'Not set up'}</Badge>
               </div>
+              <p className="text-xs text-muted">{hint}</p>
 
               {row.qrImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
