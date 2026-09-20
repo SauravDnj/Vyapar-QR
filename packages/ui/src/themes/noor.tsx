@@ -8,7 +8,7 @@ import { Logo, Stars, ThemeAssets } from './screen/parts';
 import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, useScreen } from './screen/screen';
 
 import type { BrandName } from '../brand-logos';
-import type { PublicGalleryImage, ThemeRenderProps } from '@vyaparqr/types';
+import type { ThemeRenderProps } from '@vyaparqr/types';
 import type { CSSProperties } from 'react';
 
 /** Gold that works on white. The dark theme needed a bright 22-carat #d9b166
@@ -19,9 +19,6 @@ const GOLD = '#a16207';
 
 const FONTS =
   'https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap';
-
-/** Pieces on the rail before the "All" tile takes over. */
-const RAIL_LIMIT = 8;
 
 /** Above this many quick actions the grid stretches to fill the width; below
  * it, fixed-width tiles are centred instead. */
@@ -37,10 +34,12 @@ const ACTION_COLUMNS = 4;
  *
  * What the light rebuild changes, beyond the palette:
  *
- * - **No photographic backdrop.** On black a photo behind the name was
- *   atmosphere; on white it is glare, and it fought every piece of text on top
- *   of it. The page is white, and the client's photographs appear where they
- *   can actually be looked at — in the collection.
+ * - **No photographs on the page itself.** On black a photo behind the name
+ *   was atmosphere; on white it is glare, and it fought every piece of text
+ *   above it. The inline collection rail went the same way: a shop's pieces
+ *   shrunk into a strip of thumbnails told a customer nothing the Gallery
+ *   sheet does not tell them properly, at size. The photographs now live in
+ *   one place, behind the Gallery section.
  * - **The logo is a disc.** A circular mark on a white field with a thin gold
  *   ring, containing rather than cropping, so a wordmark arrives whole instead
  *   of being cut to fit an arch.
@@ -79,11 +78,8 @@ const CSS = `
    takes it and centres. */
 .qs-noor .qs-frame{padding-bottom:0}
 .nr-id{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
-.qs-noor.nr-has-case .qs-frame{--qs-logo:82px}
-.qs-noor.nr-no-case .qs-frame{--qs-logo:108px}
-.nr-has-case .nr-id{flex:0 0 auto;padding:clamp(6px,3cqh,20px) 0 clamp(18px,5cqh,34px)}
-.nr-has-case .nr-case{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;padding-bottom:14px}
-.nr-no-case .nr-id{flex:1 1 auto;justify-content:center;gap:14px}
+.qs-noor .qs-frame{--qs-logo:108px}
+.nr-id{flex:1 1 auto;justify-content:center;gap:14px}
 
 /* -- chrome ------------------------------------------------------------ */
 .nr-chip{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border:1px solid var(--nr-line);border-radius:999px;background:var(--nr-card);font-size:12px;color:var(--t-muted);max-width:64%;box-shadow:0 1px 2px rgb(28 25 23/.04)}
@@ -109,16 +105,6 @@ const CSS = `
 .nr-tagline{font-size:14px;line-height:1.55;color:var(--t-muted);text-wrap:balance}
 .nr-where{display:flex;align-items:center;justify-content:center;gap:6px;max-width:100%;font-size:13px;line-height:1.4;color:var(--t-muted)}
 .nr-rating{display:inline-flex;align-items:center;gap:7px;padding:3px 11px 3px 9px;border-radius:999px;background:var(--nr-tint);box-shadow:inset 0 0 0 1px var(--nr-tint-edge);color:var(--nr-ink);font-size:13px}
-
-/* -- the display case -------------------------------------------------- */
-.nr-case-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-bottom:9px}
-.nr-case-title{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--t-muted)}
-.nr-case-all{display:inline-flex;align-items:center;gap:4px;padding:4px 2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--nr-ink)}
-.nr-rail{display:flex;align-items:stretch;gap:10px;min-height:0;flex:1 1 auto;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;padding:3px 1px;margin:0;list-style:none}
-.nr-rail::-webkit-scrollbar{display:none}
-.nr-piece{position:relative;flex:0 0 auto;height:100%;min-height:86px;max-height:190px;aspect-ratio:3/4;border-radius:14px;overflow:hidden;scroll-snap-align:start;background:var(--nr-sunk);box-shadow:0 0 0 1px var(--nr-line),0 8px 18px -12px rgb(28 25 23/.35)}
-.nr-piece img{width:100%;height:100%;object-fit:cover}
-.nr-piece-more{display:grid;place-items:center;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--nr-ink);background:var(--nr-tint)}
 
 /* -- the act ----------------------------------------------------------- */
 /* On white the foreground plane is made by a hairline and a lift, not by a
@@ -166,10 +152,9 @@ const CSS = `
 @container qs (max-width:390px){.nr-tile{font-size:11px;padding-inline:3px}.nr-tiles{gap:7px}}
 
 /* -- short screens ----------------------------------------------------- */
-@container qs (max-height:700px){.nr-cta{min-height:58px}.nr-piece{max-height:150px}.nr-has-case .nr-id{padding-bottom:clamp(12px,3cqh,20px)}}
-@container qs (max-height:640px){.nr-tile{min-height:66px;gap:5px}.nr-tile-icon,.nr-tile-brand{width:30px;height:30px}.nr-piece{min-height:64px;max-height:112px}.nr-case-head{padding-bottom:6px}.nr-act{gap:9px;padding-top:12px}.nr-dock-btn{min-height:46px}}
-@container qs (max-height:620px){.qs-noor.nr-has-case .qs-frame{--qs-logo:62px}.nr-has-case .nr-id{gap:6px;padding-top:4px;padding-bottom:10px}.nr-has-case .nr-tagline{display:none}}
-@container qs (max-height:560px){.nr-piece{min-height:56px;max-height:84px}.nr-case-head{display:none}.nr-case{padding-bottom:8px}}
+@container qs (max-height:700px){.nr-cta{min-height:58px}}
+@container qs (max-height:640px){.nr-tile{min-height:66px;gap:5px}.nr-tile-icon,.nr-tile-brand{width:30px;height:30px}.nr-act{gap:9px;padding-top:12px}.nr-dock-btn{min-height:46px}}
+@container qs (max-height:620px){.qs-noor .qs-frame{--qs-logo:76px}.nr-id{gap:8px}}
 `;
 
 /** Which quick actions are a brand, and therefore get their real logo. */
@@ -184,9 +169,6 @@ export function NoorTheme(props: ThemeRenderProps) {
   const screen = useScreen(props);
   const { model, dock } = screen;
   const accent = props.accentColor ?? GOLD;
-  const gallery: PublicGalleryImage[] = [...(props.galleryImages ?? [])].sort((a, b) => a.displayOrder - b.displayOrder);
-  const pieces = gallery.slice(0, RAIL_LIMIT);
-  const hasCase = gallery.length > 0;
   /* One chip per app, not one per configured method: a shop with two GPay
      handles would otherwise show the same logo twice. */
   const payApps = [
@@ -194,10 +176,6 @@ export function NoorTheme(props: ThemeRenderProps) {
       [...props.paymentMethods].sort((a, b) => a.displayOrder - b.displayOrder).map((method) => method.type),
     ),
   ];
-
-  const openGallery = () => {
-    screen.open('gallery');
-  };
 
   const rootStyle = {
     '--t-bg': '#ffffff',
@@ -215,7 +193,7 @@ export function NoorTheme(props: ThemeRenderProps) {
   } as CSSProperties;
 
   return (
-    <div className={`qs-root qs-noor ${hasCase ? 'nr-has-case' : 'nr-no-case'}`} style={rootStyle}>
+    <div className="qs-root qs-noor" style={rootStyle}>
       <ThemeAssets id="noor" css={CSS} fontsHref={FONTS} />
 
       <div className="nr-art" aria-hidden="true">
@@ -277,45 +255,6 @@ export function NoorTheme(props: ThemeRenderProps) {
             </p>
           ) : null}
         </section>
-
-        {hasCase ? (
-          <section className="nr-case qs-rise" aria-label="Collection" style={{ '--i': 5 } as CSSProperties}>
-            <div className="nr-case-head">
-              <h2 className="nr-case-title">Our collection</h2>
-              <button type="button" className="nr-case-all qs-press" onClick={openGallery}>
-                View all {gallery.length}
-                <Icon name="chevron-right" className="size-3.5" />
-              </button>
-            </div>
-            <ul className="nr-rail">
-              {pieces.map((image, index) => (
-                <li key={image.id} className="nr-piece">
-                  <button
-                    type="button"
-                    className="block h-full w-full cursor-pointer"
-                    aria-label={`Piece ${String(index + 1)} of ${String(gallery.length)}, open the collection`}
-                    onClick={openGallery}
-                  >
-                    <img src={image.imageUrl} alt="" loading="lazy" decoding="async" />
-                  </button>
-                </li>
-              ))}
-              {gallery.length > pieces.length ? (
-                <li className="nr-piece nr-piece-more">
-                  <button
-                    type="button"
-                    className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5"
-                    aria-label={`Open the collection, all ${String(gallery.length)} pieces`}
-                    onClick={openGallery}
-                  >
-                    <Icon name="image" className="size-4" />
-                    All {gallery.length}
-                  </button>
-                </li>
-              ) : null}
-            </ul>
-          </section>
-        ) : null}
 
         <div className="nr-act">
           {model.primary ? (

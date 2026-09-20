@@ -47,6 +47,17 @@ const BASE_CSS = `
 @container qs (max-height:720px){.qs-frame{--qs-logo:84px}.qs-tagline{-webkit-line-clamp:1}}
 @container qs (max-height:640px){.qs-frame{--qs-logo:64px}.qs-hide-short{display:none!important}}
 @container qs (max-height:560px){.qs-hide-tiny{display:none!important}}
+/* Nothing inside a theme may be hidden by a scroll-driven reveal.
+   .qr-reveal (globals.css in both apps, used by GalleryGrid and friends)
+   animates from opacity:0 on an animation-timeline of view() with "both"
+   fill. That timeline needs a scrollport, and a single-screen theme never
+   scrolls - the page is one viewport and only the sheet body can scroll - so
+   the timeline resolves inactive and the fill holds the "from" keyframe.
+   Chrome happens to fall back to the base style; engines that apply the fill
+   render the gallery as a grid of invisible tiles. The reveal is worth
+   nothing here anyway, because everything is already on screen when the sheet
+   opens. */
+.qs-root .qr-reveal{animation:none!important;opacity:1!important;transform:none!important}
 @media (prefers-reduced-motion:reduce){.qs-root *,.qs-root *::before,.qs-root *::after{animation:none!important;transition-duration:.01ms!important}}
 `;
 
