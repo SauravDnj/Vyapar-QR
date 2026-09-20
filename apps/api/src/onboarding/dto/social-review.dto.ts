@@ -1,9 +1,11 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsIn, IsOptional, IsString, ValidateNested } from 'class-validator';
 
+import type { SocialPlatform } from '@vyaparqr/types';
+
 export class SocialLinkInputDto {
-  @IsIn(['whatsapp', 'instagram', 'facebook'])
-  platform!: 'whatsapp' | 'instagram' | 'facebook';
+  @IsIn(['whatsapp', 'instagram', 'facebook', 'linkedin', 'x', 'youtube'])
+  platform!: SocialPlatform;
 
   @IsString()
   value!: string;

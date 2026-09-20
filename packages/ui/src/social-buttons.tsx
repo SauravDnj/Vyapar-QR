@@ -6,11 +6,16 @@ import type { PublicSocialLink, SocialPlatform } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 
-const LABEL: Record<SocialPlatform, string> = {
+export const SOCIAL_LABEL: Record<SocialPlatform, string> = {
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
   facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  x: 'X',
+  youtube: 'YouTube',
 };
+
+const LABEL = SOCIAL_LABEL;
 
 /**
  * The platform's own mark, for themes that draw their own buttons.
@@ -28,13 +33,32 @@ export function SocialGlyph({ platform, className = 'h-4 w-4' }: { platform: Soc
 
 /** Where tapping a social link goes — a chat for WhatsApp, the profile otherwise. */
 export function socialHref(link: PublicSocialLink): string {
+  const raw = link.value.trim();
+  /* A client types whatever they have to hand: a full profile URL, an @handle,
+     or a bare username. Anything that already looks like a URL is used as-is;
+     the rest is hung off the platform's own domain. This is why links added in
+     the admin could look right and still go nowhere. */
+  const handle = raw.replace(/^@/, '');
+  const isUrl = /^https?:\/\//i.test(raw);
+
   switch (link.platform) {
     case 'whatsapp':
-      return `https://wa.me/${link.value.replace(/\D/g, '')}`;
+      return isUrl ? raw : `https://wa.me/${raw.replace(/\D/g, '')}`;
     case 'instagram':
-      return link.value.startsWith('http') ? link.value : `https://instagram.com/${link.value.replace(/^@/, '')}`;
+      return isUrl ? raw : `https://instagram.com/${handle}`;
     case 'facebook':
-      return link.value.startsWith('http') ? link.value : `https://facebook.com/${link.value}`;
+      return isUrl ? raw : `https://facebook.com/${handle}`;
+    case 'linkedin':
+      /* A LinkedIn handle alone is ambiguous between /in/ and /company/, so a
+         bare value is treated as a person unless it says otherwise. */
+      return isUrl ? raw : `https://www.linkedin.com/in/${handle}`;
+    case 'x':
+      return isUrl ? raw : `https://x.com/${handle}`;
+    case 'youtube':
+      if (isUrl) return raw;
+      return handle.startsWith('UC')
+        ? `https://www.youtube.com/channel/${handle}`
+        : `https://www.youtube.com/@${handle}`;
   }
 }
 

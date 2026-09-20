@@ -60,6 +60,10 @@ export interface ScreenModel {
   /** Sections for the dock, in priority order. */
   panels: PanelInfo[];
   socialLinks: PublicSocialLink[];
+  /** The social profiles a theme should show as their own row: every link the
+   * client added that is not already one of the quick actions, so each one
+   * appears exactly once and none of them can be buried. */
+  socialRow: PublicSocialLink[];
 }
 
 /** How many quick actions fit on one row of a phone screen. */
@@ -91,8 +95,6 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
   const phone = orDefault(about.phone, locations[0]?.phone ?? '');
   const address = orDefault(about.address, locations[0]?.address ?? '');
   const whatsapp = links.find((link) => link.platform === 'whatsapp');
-  const instagram = links.find((link) => link.platform === 'instagram');
-  const facebook = links.find((link) => link.platform === 'facebook');
 
   const candidates: QuickAction[] = [];
   if (phone) {
@@ -107,12 +109,12 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
   if (reviewConfig) {
     candidates.push({ kind: 'review', id: 'review', label: 'Review' });
   }
-  if (instagram) {
-    candidates.push({ kind: 'link', id: 'instagram', label: 'Instagram', href: socialHref(instagram), icon: 'instagram', external: true });
-  }
-  if (facebook) {
-    candidates.push({ kind: 'link', id: 'facebook', label: 'Facebook', href: socialHref(facebook), icon: 'facebook', external: true });
-  }
+  /* Instagram and Facebook used to queue here for one of the four grid slots.
+     On any page with a phone number, a WhatsApp number, an address and a
+     review link the queue was already full, so a client could add both, see
+     them saved, and never find them on the page again - they had been pushed
+     into the "Follow" sheet behind "More". Social profiles now have a row of
+     their own below the actions. */
   if (slug) {
     candidates.push({ kind: 'panel', id: 'enquire', label: 'Enquire', panel: 'enquire', icon: 'message' });
   }
@@ -133,11 +135,6 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
   add(locations.length > 1, { key: 'locations', label: 'Branches', icon: 'map-pin' });
   add(props.loyaltyActive && slug, { key: 'loyalty', label: 'Rewards', icon: 'gift' });
   add(slug && !inActions.has('enquire'), { key: 'enquire', label: 'Enquire', icon: 'message' });
-  add([instagram && !inActions.has('instagram'), facebook && !inActions.has('facebook')].some(Boolean), {
-    key: 'follow',
-    label: 'Follow',
-    icon: 'heart',
-  });
 
   const parsedRating = reviewConfig?.avgRatingCached ? Number(reviewConfig.avgRatingCached) : NaN;
 
@@ -154,6 +151,7 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
     actions,
     panels,
     socialLinks: links,
+    socialRow: links.filter((link) => !inActions.has(link.platform)),
   };
 }
 

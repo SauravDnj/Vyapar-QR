@@ -60,11 +60,14 @@ export const PaymentMethodType = {
   other: 'other',
 } as const;
 
-export type SocialPlatform = 'whatsapp' | 'instagram' | 'facebook';
+export type SocialPlatform = 'whatsapp' | 'instagram' | 'facebook' | 'linkedin' | 'x' | 'youtube';
 export const SocialPlatform = {
   whatsapp: 'whatsapp',
   instagram: 'instagram',
   facebook: 'facebook',
+  linkedin: 'linkedin',
+  x: 'x',
+  youtube: 'youtube',
 } as const;
 
 export type LeadSource = 'contact_form' | 'whatsapp_click' | 'qr_scan' | 'whatsapp_message' | 'payment_claim';

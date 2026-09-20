@@ -10,7 +10,7 @@ import type { BusinessInfoDto } from './dto/business-info.dto';
 import type { MenuSectionDto } from './dto/menu-section.dto';
 import type { SavePaymentMethodsDto } from './dto/payment-methods.dto';
 import type { SocialReviewDto } from './dto/social-review.dto';
-import type { ThemeContent } from '@vyaparqr/types';
+import type { SocialPlatform, ThemeContent } from '@vyaparqr/types';
 
 function slugify(input: string): string {
   return (
@@ -404,16 +404,20 @@ export class OnboardingService {
     });
   }
 
-  private normalizeSocialValue(platform: 'whatsapp' | 'instagram' | 'facebook', value: string): string {
+  /**
+   * Stores what the client typed, bar one exception.
+   *
+   * This used to expand an Instagram or Facebook handle into a full URL here,
+   * which meant the same link was assembled in two places — here on the way in
+   * and in `socialHref` on the way out — and adding a platform to one without
+   * the other produced a link that looked saved and went nowhere. The client
+   * now builds every URL, so this only has to hand back a clean value.
+   * WhatsApp stays the exception: its value is a phone number, not a handle,
+   * and a number is worth storing in one shape.
+   */
+  private normalizeSocialValue(platform: SocialPlatform, value: string): string {
     const trimmed = value.trim();
-    if (platform === 'whatsapp') {
-      return trimmed.replace(/\D/g, '');
-    }
-    if (trimmed.startsWith('http')) {
-      return trimmed;
-    }
-    const handle = trimmed.replace(/^@/, '');
-    return platform === 'instagram' ? `https://instagram.com/${handle}` : `https://facebook.com/${handle}`;
+    return platform === 'whatsapp' ? trimmed.replace(/\D/g, '') : trimmed;
   }
 
   private async generateUniqueSlug(businessName: string): Promise<string> {

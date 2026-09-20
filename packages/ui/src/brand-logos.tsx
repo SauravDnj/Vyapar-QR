@@ -25,6 +25,9 @@ export type BrandName =
   | 'whatsapp'
   | 'instagram'
   | 'facebook'
+  | 'linkedin'
+  | 'x'
+  | 'youtube'
   | 'google'
   | 'gpay'
   | 'phonepe'
@@ -43,19 +46,57 @@ const box = (className?: string) => ({
   focusable: 'false' as const,
 });
 
-/** WhatsApp: the handset-in-a-bubble, white on brand green. */
+/** WhatsApp: the canonical handset-in-a-bubble, white on brand green.
+ * The previous pair of hand-fitted paths collapsed into a white blob once the
+ * pay bar scaled it to 14px. */
 export function WhatsAppMark({ className }: MarkProps) {
   return (
     <svg {...box(className)}>
       <circle cx="12" cy="12" r="12" fill="#25D366" />
       <path
         fill="#FFF"
-        d="M16.2 13.9c-.22-.11-1.32-.65-1.53-.72-.2-.08-.35-.12-.5.11-.15.23-.57.72-.7.87-.13.15-.26.17-.48.06-.22-.11-.94-.35-1.79-1.11-.66-.59-1.11-1.32-1.24-1.54-.13-.23-.01-.35.1-.46.1-.1.22-.26.33-.39.11-.13.15-.22.22-.37.08-.15.04-.28-.02-.39-.06-.11-.5-1.21-.69-1.65-.18-.43-.36-.38-.5-.38h-.43c-.15 0-.39.06-.59.28-.2.23-.78.76-.78 1.86s.8 2.16.91 2.31c.11.15 1.57 2.4 3.81 3.37.53.23.95.36 1.27.47.53.17 1.02.15 1.4.09.43-.06 1.32-.54 1.5-1.06.19-.52.19-.97.13-1.06-.05-.09-.2-.15-.42-.26Z"
+        d="M16.63 13.96c-.24-.12-1.42-.7-1.64-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.64-1.19-1.42-1.33-1.66-.14-.24-.01-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.47-.39-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.39 1.37.5.57.18 1.1.16 1.51.1.46-.07 1.42-.58 1.62-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"
       />
       <path
         fill="#FFF"
-        d="M12.05 5.4a6.56 6.56 0 0 0-5.56 10.05l.16.25-.66 2.42 2.48-.65.24.14a6.55 6.55 0 0 0 3.34.92h.003a6.56 6.56 0 0 0 0-13.12Zm0 11.94h-.002a5.45 5.45 0 0 1-2.78-.76l-.2-.12-2.07.54.55-2.02-.13-.21a5.45 5.45 0 1 1 4.63 2.57Z"
+        d="M19.1 4.87A9.93 9.93 0 0 0 12.04 1.95c-5.5 0-9.98 4.48-9.98 9.98 0 1.76.46 3.48 1.34 5L2 22.05l5.25-1.38a9.96 9.96 0 0 0 4.78 1.22h.004c5.5 0 9.98-4.48 9.98-9.98 0-2.67-1.04-5.17-2.92-7.05ZM12.04 20.2h-.004a8.28 8.28 0 0 1-4.22-1.16l-.3-.18-3.13.82.84-3.06-.2-.31a8.26 8.26 0 0 1-1.27-4.4c0-4.57 3.72-8.29 8.3-8.29 2.21 0 4.29.86 5.85 2.43a8.23 8.23 0 0 1 2.42 5.87c0 4.57-3.72 8.29-8.29 8.29Z"
       />
+    </svg>
+  );
+}
+
+/** LinkedIn: the white "in" on brand blue. */
+export function LinkedInMark({ className }: MarkProps) {
+  return (
+    <svg {...box(className)}>
+      <rect width="24" height="24" rx="4.5" fill="#0A66C2" />
+      <path
+        fill="#FFF"
+        d="M7.2 9.6H4.9V19h2.3V9.6Zm-1.15-3.7a1.34 1.34 0 1 0 0 2.68 1.34 1.34 0 0 0 0-2.68ZM19.1 13.62c0-2.5-1.34-3.66-3.12-3.66-1.44 0-2.08.79-2.44 1.35V9.6h-2.3c.03.65 0 9.4 0 9.4h2.3v-5.25c0-.21.02-.42.08-.57.16-.41.54-.84 1.18-.84.83 0 1.17.63 1.17 1.56V19h2.3l.03-5.38Z"
+      />
+    </svg>
+  );
+}
+
+/** X: the wordmark glyph, white on black. */
+export function XMark({ className }: MarkProps) {
+  return (
+    <svg {...box(className)}>
+      <rect width="24" height="24" rx="4.5" fill="#000" />
+      <path
+        fill="#FFF"
+        d="M15.9 5.5h2.1l-4.6 5.26L18.9 18.5h-4.24l-3.32-4.34-3.8 4.34H5.43l4.92-5.62L5.1 5.5h4.35l3 3.97 3.45-3.97Zm-.74 11.74h1.17L9.06 6.69H7.81l7.35 10.55Z"
+      />
+    </svg>
+  );
+}
+
+/** YouTube: the white play triangle on the brand red rounded rectangle. */
+export function YouTubeMark({ className }: MarkProps) {
+  return (
+    <svg {...box(className)}>
+      <rect y="4.5" width="24" height="15" rx="4.2" fill="#FF0000" />
+      <path fill="#FFF" d="M9.9 8.7v6.6l5.7-3.3-5.7-3.3Z" />
     </svg>
   );
 }
@@ -215,6 +256,9 @@ const MARKS: Record<BrandName, (props: MarkProps) => React.JSX.Element> = {
   whatsapp: WhatsAppMark,
   instagram: InstagramMark,
   facebook: FacebookMark,
+  linkedin: LinkedInMark,
+  x: XMark,
+  youtube: YouTubeMark,
   google: GoogleMark,
   gpay: GooglePayMark,
   phonepe: PhonePeMark,

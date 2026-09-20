@@ -2,10 +2,11 @@
 
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
+import { SOCIAL_LABEL, socialHref } from '../social-buttons';
 
 import { readableOn } from './screen/model';
 import { Logo, Stars, ThemeAssets } from './screen/parts';
-import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, useScreen } from './screen/screen';
+import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, trackClick, useScreen } from './screen/screen';
 
 import type { BrandName } from '../brand-logos';
 import type { ThemeRenderProps } from '@vyaparqr/types';
@@ -68,18 +69,30 @@ const CSS = `
 
 /* -- the room ---------------------------------------------------------- */
 /* White, with one warm wash at the top so the page reads as lit rather than
-   blank. No image: nothing to download, nothing to fight the type. */
+   blank. */
 .nr-art{position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(120% 54% at 50% -12%,var(--nr-tint) 0%,#fffdfa 42%,#ffffff 72%),#ffffff}
 .nr-hair{position:absolute;left:50%;top:0;width:min(560px,130%);height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,var(--nr-tint-edge) 50%,transparent)}
 
+/* -- the banner -------------------------------------------------------- */
+/* The client's background image, as a cover strip the logo disc sits on.
+   The field has been in the theme schema and in the admin form all along; no
+   theme ever drew it, so uploading one changed nothing. It is a banner here
+   rather than a full-bleed backdrop because that is the one place a photo can
+   sit on a white page without competing with the text - it has its own band,
+   and the page below it stays white. */
+.nr-banner{position:relative;flex:0 0 auto;margin:0 -18px;height:clamp(96px,22cqh,164px);overflow:hidden;background:var(--nr-sunk)}
+.nr-banner img{width:100%;height:100%;object-fit:cover;display:block}
+/* A white-cornered photo would otherwise end in a hard line against a white
+   page; this fades it out instead. */
+.nr-banner::after{content:"";position:absolute;inset:auto 0 0;height:42%;background:linear-gradient(180deg,transparent,#ffffff)}
+
 /* -- vertical plan ----------------------------------------------------- */
-/* Unchanged from the dark pass, because it was the part that worked: the
-   collection takes the leftover height; with no pieces, the identity block
-   takes it and centres. */
-.qs-noor .qs-frame{padding-bottom:0}
-.nr-id{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
-.qs-noor .qs-frame{--qs-logo:108px}
-.nr-id{flex:1 1 auto;justify-content:center;gap:14px}
+.qs-noor .qs-frame{padding-bottom:0;--qs-logo:108px}
+.nr-id{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1 1 auto;justify-content:center;gap:14px}
+/* With a banner the disc rides up over it, the way a profile photo does. */
+.nr-has-banner .nr-id{justify-content:flex-start;padding-top:0;gap:12px}
+.nr-has-banner .nr-disc{margin-top:calc(var(--qs-logo) / -2 - 6px)}
+.qs-noor.nr-has-banner .qs-frame{--qs-logo:92px}
 
 /* -- chrome ------------------------------------------------------------ */
 .nr-chip{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border:1px solid var(--nr-line);border-radius:999px;background:var(--nr-card);font-size:12px;color:var(--t-muted);max-width:64%;box-shadow:0 1px 2px rgb(28 25 23/.04)}
@@ -141,6 +154,15 @@ const CSS = `
 .nr-tile-brand svg{width:100%;height:100%;border-radius:8px}
 .nr-tile-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;color:var(--nr-ink);background:var(--nr-tint);box-shadow:inset 0 0 0 1px var(--nr-tint-edge)}
 
+/* -- social row -------------------------------------------------------- */
+/* Every profile the client added, each as its own mark, always on the page.
+   Wraps rather than scrolls: six platforms is the whole set, and a row that
+   scrolls hides the last one. */
+.nr-socials{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px}
+.nr-social{display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:var(--nr-card);box-shadow:0 0 0 1px var(--nr-line),0 4px 10px -8px rgb(28 25 23/.5);transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease}
+.nr-social:active{transform:scale(.93)}
+.nr-social svg{width:26px;height:26px;border-radius:7px}
+
 /* -- sections ---------------------------------------------------------- */
 .nr-dock{display:flex;align-items:stretch;justify-content:center;gap:2px;padding-top:9px;border-top:1px solid var(--nr-line)}
 .nr-dock-btn{flex:1 1 0;max-width:118px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:52px;padding:0 4px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;line-height:1.2;text-align:center;color:var(--t-muted);font-family:var(--qs-body)}
@@ -169,6 +191,7 @@ export function NoorTheme(props: ThemeRenderProps) {
   const screen = useScreen(props);
   const { model, dock } = screen;
   const accent = props.accentColor ?? GOLD;
+  const bannerUrl = props.content.hero?.backgroundImageUrl ?? '';
   /* One chip per app, not one per configured method: a shop with two GPay
      handles would otherwise show the same logo twice. */
   const payApps = [
@@ -193,7 +216,7 @@ export function NoorTheme(props: ThemeRenderProps) {
   } as CSSProperties;
 
   return (
-    <div className="qs-root qs-noor" style={rootStyle}>
+    <div className={`qs-root qs-noor ${bannerUrl ? 'nr-has-banner' : ''}`} style={rootStyle}>
       <ThemeAssets id="noor" css={CSS} fontsHref={FONTS} />
 
       <div className="nr-art" aria-hidden="true">
@@ -219,6 +242,12 @@ export function NoorTheme(props: ThemeRenderProps) {
             </button>
           </div>
         </header>
+
+        {bannerUrl ? (
+          <div className="nr-banner qs-rise" style={{ '--i': 0 } as CSSProperties}>
+            <img src={bannerUrl} alt="" loading="eager" decoding="async" />
+          </div>
+        ) : null}
 
         <section className="nr-id">
           <div className="nr-disc qs-rise" style={{ '--i': 1 } as CSSProperties}>
@@ -330,6 +359,26 @@ export function NoorTheme(props: ThemeRenderProps) {
                   </ScreenAction>
                 );
               })}
+            </nav>
+          ) : null}
+
+          {model.socialRow.length > 0 ? (
+            <nav aria-label="Social profiles" className="nr-socials qs-rise" style={{ '--i': 7 } as CSSProperties}>
+              {model.socialRow.map((link) => (
+                <a
+                  key={link.id}
+                  href={socialHref(link)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={SOCIAL_LABEL[link.platform]}
+                  className="nr-social qs-press"
+                  onClick={() => {
+                    trackClick(props.slug, link.platform);
+                  }}
+                >
+                  <PlatformLogo brand={link.platform} />
+                </a>
+              ))}
             </nav>
           ) : null}
 

@@ -5,6 +5,7 @@ import { ThemeRenderer } from '@vyaparqr/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { BANNER_SHAPE, ImageCropper, LOGO_SHAPE } from '../../../components/image-cropper';
 import { ProtectedRoute } from '../../../components/protected-route';
 import { AccordionSection } from '../../../components/ui/accordion';
 import { PhoneFrame } from '../../../components/ui/phone-frame';
@@ -26,7 +27,10 @@ import {
   type OnboardingTheme,
 } from '../../../lib/onboarding-api';
 
+import type { CropShape } from '../../../components/image-cropper';
 import type { PublicSocialLink, SocialPlatform, ThemeContent } from '@vyaparqr/types';
+
+
 
 interface HeroAboutForm {
   headline: string;
@@ -64,6 +68,9 @@ function LandingPageEditor() {
   const [socials, setSocials] = useState<SocialRow[]>([{ platform: 'whatsapp', value: '' }]);
   const [isSavingHero, setIsSavingHero] = useState(false);
   const [isSavingSocials, setIsSavingSocials] = useState(false);
+  const [cropTarget, setCropTarget] = useState<{ file: File; field: 'logoUrl' | 'backgroundImageUrl'; shape: CropShape; title: string } | null>(
+    null,
+  );
   const [accentColor, setAccentColor] = useState<string | null>(null);
   const [isSavingColor, setIsSavingColor] = useState(false);
   const [menuHeading, setMenuHeading] = useState('Menu');
@@ -114,16 +121,21 @@ function LandingPageEditor() {
     })();
   }, [refresh]);
 
-  async function handleLogoUpload(file: File) {
-    if (!accessToken) return;
-    const url = await uploadImage(accessToken, file);
-    setHeroAbout((prev) => ({ ...prev, logoUrl: url }));
-  }
-
-  async function handleBackgroundImageUpload(file: File) {
-    if (!accessToken) return;
-    const url = await uploadImage(accessToken, file);
-    setHeroAbout((prev) => ({ ...prev, backgroundImageUrl: url }));
+  /* Picking a file no longer uploads it. It opens the cropper against the
+     shape the theme will actually draw, and the cropped result is what gets
+     sent — so what the client approves here is what a customer sees. */
+  async function handleCropped(cropped: File) {
+    const pending = cropTarget;
+    setCropTarget(null);
+    if (!accessToken || !pending) return;
+    setMessage(null);
+    try {
+      const url = await uploadImage(accessToken, cropped);
+      setHeroAbout((prev) => (pending.field === 'logoUrl' ? { ...prev, logoUrl: url } : { ...prev, backgroundImageUrl: url }));
+      setMessage('Image ready — press Save to publish it.');
+    } catch {
+      setMessage('That image could not be uploaded.');
+    }
   }
 
   async function handleSaveHeroAbout() {
@@ -374,23 +386,35 @@ function LandingPageEditor() {
             </label>
             <label className="flex flex-col gap-1 text-sm">
               Logo
+              <span className="text-xs text-text-muted">Shown in a circle. Square works best — you can crop and zoom after picking.</span>
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) void handleLogoUpload(file);
+                  if (file) setCropTarget({ file, field: 'logoUrl', shape: LOGO_SHAPE, title: 'Position your logo' });
+                  e.target.value = '';
                 }}
               />
+              {heroAbout.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={heroAbout.logoUrl}
+                  alt="Logo preview"
+                  className="mt-1 size-20 rounded-full border border-border-color object-contain p-1"
+                />
+              )}
             </label>
             <label className="flex flex-col gap-1 text-sm">
               Background image
+              <span className="text-xs text-text-muted">A wide banner across the top of your page. Crop and zoom after picking.</span>
               <input
                 type="file"
                 accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) void handleBackgroundImageUpload(file);
+                  if (file) setCropTarget({ file, field: 'backgroundImageUrl', shape: BANNER_SHAPE, title: 'Position your banner' });
+                  e.target.value = '';
                 }}
               />
               {heroAbout.backgroundImageUrl && (
@@ -592,9 +616,12 @@ function LandingPageEditor() {
                   <option value="whatsapp">WhatsApp</option>
                   <option value="instagram">Instagram</option>
                   <option value="facebook">Facebook</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="x">X</option>
+                  <option value="youtube">YouTube</option>
                 </select>
                 <input
-                  placeholder="Number or handle"
+                  placeholder="Profile link, @handle or number"
                   value={social.value}
                   onChange={(e) => setSocials((prev) => prev.map((s, i) => (i === index ? { ...s, value: e.target.value } : s)))}
                   className="flex-1 rounded-md border border-border-color px-3 py-2 text-sm"
@@ -634,6 +661,18 @@ function LandingPageEditor() {
           </PhoneFrame>
         </div>
       </div>
+
+      {cropTarget ? (
+        <ImageCropper
+          file={cropTarget.file}
+          shape={cropTarget.shape}
+          title={cropTarget.title}
+          onCancel={() => {
+            setCropTarget(null);
+          }}
+          onCropped={(cropped) => void handleCropped(cropped)}
+        />
+      ) : null}
     </>
   );
 }

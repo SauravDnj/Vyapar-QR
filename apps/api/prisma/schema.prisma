@@ -64,6 +64,9 @@ enum SocialPlatform {
   whatsapp
   instagram
   facebook
+  linkedin
+  x
+  youtube
 }
 
 enum LeadSource {

@@ -1,7 +1,7 @@
 import type { ThemeContent } from './theme.ts';
 
 export type PaymentMethodType = 'gpay' | 'phonepe' | 'paytm' | 'other';
-export type SocialPlatform = 'whatsapp' | 'instagram' | 'facebook';
+export type SocialPlatform = 'whatsapp' | 'instagram' | 'facebook' | 'linkedin' | 'x' | 'youtube';
 
 export interface PublicPaymentMethod {
   id: string;
