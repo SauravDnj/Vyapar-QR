@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { PlatformLogo } from './brand-logos';
 import { Icon } from './icon';
 
 import type { PaymentMethodType, PublicPaymentMethod } from '@vyaparqr/types';
@@ -16,6 +17,10 @@ const APP_LABEL: Record<PaymentMethodType, string> = {
   // installed on it, so the customer pays with whichever they actually use.
   other: 'any UPI app',
 };
+
+/** Each app's own mark, so the card is identified by the logo the customer
+ * already looks for on their home screen rather than by our wording alone. */
+const APP_BRAND = { gpay: 'gpay', phonepe: 'phonepe', paytm: 'paytm', other: 'upi' } as const;
 
 /** Bare app schemes, for opening an app so the visitor can scan an on-screen QR. */
 const APP_SCHEME: Partial<Record<PaymentMethodType, string>> = {
@@ -311,7 +316,10 @@ function AmountPayCard({
 
   return (
     <div className="flex flex-col gap-3 border p-4" style={CARD}>
-      <p className="text-sm font-semibold">Pay with {label}</p>
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <PlatformLogo brand={APP_BRAND[method]} className="h-5 w-auto shrink-0" />
+        Pay with {label}
+      </p>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor={inputId} className="text-xs font-medium" style={MUTED}>
@@ -527,7 +535,8 @@ export function PaymentButtons({
           return (
             <div key={method.id} className="flex flex-col items-center gap-3 border p-4" style={CARD}>
               <img src={method.qrImageUrl} alt={`${label} payment QR code`} className="size-48 object-contain" />
-              <p className="text-sm" style={MUTED}>
+              <p className="flex items-center gap-2 text-sm" style={MUTED}>
+                <PlatformLogo brand={APP_BRAND[method.type]} className="h-5 w-auto shrink-0" />
                 Scan this with {label}
               </p>
               {scheme ? (

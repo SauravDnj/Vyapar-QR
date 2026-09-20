@@ -20,11 +20,11 @@ export interface ScreenThemeInfo {
 
 export const SCREEN_THEMES: readonly ScreenThemeInfo[] = [
   {
-    name: 'Zevar',
+    name: 'Noor',
     category: 'Jewellery',
-    description: 'A jewellery showroom on one screen: the pieces behind the name, gold on near-black.',
+    description: 'A jewellery counter in daylight: white, gold-accented, the pieces in a lit display case.',
   },
 ];
 
 /** Where any page whose theme no longer exists lands. */
-export const DEFAULT_THEME_NAME = 'Zevar';
+export const DEFAULT_THEME_NAME = 'Noor';

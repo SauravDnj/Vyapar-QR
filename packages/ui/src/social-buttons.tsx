@@ -1,5 +1,7 @@
 'use client';
 
+import { PlatformLogo } from './brand-logos';
+
 import type { PublicSocialLink, SocialPlatform } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
@@ -10,44 +12,18 @@ const LABEL: Record<SocialPlatform, string> = {
   facebook: 'Facebook',
 };
 
-/** Brand-colored fill per platform, from the shared design tokens (see
- * globals.css in both apps/admin and apps/landing — packages/ui components
- * render in both, so the tokens have to exist in both). Real platform
- * colors, not a generic gray button, per the "fix the WhatsApp/Facebook/
- * Instagram colors" request — but simple geometric glyphs below rather
- * than the official logos, which are trademarked graphics. */
-const STYLE: Record<SocialPlatform, string> = {
-  whatsapp: 'bg-whatsapp hover:bg-whatsapp-hover',
-  facebook: 'bg-facebook hover:bg-facebook-hover',
-  instagram: 'bg-instagram hover:bg-instagram-hover',
-};
-
-/** The platform glyph on its own, for themes that draw their own buttons. */
+/**
+ * The platform's own mark, for themes that draw their own buttons.
+ *
+ * These used to be simplified outline shapes drawn here, on the reasoning
+ * that the official logos are trademarked graphics. That got the trade-off
+ * backwards: each platform publishes its mark so that a link going to it can
+ * be labelled, and a customer recognises the green WhatsApp bubble instantly
+ * where a generic chat outline means nothing. The real marks now live in
+ * `brand-logos.tsx`.
+ */
 export function SocialGlyph({ platform, className = 'h-4 w-4' }: { platform: SocialPlatform; className?: string }) {
-  const common = { className, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, 'aria-hidden': true } as const;
-  switch (platform) {
-    case 'whatsapp':
-      return (
-        <svg {...common} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6.5 17.5 5 20l2.6-1.4A8 8 0 1 0 5 12a8 8 0 0 0 1.5 4.7Z" />
-          <path d="M9.5 9.8c0-.7.6-1.3 1.2-1.3.3 0 .6.2.8.5l.6 1.1c.2.3.1.7-.1.9l-.5.5c.4 1 1.2 1.8 2.2 2.2l.5-.5c.2-.2.6-.3.9-.1l1.1.6c.3.2.5.5.5.8 0 .6-.6 1.2-1.3 1.2-2.9 0-5.9-3-5.9-5.9Z" />
-        </svg>
-      );
-    case 'facebook':
-      return (
-        <svg {...common} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 21v-7h2.5l.5-3H14V9c0-.9.3-1.5 1.6-1.5H17V5.1c-.3 0-1.2-.1-2.3-.1-2.3 0-3.7 1.4-3.7 3.9V11H8.5v3H11v7Z" />
-        </svg>
-      );
-    case 'instagram':
-      return (
-        <svg {...common} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="4" y="4" width="16" height="16" rx="4.5" />
-          <circle cx="12" cy="12" r="3.2" />
-          <circle cx="16.3" cy="7.7" r="0.6" fill="currentColor" stroke="none" />
-        </svg>
-      );
-  }
+  return <PlatformLogo brand={platform} className={className} />;
 }
 
 /** Where tapping a social link goes — a chat for WhatsApp, the profile otherwise. */
@@ -89,9 +65,10 @@ export function SocialButtons({ slug, socialLinks }: { slug?: string; socialLink
           onClick={() => {
             trackClick(slug, link.platform);
           }}
-          className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium text-white shadow-sm transition ${STYLE[link.platform]}`}
+          className="flex min-h-11 items-center gap-2.5 rounded-full border px-5 py-2 text-sm font-medium shadow-sm transition-transform active:scale-95"
+          style={{ borderColor: 'var(--t-border, #e5e7eb)', color: 'var(--t-text, #1c1917)' }}
         >
-          <SocialGlyph platform={link.platform} />
+          <SocialGlyph platform={link.platform} className="h-5 w-5 shrink-0" />
           {LABEL[link.platform]}
         </a>
       ))}

@@ -16,6 +16,7 @@ export * from './menu-order';
 export * from './booking-slots-widget';
 export * from './themes/registry';
 export { Icon } from './icon';
-export { ZevarTheme } from './themes/zevar';
+export { NoorTheme } from './themes/noor';
+export { PlatformLogo } from './brand-logos';
 export { BRAND_NAME, BRAND_TAGLINE, BrandLogo, BrandMark } from './brand';
 export type { IconName } from './icon';

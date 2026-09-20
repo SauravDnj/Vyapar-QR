@@ -1,11 +1,11 @@
 import { DEFAULT_THEME_NAME } from '@vyaparqr/types';
 
-import { ZevarTheme } from './zevar';
+import { NoorTheme } from './noor';
 
 import type { ThemeRenderProps } from '@vyaparqr/types';
 
 const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
-  Zevar: ZevarTheme,
+  Noor: NoorTheme,
 };
 
 /**
@@ -13,10 +13,11 @@ const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
  * database.
  *
  * A name that isn't in the catalog — a theme from the retired catalog that a
- * page still points at, or one a Super Admin created without a renderer —
- * falls back to the default rather than breaking a live business's page.
+ * page still points at, including every page still on "Zevar" until
+ * `db:sync-themes` moves it — falls back to the default rather than breaking a
+ * live business's page.
  */
 export function ThemeRenderer({ themeName, ...props }: { themeName: string } & ThemeRenderProps) {
-  const Theme = THEMES[themeName] ?? THEMES[DEFAULT_THEME_NAME] ?? ZevarTheme;
+  const Theme = THEMES[themeName] ?? THEMES[DEFAULT_THEME_NAME] ?? NoorTheme;
   return <Theme {...props} />;
 }

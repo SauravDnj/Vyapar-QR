@@ -14,14 +14,14 @@ describe('ThemesService listings', () => {
     { id: '1', name: 'Ember', category: 'Restaurant', isArchived: false },
     { id: '2', name: 'Ivory', category: 'Classic', isArchived: false },
     { id: '3', name: 'Minimal', category: 'General', isArchived: false },
-    { id: '4', name: 'Zevar', category: 'Jewellery', isArchived: false },
+    { id: '4', name: 'Noor', category: 'Jewellery', isArchived: false },
   ];
 
   const prisma = { theme: { findMany: jest.fn().mockResolvedValue(rows) } } as unknown as PrismaService;
   const service = new ThemesService(prisma);
 
   it('offers only themes the renderer has a design for', async () => {
-    expect((await service.list()).map((theme) => theme.name)).toEqual(['Zevar']);
+    expect((await service.list()).map((theme) => theme.name)).toEqual(['Noor']);
   });
 
   it('hides retired themes from the Super Admin catalog too', async () => {
@@ -37,10 +37,10 @@ describe('ThemesService listings', () => {
 
   it('shows a catalog theme once even if it was created twice', async () => {
     const withDuplicate = {
-      theme: { findMany: jest.fn().mockResolvedValue([...rows, { id: '5', name: 'Zevar', isArchived: false }]) },
+      theme: { findMany: jest.fn().mockResolvedValue([...rows, { id: '5', name: 'Noor', isArchived: false }]) },
     } as unknown as PrismaService;
 
-    expect((await new ThemesService(withDuplicate).list()).map((theme) => theme.name)).toEqual(['Zevar']);
+    expect((await new ThemesService(withDuplicate).list()).map((theme) => theme.name)).toEqual(['Noor']);
   });
 
   /** Between a deploy and someone running `db:sync-themes`, the database holds

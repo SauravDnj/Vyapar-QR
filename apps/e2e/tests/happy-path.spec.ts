@@ -35,7 +35,7 @@ test('client sign-up through published landing page with a working payment link 
   });
 
   await test.step('theme step', async () => {
-    await page.locator('button', { hasText: 'Zevar' }).first().click();
+    await page.locator('button', { hasText: 'Noor' }).first().click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
   });
 
