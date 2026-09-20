@@ -40,22 +40,26 @@ export function socialHref(link: PublicSocialLink): string {
      the admin could look right and still go nowhere. */
   const handle = raw.replace(/^@/, '');
   const isUrl = /^https?:\/\//i.test(raw);
+  /* Values saved before the API stopped rewriting them can carry a bare
+     http://, which costs every visitor an insecure hop and a redirect. Every
+     platform here serves https. */
+  const url = raw.replace(/^http:\/\//i, 'https://');
 
   switch (link.platform) {
     case 'whatsapp':
-      return isUrl ? raw : `https://wa.me/${raw.replace(/\D/g, '')}`;
+      return isUrl ? url : `https://wa.me/${raw.replace(/\D/g, '')}`;
     case 'instagram':
-      return isUrl ? raw : `https://instagram.com/${handle}`;
+      return isUrl ? url : `https://instagram.com/${handle}`;
     case 'facebook':
-      return isUrl ? raw : `https://facebook.com/${handle}`;
+      return isUrl ? url : `https://facebook.com/${handle}`;
     case 'linkedin':
       /* A LinkedIn handle alone is ambiguous between /in/ and /company/, so a
          bare value is treated as a person unless it says otherwise. */
-      return isUrl ? raw : `https://www.linkedin.com/in/${handle}`;
+      return isUrl ? url : `https://www.linkedin.com/in/${handle}`;
     case 'x':
-      return isUrl ? raw : `https://x.com/${handle}`;
+      return isUrl ? url : `https://x.com/${handle}`;
     case 'youtube':
-      if (isUrl) return raw;
+      if (isUrl) return url;
       return handle.startsWith('UC')
         ? `https://www.youtube.com/channel/${handle}`
         : `https://www.youtube.com/@${handle}`;
