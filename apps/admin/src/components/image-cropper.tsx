@@ -233,7 +233,7 @@ export function ImageCropper({
                 setShowGuide(event.target.checked);
               }}
             />
-            Show where your logo and buttons sit — keep anything important clear of them
+            Show where your logo and buttons sit, and the soft edge at the bottom — keep anything important clear of them
           </label>
         ) : null}
 
@@ -291,6 +291,11 @@ function BannerGuide({ width, height }: { width: number; height: number }) {
   const outline = 'absolute rounded-full border-2 border-dashed border-white/90 bg-white/35 shadow-[0_0_0_1px_rgb(0_0_0/0.25)]';
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      {/* The band the page softens into a blur. */}
+      <span
+        className="absolute inset-x-0 bottom-0 bg-gradient-to-b from-transparent to-white/80"
+        style={{ height: height * (1 - BANNER_OVERLAY.fadeFrom) }}
+      />
       <span
         className={`${outline} flex justify-center text-[9px] font-semibold text-gray-800`}
         // The label sits in the visible top half: the circle's centre is on the

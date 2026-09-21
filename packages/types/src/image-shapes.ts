@@ -50,4 +50,8 @@ export const BANNER_OVERLAY = {
   /** Distance from the banner's top and right edges ÷ banner width. */
   buttonInset: 18 / 390,
   buttonGap: 8 / 390,
+  /** From this fraction of the banner's height down, the picture softens into
+   * a blurred copy of itself and then into the page, instead of ending in a
+   * hard line. The crop step shades the same band. */
+  fadeFrom: 0.74,
 };

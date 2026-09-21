@@ -1,6 +1,6 @@
 'use client';
 
-import { BANNER_IMAGE } from '@vyaparqr/types';
+import { BANNER_IMAGE, BANNER_OVERLAY } from '@vyaparqr/types';
 
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
@@ -72,6 +72,8 @@ const TILE_GAP = 8;
  * takes the leftover height, nothing animates forever, and contrast is static.
  */
 const BANNER_ASPECT = `${String(BANNER_IMAGE.aspect)} / 1`;
+/** Where the banner starts to soften, as a CSS percentage. */
+const BANNER_FADE = `${String(Math.round(BANNER_OVERLAY.fadeFrom * 100))}%`;
 
 const CSS = `
 .qs-noor{--qs-display:"Cormorant",ui-serif,Georgia,serif;--qs-body:"Montserrat",ui-sans-serif,system-ui,sans-serif;
@@ -106,8 +108,18 @@ const CSS = `
 
    Full-bleed from the very top edge, with the share / save buttons floating
    over it, the way a cover photo sits; the crop step shows where they land. */
-.nr-banner{position:relative;flex:0 0 auto;margin:calc(-1 * max(env(safe-area-inset-top),14px)) -18px 0;aspect-ratio:${BANNER_ASPECT};overflow:hidden;background:var(--nr-sunk)}
-.nr-banner img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.nr-banner{position:relative;flex:0 0 auto;margin:calc(-1 * max(env(safe-area-inset-top),14px)) -18px 0;aspect-ratio:${BANNER_ASPECT};overflow:hidden}
+/* No hard bottom edge. From BANNER_OVERLAY.fadeFrom down, the picture fades
+   out — over the blurred copy of itself below, so it reads as the image going
+   soft rather than being cut off. The crop step shades the same band. */
+.nr-banner img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;-webkit-mask-image:linear-gradient(to bottom,#000 ${BANNER_FADE},transparent 100%);mask-image:linear-gradient(to bottom,#000 ${BANNER_FADE},transparent 100%)}
+/* The banner's own colours, blurred, carried down the page behind the name.
+   It is what the soft edge fades into, and it turns what was a 160–175px
+   band of blank white on a typical phone into a quiet wash of the business's
+   own image. Capped at 28% and fading to nothing well above the buttons, so
+   even a black photo leaves the muted text above 4.5:1. */
+.nr-ambient{position:absolute;top:0;left:-15%;width:130%;height:calc(100cqw / ${String(BANNER_IMAGE.aspect)} + 44cqh);overflow:hidden;opacity:.28;-webkit-mask-image:linear-gradient(to bottom,#000 18%,transparent 100%);mask-image:linear-gradient(to bottom,#000 18%,transparent 100%)}
+.nr-ambient img{width:100%;height:100%;object-fit:cover;filter:blur(36px) saturate(1.4);transform:scale(1.2)}
 .nr-has-banner .nr-head{position:absolute;top:max(env(safe-area-inset-top),14px);left:18px;right:18px;z-index:3}
 .nr-has-banner .nr-chip,.nr-has-banner .nr-icon-btn{box-shadow:0 2px 8px rgb(28 25 23/.18)}
 
@@ -115,9 +127,21 @@ const CSS = `
 .qs-noor .qs-frame{padding-bottom:0;--qs-logo:108px}
 .nr-id{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1 1 auto;justify-content:center;gap:14px}
 /* With a banner the disc rides up over it, the way a profile photo does. */
-.nr-has-banner .nr-id{justify-content:flex-start;padding-top:0;gap:12px}
+.nr-has-banner .nr-id{justify-content:flex-start;padding-top:0;gap:clamp(8px,2cqh,20px)}
+/* Spare height becomes bigger content, not a gap. On a tall screen the logo,
+   the name, the text and the buttons all grow with the height (cqh), so the
+   room is spent on things that are easier to read and to tap, and the name
+   stays with the logo it belongs to. What is left is breathing room above the
+   buttons, washed with the banner's own colours rather than left blank. */
+.nr-has-banner .nr-name{font-size:clamp(26px,min(12cqw,5.8cqh),52px)}
+.nr-has-banner .nr-tagline{font-size:clamp(13px,1.9cqh,16px)}
+.nr-has-banner .nr-where{font-size:clamp(12.5px,1.7cqh,14.5px)}
+.nr-has-banner .nr-tile{min-height:clamp(66px,9.5cqh,88px)}
+.nr-has-banner .nr-tiles-2 .nr-tile{min-height:clamp(60px,8.5cqh,80px)}
+.nr-has-banner .nr-tiles-3 .nr-tile{min-height:clamp(50px,7cqh,68px)}
+.nr-has-banner .nr-cta{min-height:clamp(58px,8cqh,72px)}
 .nr-has-banner .nr-disc{margin-top:calc(var(--qs-logo) / -2 - 6px)}
-.qs-noor.nr-has-banner .qs-frame{--qs-logo:92px}
+.qs-noor.nr-has-banner .qs-frame{--qs-logo:clamp(80px,14cqh,132px)}
 
 /* -- chrome ------------------------------------------------------------ */
 .nr-chip{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 13px;border:1px solid var(--nr-line);border-radius:999px;background:var(--nr-card);font-size:12px;color:var(--t-muted);max-width:64%;box-shadow:0 1px 2px rgb(28 25 23/.04)}
@@ -204,8 +228,8 @@ const CSS = `
 .nr-tiles-3 .nr-tile-brand,.nr-tiles-3 .nr-tile-icon{width:26px;height:26px}
 .nr-tiles-3 .nr-tile-brand svg{border-radius:7px}
 /* More rows means less room above: the logo gives way before the buttons do. */
-.qs-noor.nr-dense-2 .qs-frame{--qs-logo:88px}
-.qs-noor.nr-dense-3 .qs-frame{--qs-logo:72px}
+.qs-noor.nr-dense-2 .qs-frame{--qs-logo:clamp(72px,13cqh,124px)}
+.qs-noor.nr-dense-3 .qs-frame{--qs-logo:clamp(60px,10cqh,100px)}
 .nr-dense-3 .nr-id{gap:9px}
 
 /* -- sections ---------------------------------------------------------- */
@@ -217,6 +241,7 @@ const CSS = `
 
 /* -- narrow screens ---------------------------------------------------- */
 @container qs (max-width:390px){.nr-tile{font-size:11px;padding-inline:3px}.nr-tiles{gap:7px}.nr-tiles-3 .nr-tile{font-size:10.5px}}
+@container qs (max-height:700px){.nr-dense-2 .nr-where-text{-webkit-line-clamp:1}}
 @container qs (max-height:720px){.nr-dense-3 .nr-where-text{-webkit-line-clamp:1}.nr-tiles-2 .nr-tile{min-height:60px}.nr-tiles-3 .nr-tile{min-height:50px}.qs-noor.nr-dense-3 .qs-frame{--qs-logo:60px}}
 
 /* -- short screens ----------------------------------------------------- */
@@ -271,6 +296,11 @@ export function NoorTheme(props: ThemeRenderProps) {
       <ThemeAssets id="noor" css={CSS} fontsHref={FONTS} />
 
       <div className="nr-art" aria-hidden="true">
+        {bannerUrl ? (
+          <div className="nr-ambient">
+            <img src={bannerUrl} alt="" decoding="async" />
+          </div>
+        ) : null}
         <span className="nr-hair" />
       </div>
 
