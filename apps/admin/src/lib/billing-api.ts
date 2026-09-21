@@ -3,12 +3,12 @@ import { ApiError, apiFetch } from './api-client';
 export interface BillingPlan {
   id: string;
   name: string;
-  price: string;
+  price: number | string;
   billingCycle: 'monthly' | 'yearly';
   maxThemes: number;
   customDomainAllowed: boolean;
   isArchived: boolean;
-  featuresJson?: { analytics: boolean; customDomain: boolean; whiteLabel: boolean };
+  featuresJson?: { analytics: boolean; customDomain: boolean; whiteLabel: boolean; digitalMenu?: boolean };
 }
 
 export interface Subscription {

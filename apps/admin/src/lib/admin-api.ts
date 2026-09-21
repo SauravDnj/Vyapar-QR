@@ -7,6 +7,8 @@ export interface AdminClient {
   status: 'pending' | 'active' | 'suspended' | 'rejected';
   createdAt: string;
   user: { email: string };
+  /** The plan the client is on right now, or null if none is active. */
+  currentPlan: { subscriptionId: string; planId: string; name: string } | null;
 }
 
 export interface PaginatedClients {
@@ -19,7 +21,9 @@ export interface PaginatedClients {
 export interface Plan {
   id: string;
   name: string;
-  price: string;
+  /* The JSON store keeps Decimal as a number; typed loosely because older
+     rows may have been written as strings. */
+  price: number | string;
   billingCycle: 'monthly' | 'yearly';
   featuresJson: { analytics: boolean; customDomain: boolean; whiteLabel: boolean; digitalMenu: boolean };
   maxThemes: number;
@@ -48,15 +52,49 @@ export function impersonateClient(accessToken: string, id: string) {
   });
 }
 
+export type SubscriptionStatus = 'pending' | 'active' | 'past_due' | 'cancelled' | 'expired';
+
+export interface ClientSubscription {
+  id: string;
+  planId: string;
+  status: SubscriptionStatus;
+  gatewaySubscriptionId: string | null;
+  createdAt: string;
+  plan: Plan;
+}
+
+export interface ClientPlanState {
+  current: ClientSubscription | null;
+  history: ClientSubscription[];
+}
+
+export function getClientPlan(accessToken: string, clientId: string) {
+  return apiFetch<ClientPlanState>(`/admin/clients/${clientId}/plan`, { accessToken });
+}
+
+/** Assigns a plan, or switches the client to a different one. */
+export function assignClientPlan(accessToken: string, clientId: string, planId: string) {
+  return apiFetch<ClientPlanState>(`/admin/clients/${clientId}/plan`, { method: 'PUT', body: { planId }, accessToken });
+}
+
+export function setClientPlanActive(accessToken: string, clientId: string, active: boolean) {
+  return apiFetch<ClientPlanState>(`/admin/clients/${clientId}/plan/${active ? 'activate' : 'deactivate'}`, {
+    method: 'PATCH',
+    accessToken,
+  });
+}
+
 export function listPlans(accessToken: string) {
   return apiFetch<Plan[]>('/admin/plans', { accessToken });
 }
 
-export function createPlan(accessToken: string, plan: Omit<Plan, 'id' | 'isArchived' | 'price'> & { price: number }) {
+export type PlanInput = Omit<Plan, 'id' | 'isArchived' | 'price'> & { price: number };
+
+export function createPlan(accessToken: string, plan: PlanInput) {
   return apiFetch<Plan>('/admin/plans', { method: 'POST', body: plan, accessToken });
 }
 
-export function updatePlan(accessToken: string, id: string, plan: Partial<Plan>) {
+export function updatePlan(accessToken: string, id: string, plan: Partial<PlanInput> & { isArchived?: boolean }) {
   return apiFetch<Plan>(`/admin/plans/${id}`, { method: 'PATCH', body: plan, accessToken });
 }
 

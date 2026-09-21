@@ -7,15 +7,20 @@ import { Badge, type BadgeTone } from '../../../components/ui/badge';
 import { useAuth } from '../../../context/auth-context';
 import {
   ApiError,
-  checkout,
   downloadInvoicePdf,
   getCurrentSubscription,
-  listAvailablePlans,
   listInvoices,
-  type BillingPlan,
   type Invoice,
   type Subscription,
 } from '../../../lib/billing-api';
+
+/** What each plan flag unlocks, in the owner's words. */
+const INCLUDES: { label: string; on: (sub: Subscription) => boolean }[] = [
+  { label: 'Analytics dashboard', on: (sub) => Boolean(sub.plan.featuresJson?.analytics) },
+  { label: 'Your own domain name', on: (sub) => sub.plan.customDomainAllowed },
+  { label: 'No “Powered by Vyapar QR” on your page', on: (sub) => Boolean(sub.plan.featuresJson?.whiteLabel) },
+  { label: 'Digital menu and WhatsApp ordering', on: (sub) => Boolean(sub.plan.featuresJson?.digitalMenu) },
+];
 
 const INVOICE_STATUS_TONE: Record<Invoice['status'], BadgeTone> = {
   paid: 'success',
@@ -35,7 +40,6 @@ async function downloadBlob(blob: Blob, filename: string) {
 function BillingContent() {
   const { accessToken } = useAuth();
   const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,13 +49,8 @@ function BillingContent() {
     if (!accessToken) return;
     setIsLoading(true);
     try {
-      const [sub, planList, invoiceList] = await Promise.all([
-        getCurrentSubscription(accessToken),
-        listAvailablePlans(accessToken),
-        listInvoices(accessToken),
-      ]);
+      const [sub, invoiceList] = await Promise.all([getCurrentSubscription(accessToken), listInvoices(accessToken)]);
       setSubscription(sub);
-      setPlans(planList);
       setInvoices(invoiceList);
     } catch {
       setMessage('Failed to load billing info.');
@@ -65,19 +64,6 @@ function BillingContent() {
       await refresh();
     })();
   }, [refresh]);
-
-  async function handleSwitchPlan(planId: string) {
-    if (!accessToken) return;
-    setMessage(null);
-    try {
-      const result = await checkout(accessToken, planId);
-      if (result.checkoutUrl) {
-        window.location.assign(result.checkoutUrl);
-      }
-    } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : 'Failed to start checkout.');
-    }
-  }
 
   async function handleDownloadInvoice(invoice: Invoice) {
     if (!accessToken) return;
@@ -101,54 +87,42 @@ function BillingContent() {
       <h1 className="text-2xl font-semibold">Billing</h1>
       {message && <p className="text-sm text-danger">{message}</p>}
 
+      {/* Plans are assigned by the Vyapar QR team, not bought here. This page
+          used to list every plan with a "Switch to this plan" button that
+          started a Razorpay checkout; the plan is now shown, not sold. */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Current plan</h2>
-        {subscription ? (
+        <h2 className="text-lg font-medium">Your plan</h2>
+        {subscription?.status === 'active' ? (
           <div
-            className="flex w-fit min-w-72 flex-col gap-2 rounded-lg border border-accent bg-surface p-5"
+            className="flex w-fit min-w-72 flex-col gap-3 rounded-lg border border-accent bg-surface p-5"
             style={{ boxShadow: 'var(--shadow-card)' }}
           >
             <div className="flex items-center justify-between gap-4">
               <p className="text-lg font-semibold">{subscription.plan.name}</p>
-              <Badge tone={subscription.status === 'active' ? 'success' : 'warning'}>{subscription.status}</Badge>
+              <Badge tone="success">active</Badge>
             </div>
-            <p className="font-mono text-2xl font-semibold tabular-nums">
-              ₹{subscription.plan.price}
-              <span className="text-sm font-normal text-muted">/{subscription.plan.billingCycle}</span>
-            </p>
-            {subscription.currentPeriodEnd && (
-              <p className="text-sm text-muted">Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString()}</p>
-            )}
+            {Number(subscription.plan.price) > 0 ? (
+              <p className="font-mono text-2xl font-semibold tabular-nums">
+                ₹{Number(subscription.plan.price).toLocaleString('en-IN')}
+                <span className="text-sm font-normal text-muted">/{subscription.plan.billingCycle}</span>
+              </p>
+            ) : null}
+            <ul className="flex flex-col gap-1.5 text-sm">
+              {INCLUDES.map(({ label, on }) => (
+                <li key={label} className={on(subscription) ? '' : 'text-muted line-through'}>
+                  {on(subscription) ? '✓' : '—'} {label}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
-          <p className="text-muted">No active subscription.</p>
+          <p className="text-muted">
+            You don’t have an active plan right now{subscription ? ` (your ${subscription.plan.name} plan is ${subscription.status})` : ''}.
+          </p>
         )}
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Available plans</h2>
-        <div className="flex flex-wrap gap-4">
-          {plans.map((plan) => (
-            <div
-              key={plan.id}
-              className="flex w-56 flex-col gap-2 rounded-lg border border-border-color bg-surface p-4"
-              style={{ boxShadow: 'var(--shadow-card)' }}
-            >
-              <p className="font-medium">{plan.name}</p>
-              <p className="font-mono text-sm text-muted">
-                ₹{plan.price}/{plan.billingCycle}
-              </p>
-              <p className="text-xs text-muted">Up to {plan.maxThemes} themes</p>
-              <button
-                onClick={() => void handleSwitchPlan(plan.id)}
-                disabled={subscription?.plan.id === plan.id}
-                className="mt-2 w-fit rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground disabled:opacity-40"
-              >
-                {subscription?.plan.id === plan.id ? 'Current plan' : 'Switch to this plan'}
-              </button>
-            </div>
-          ))}
-        </div>
+        <p className="max-w-lg text-sm text-muted">
+          Your plan is set up for you by the Vyapar QR team. To change it, or to add a feature, get in touch with us.
+        </p>
       </section>
 
       <section className="flex flex-col gap-3">

@@ -159,12 +159,27 @@ export class BillingService {
     });
   }
 
+  /**
+   * The plan the client is on. Active wins over newest: this used to return
+   * the newest subscription of any status, so a plan the Super Admin had just
+   * deactivated — or a Razorpay checkout abandoned half-way — was shown to the
+   * client as their "Current plan". Falls back to the newest so a client with
+   * nothing active still sees what they last had, and in which state.
+   */
   async getCurrentSubscription(clientId: string) {
-    return this.prisma.subscription.findFirst({
-      where: { clientId },
+    const active = await this.prisma.subscription.findFirst({
+      where: { clientId, status: 'active' },
       orderBy: { createdAt: 'desc' },
       include: { plan: true },
     });
+    return (
+      active ??
+      this.prisma.subscription.findFirst({
+        where: { clientId },
+        orderBy: { createdAt: 'desc' },
+        include: { plan: true },
+      })
+    );
   }
 
   /** Daily sweep: suspend clients whose subscription has been past due for

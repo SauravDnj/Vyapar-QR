@@ -6,11 +6,18 @@ import { AuditLogService } from '../../audit-log/audit-log.service';
 import { EmailService } from '../../email/email.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
+import { ClientPlansService } from './client-plans.service';
+
 import type { ListClientsQueryDto } from './dto/list-clients.dto';
 import type { Client, ClientStatus, Prisma } from '../../jsondb';
 
+/** A client row as the Super Admin table shows it: with the plan they are on. */
+export type ClientWithPlan = Client & {
+  currentPlan: { subscriptionId: string; planId: string; name: string } | null;
+};
+
 export interface PaginatedClients {
-  data: Client[];
+  data: ClientWithPlan[];
   total: number;
   page: number;
   pageSize: number;
@@ -30,6 +37,7 @@ export class ClientsService {
     private readonly auditLog: AuditLogService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly clientPlans: ClientPlansService,
   ) {}
 
   async list(query: ListClientsQueryDto): Promise<PaginatedClients> {
@@ -56,7 +64,13 @@ export class ClientsService {
       this.prisma.client.count({ where }),
     ]);
 
-    return { data, total, page: query.page, pageSize: query.pageSize };
+    const plans = await this.clientPlans.currentFor(data.map((client) => client.id));
+    const withPlans: ClientWithPlan[] = data.map((client) => {
+      const sub = plans.get(client.id);
+      return { ...client, currentPlan: sub ? { subscriptionId: sub.id, planId: sub.planId, name: sub.plan.name } : null };
+    });
+
+    return { data: withPlans, total, page: query.page, pageSize: query.pageSize };
   }
 
   async transition(clientId: string, action: keyof typeof TRANSITIONS, actorId: string): Promise<Client> {

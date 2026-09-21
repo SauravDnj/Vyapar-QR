@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Header, Headers, Param, Post, Req, StreamableFile, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, ForbiddenException, Get, Header, Headers, Param, Post, Req, StreamableFile, UseGuards } from '@nestjs/common';
 
 
 import { CurrentClientId } from '../common/decorators/current-client-id.decorator';
@@ -9,7 +9,6 @@ import { ClientScopeGuard } from '../common/guards/client-scope.guard';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 
 import { BillingService } from './billing.service';
-import { CheckoutDto } from './dto/checkout.dto';
 
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
@@ -24,11 +23,20 @@ export class BillingController {
     return this.billingService.listActivePlans();
   }
 
+  /**
+   * Refused: plans are assigned by the Super Admin, not bought.
+   *
+   * `BillingService.checkout` and the Razorpay webhook are left in place —
+   * the webhook still has to keep any existing Razorpay subscription's status
+   * current — so turning self-serve purchase back on is this one method.
+   * Plans are now given, switched and switched off from Super Admin →
+   * Clients (`ClientPlansService`).
+   */
   @Post('checkout')
   @Roles('client_admin')
   @UseGuards(ClientScopeGuard)
-  checkout(@Body() dto: CheckoutDto, @CurrentClientId() clientId: string) {
-    return this.billingService.checkout(clientId, dto.planId);
+  checkout(): never {
+    throw new ForbiddenException('Plans are set up for you by the Vyapar QR team. Contact us to change your plan.');
   }
 
   @Get('invoices')

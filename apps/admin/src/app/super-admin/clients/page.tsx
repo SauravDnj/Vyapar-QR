@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ClientPlanPanel } from '../../../components/client-plan-panel';
 import { ProtectedRoute } from '../../../components/protected-route';
 import { Badge, type BadgeTone } from '../../../components/ui/badge';
 import { Drawer } from '../../../components/ui/drawer';
@@ -33,15 +34,19 @@ const STATUS_TONE: Record<AdminClient['status'], BadgeTone> = {
 function ClientDrawer({
   client,
   isOpen,
+  accessToken,
   onClose,
   onTransition,
   onImpersonate,
+  onPlanChanged,
 }: {
   client: AdminClient | null;
   isOpen: boolean;
+  accessToken: string | null;
   onClose: () => void;
   onTransition: (id: string, action: ClientTransition) => Promise<void>;
   onImpersonate: (id: string) => Promise<void>;
+  onPlanChanged: () => Promise<void>;
 }) {
   const [isBusy, setIsBusy] = useState(false);
   const [displayClient, setDisplayClient] = useState(client);
@@ -134,6 +139,10 @@ function ClientDrawer({
           Impersonate
         </button>
       </div>
+
+      {accessToken ? (
+        <ClientPlanPanel key={displayClient.id} accessToken={accessToken} clientId={displayClient.id} onChanged={onPlanChanged} />
+      ) : null}
     </Drawer>
   );
 }
@@ -231,6 +240,7 @@ function ClientsContent() {
                 <th className="px-4 py-3">Business</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Joined</th>
               </tr>
             </thead>
@@ -246,6 +256,9 @@ function ClientsContent() {
                   <td className="px-4 py-3">
                     <Badge tone={STATUS_TONE[client.status]}>{client.status}</Badge>
                   </td>
+                  <td className="px-4 py-3">
+                    {client.currentPlan ? client.currentPlan.name : <span className="text-muted">No plan</span>}
+                  </td>
                   <td className="px-4 py-3 font-mono text-muted">{new Date(client.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
@@ -257,9 +270,11 @@ function ClientsContent() {
       <ClientDrawer
         client={selected}
         isOpen={selected !== null}
+        accessToken={accessToken}
         onClose={() => setSelected(null)}
         onTransition={handleTransition}
         onImpersonate={handleImpersonate}
+        onPlanChanged={refresh}
       />
     </>
   );
