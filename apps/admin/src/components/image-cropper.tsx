@@ -1,6 +1,9 @@
 'use client';
 
+import { BANNER_IMAGE, BANNER_OVERLAY, LOGO_IMAGE } from '@vyaparqr/types';
 import { useEffect, useRef, useState } from 'react';
+
+import type { ImageShape } from '@vyaparqr/types';
 
 /**
  * Crop, zoom and reposition an image before it is uploaded.
@@ -21,22 +24,29 @@ import { useEffect, useRef, useState } from 'react';
  * slider or the wheel to zoom. The image can never be smaller than the frame,
  * so a crop can never contain empty space.
  */
-export interface CropShape {
-  /** width / height of the crop frame and of the exported image. */
-  aspect: number;
-  /** Exported width in pixels; height follows from `aspect`. */
-  outputWidth: number;
-  /** Circular frame — the export stays square, the theme masks it. */
-  round?: boolean;
+export interface CropShape extends ImageShape {
   /** PNG keeps a logo's transparency; JPEG keeps a photo's file size sane. */
   format: 'image/png' | 'image/jpeg';
+  /** Show where the page draws the logo and buttons over this image. */
+  overlay?: 'banner';
 }
 
-export const LOGO_SHAPE: CropShape = { aspect: 1, outputWidth: 512, round: true, format: 'image/png' };
-export const BANNER_SHAPE: CropShape = { aspect: 3, outputWidth: 1200, format: 'image/jpeg' };
+/* The shapes come from @vyaparqr/types, the same definition the landing page
+   sizes its logo circle and banner from — so the frame here is the page's
+   frame, not an approximation of it. */
+export const LOGO_SHAPE: CropShape = { ...LOGO_IMAGE, format: 'image/png' };
+export const BANNER_SHAPE: CropShape = { ...BANNER_IMAGE, format: 'image/jpeg', overlay: 'banner' };
+
+/** Loads an already-uploaded image so it can be cropped again. The uploads
+ * route allows the admin origin, and a blob URL keeps the canvas untainted. */
+export async function fileFromUrl(url: string): Promise<File> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('That image could not be loaded.');
+  const blob = await response.blob();
+  return new File([blob], url.split('/').pop() ?? 'image', { type: blob.type || 'image/jpeg' });
+}
 
 const MAX_ZOOM = 4;
-const FRAME_W = 288;
 
 export function ImageCropper({
   file,
@@ -59,7 +69,10 @@ export function ImageCropper({
   const [error, setError] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
 
+  // A wide banner gets the modal's full width; a circle doesn't need it.
+  const FRAME_W = shape.round ? 248 : 320;
   const frameH = Math.round(FRAME_W / shape.aspect);
+  const [showGuide, setShowGuide] = useState(true);
 
   useEffect(() => {
     const url = URL.createObjectURL(file);
@@ -170,7 +183,10 @@ export function ImageCropper({
       <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl bg-white p-5 shadow-2xl">
         <div>
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          <p className="mt-0.5 text-xs text-gray-500">Drag to reposition, and zoom until it sits the way you want.</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Drag to reposition, and zoom until it sits the way you want. This is exactly the shape your page shows.
+          </p>
+          <p className="mt-1 text-[11px] text-gray-400">{shape.hint}</p>
         </div>
 
         <div
@@ -205,7 +221,21 @@ export function ImageCropper({
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-gray-500">Loading…</div>
           )}
+          {image && shape.overlay === 'banner' && showGuide ? <BannerGuide width={FRAME_W} height={frameH} /> : null}
         </div>
+
+        {shape.overlay === 'banner' ? (
+          <label className="-mt-1 flex items-center gap-2 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={showGuide}
+              onChange={(event) => {
+                setShowGuide(event.target.checked);
+              }}
+            />
+            Show where your logo and buttons sit — keep anything important clear of them
+          </label>
+        ) : null}
 
         <label className="flex items-center gap-3 text-xs text-gray-600">
           <span className="w-10 shrink-0">Zoom</span>
@@ -244,6 +274,34 @@ export function ImageCropper({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the landing page draws on top of the banner, at the same proportions:
+ * the logo circle on the bottom edge and the share / save buttons in the top
+ * right. Outlines only — the owner is positioning the picture underneath.
+ */
+function BannerGuide({ width, height }: { width: number; height: number }) {
+  const logo = BANNER_OVERLAY.logoDiameter * width;
+  const button = BANNER_OVERLAY.buttonDiameter * width;
+  const inset = BANNER_OVERLAY.buttonInset * width;
+  const gap = BANNER_OVERLAY.buttonGap * width;
+  const outline = 'absolute rounded-full border-2 border-dashed border-white/90 bg-white/35 shadow-[0_0_0_1px_rgb(0_0_0/0.25)]';
+  return (
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+      <span
+        className={`${outline} flex justify-center text-[9px] font-semibold text-gray-800`}
+        // The label sits in the visible top half: the circle's centre is on the
+        // banner's bottom edge, so a centred label was cut in two.
+        style={{ width: logo, height: logo, left: (width - logo) / 2, top: height - logo / 2, paddingTop: logo * 0.16 }}
+      >
+        Logo
+      </span>
+      {[0, 1].map((i) => (
+        <span key={i} className={outline} style={{ width: button, height: button, top: inset * 0.8, right: inset + i * (button + gap) }} />
+      ))}
     </div>
   );
 }

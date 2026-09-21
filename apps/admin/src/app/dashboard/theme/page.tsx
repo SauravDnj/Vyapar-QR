@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
 import { BANNER_SHAPE, ImageCropper, LOGO_SHAPE } from '../../../components/image-cropper';
+import { ImageField } from '../../../components/image-field';
 import { ProtectedRoute } from '../../../components/protected-route';
 import { AccordionSection } from '../../../components/ui/accordion';
 import { PhoneFrame } from '../../../components/ui/phone-frame';
@@ -128,38 +129,53 @@ function LandingPageEditor() {
     const pending = cropTarget;
     setCropTarget(null);
     if (!accessToken || !pending) return;
-    setMessage(null);
+    setMessage('Saving image…');
+    let url: string;
     try {
-      const url = await uploadImage(accessToken, cropped);
-      setHeroAbout((prev) => (pending.field === 'logoUrl' ? { ...prev, logoUrl: url } : { ...prev, backgroundImageUrl: url }));
-      setMessage('Image ready — press Save to publish it.');
+      url = await uploadImage(accessToken, cropped);
     } catch {
       setMessage('That image could not be uploaded.');
+      return;
     }
+    await setHeroImage(pending.field, url, pending.field === 'logoUrl' ? 'Logo saved — it’s live on your page.' : 'Banner saved — it’s live on your page.');
   }
 
-  async function handleSaveHeroAbout() {
+  /** One save for the Save button, a finished crop and Remove alike. */
+  async function persistHero(values: typeof heroAbout, successMessage: string) {
     if (!accessToken) return;
     setIsSavingHero(true);
     setMessage(null);
     try {
       await saveBusinessInfo(accessToken, {
-        businessName: heroAbout.headline,
-        tagline: heroAbout.tagline || undefined,
-        logoUrl: heroAbout.logoUrl || undefined,
-        backgroundImageUrl: heroAbout.backgroundImageUrl || undefined,
-        description: heroAbout.description || undefined,
-        address: heroAbout.address || undefined,
-        hours: heroAbout.hours || undefined,
-        phone: heroAbout.phone || undefined,
+        businessName: values.headline,
+        tagline: values.tagline || undefined,
+        logoUrl: values.logoUrl || undefined,
+        backgroundImageUrl: values.backgroundImageUrl || undefined,
+        description: values.description || undefined,
+        address: values.address || undefined,
+        hours: values.hours || undefined,
+        phone: values.phone || undefined,
       });
-      setMessage('Saved.');
+      setMessage(successMessage);
       await refresh();
     } catch {
       setMessage('Failed to save.');
     } finally {
       setIsSavingHero(false);
     }
+  }
+
+  async function handleSaveHeroAbout() {
+    await persistHero(heroAbout, 'Saved.');
+  }
+
+  /* Image changes save as soon as they're made. They used to wait for the Save
+     button at the bottom of the form, so an owner could crop a new logo, see
+     it in the preview here, leave — and find the old one still on their page. */
+  async function setHeroImage(field: 'logoUrl' | 'backgroundImageUrl', url: string, successMessage: string) {
+    const next = { ...heroAbout, [field]: url };
+    setHeroAbout(next);
+    await persistHero(next, successMessage);
   }
 
   async function handleSaveSocials() {
@@ -384,48 +400,22 @@ function LandingPageEditor() {
                 className="rounded-md border border-border-color px-3 py-2"
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Logo
-              <span className="text-xs text-text-muted">Shown in a circle. Square works best — you can crop and zoom after picking.</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setCropTarget({ file, field: 'logoUrl', shape: LOGO_SHAPE, title: 'Position your logo' });
-                  e.target.value = '';
-                }}
-              />
-              {heroAbout.logoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={heroAbout.logoUrl}
-                  alt="Logo preview"
-                  className="mt-1 size-20 rounded-full border border-border-color object-contain p-1"
-                />
-              )}
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Background image
-              <span className="text-xs text-text-muted">A wide banner across the top of your page. Crop and zoom after picking.</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) setCropTarget({ file, field: 'backgroundImageUrl', shape: BANNER_SHAPE, title: 'Position your banner' });
-                  e.target.value = '';
-                }}
-              />
-              {heroAbout.backgroundImageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={heroAbout.backgroundImageUrl}
-                  alt="Background preview"
-                  className="mt-1 h-24 w-full rounded-md object-cover"
-                />
-              )}
-            </label>
+            <ImageField
+              shape={LOGO_SHAPE}
+              url={heroAbout.logoUrl}
+              onCrop={(file) => {
+                setCropTarget({ file, field: 'logoUrl', shape: LOGO_SHAPE, title: 'Position your logo' });
+              }}
+              onRemove={() => void setHeroImage('logoUrl', '', 'Logo removed.')}
+            />
+            <ImageField
+              shape={BANNER_SHAPE}
+              url={heroAbout.backgroundImageUrl}
+              onCrop={(file) => {
+                setCropTarget({ file, field: 'backgroundImageUrl', shape: BANNER_SHAPE, title: 'Position your banner' });
+              }}
+              onRemove={() => void setHeroImage('backgroundImageUrl', '', 'Banner removed.')}
+            />
             <label className="flex flex-col gap-1 text-sm">
               Description
               <textarea

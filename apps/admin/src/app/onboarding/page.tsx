@@ -4,6 +4,8 @@ import { DEFAULT_THEME_SCHEMA } from '@vyaparqr/types';
 import { ThemeRenderer } from '@vyaparqr/ui';
 import { useCallback, useEffect, useState } from 'react';
 
+import { BANNER_SHAPE, ImageCropper, LOGO_SHAPE, type CropShape } from '../../components/image-cropper';
+import { ImageField } from '../../components/image-field';
 import { ProtectedRoute } from '../../components/protected-route';
 import { PhoneFrame } from '../../components/ui/phone-frame';
 import { useAuth } from '../../context/auth-context';
@@ -129,11 +131,22 @@ function StepBar({ current }: { current: Step }) {
   );
 }
 
+/** The two images the landing page draws in a fixed shape. Onboarding used to
+ * upload them raw — no crop step at all — which is how a page ended up with a
+ * tall 838x1600 logo and a nearly square banner that the page then cut into. */
+const HERO_IMAGE_SHAPES: Partial<Record<string, CropShape>> = {
+  logoUrl: LOGO_SHAPE,
+  backgroundImageUrl: BANNER_SHAPE,
+};
+
 function OnboardingWizard() {
   const { accessToken } = useAuth();
   const [step, setStep] = useState<Step>('business');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ file: File; sectionKey: ThemeSectionKey; fieldKey: string; shape: CropShape } | null>(
+    null,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isDrafting, setIsDrafting] = useState(false);
 
@@ -335,7 +348,24 @@ function OnboardingWizard() {
           {PRE_THEME_SECTIONS.map((section) => (
             <fieldset key={section.key} className="flex flex-col gap-3">
               <legend className="text-xs font-medium uppercase text-muted">{section.label}</legend>
-              {section.fields.map((field) => (
+              {section.fields.map((field) => {
+                const shape = section.key === 'hero' ? HERO_IMAGE_SHAPES[field.key] : undefined;
+                if (field.type === 'image' && shape) {
+                  return (
+                    <ImageField
+                      key={field.key}
+                      shape={shape}
+                      url={sectionValues[section.key]?.[field.key] ?? ''}
+                      onCrop={(file) => {
+                        setCropTarget({ file, sectionKey: section.key, fieldKey: field.key, shape });
+                      }}
+                      onRemove={() => {
+                        setFieldValue(section.key, field.key, '');
+                      }}
+                    />
+                  );
+                }
+                return (
                 <SchemaField
                   key={field.key}
                   field={field}
@@ -345,7 +375,8 @@ function OnboardingWizard() {
                     field.type === 'image' ? (file) => void handleSectionImageUpload(section.key, field.key, file) : undefined
                   }
                 />
-              ))}
+                );
+              })}
             </fieldset>
           ))}
           <button
@@ -534,6 +565,22 @@ function OnboardingWizard() {
           </a>
         </div>
       )}
+
+      {cropTarget ? (
+        <ImageCropper
+          file={cropTarget.file}
+          shape={cropTarget.shape}
+          title={cropTarget.fieldKey === 'logoUrl' ? 'Position your logo' : 'Position your banner'}
+          onCancel={() => {
+            setCropTarget(null);
+          }}
+          onCropped={(cropped) => {
+            const target = cropTarget;
+            setCropTarget(null);
+            void handleSectionImageUpload(target.sectionKey, target.fieldKey, cropped);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

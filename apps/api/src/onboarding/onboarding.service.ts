@@ -126,9 +126,11 @@ export class OnboardingService {
       throw new BadRequestException(`You can only have up to ${String(OnboardingService.MAX_GALLERY_IMAGES)} gallery photos.`);
     }
 
-    return this.prisma.galleryImage.create({
+    const result = await this.prisma.galleryImage.create({
       data: { clientId, imageUrl, displayOrder: count },
     });
+    await this.refreshLivePage(clientId);
+    return result;
   }
 
   async removeGalleryImage(clientId: string, imageId: string) {
@@ -137,6 +139,7 @@ export class OnboardingService {
       throw new NotFoundException('Gallery image not found');
     }
     await this.prisma.galleryImage.delete({ where: { id: image.id } });
+    await this.refreshLivePage(clientId);
   }
 
   /** P5-08: a client's physical locations/branches, listed on their one
@@ -151,7 +154,7 @@ export class OnboardingService {
       throw new BadRequestException(`You can only have up to ${String(OnboardingService.MAX_LOCATIONS)} locations.`);
     }
 
-    return this.prisma.location.create({
+    const result = await this.prisma.location.create({
       data: {
         clientId,
         name: dto.name,
@@ -161,6 +164,8 @@ export class OnboardingService {
         displayOrder: count,
       },
     });
+    await this.refreshLivePage(clientId);
+    return result;
   }
 
   async updateLocation(
@@ -173,7 +178,7 @@ export class OnboardingService {
       throw new NotFoundException('Location not found');
     }
 
-    return this.prisma.location.update({
+    const result = await this.prisma.location.update({
       where: { id: location.id },
       data: {
         name: dto.name ?? location.name,
@@ -182,6 +187,8 @@ export class OnboardingService {
         hours: dto.hours ?? location.hours,
       },
     });
+    await this.refreshLivePage(clientId);
+    return result;
   }
 
   async removeLocation(clientId: string, locationId: string) {
@@ -190,6 +197,7 @@ export class OnboardingService {
       throw new NotFoundException('Location not found');
     }
     await this.prisma.location.delete({ where: { id: location.id } });
+    await this.refreshLivePage(clientId);
   }
 
   /** Saves just the `contact` section (heading + booking link), merged onto
@@ -211,6 +219,7 @@ export class OnboardingService {
       data: { contentJson: content },
     });
 
+    await this.refreshLivePage(clientId);
     return { contact: content.contact };
   }
 
@@ -261,6 +270,7 @@ export class OnboardingService {
       update: { contentJson },
     });
 
+    await this.refreshLivePage(client.id);
     return this.getStatus(userId);
   }
 
@@ -284,6 +294,7 @@ export class OnboardingService {
       data: { contentJson: content },
     });
 
+    await this.refreshLivePage(clientId);
     return { menu: content.menu };
   }
 
@@ -299,12 +310,7 @@ export class OnboardingService {
       data: accentColor === undefined ? { themeId } : { themeId, accentColor },
     });
 
-    if (landingPage.status === 'published') {
-      const client = await this.prisma.client.findUniqueOrThrow({ where: { id: clientId } });
-      this.revalidateLandingPage(client.slug).catch(() => {
-        // Best-effort — the ISR cache will still expire on its own schedule.
-      });
-    }
+    await this.refreshLivePage(clientId);
 
     return landingPage;
   }
@@ -329,7 +335,9 @@ export class OnboardingService {
       }),
     ]);
 
-    return this.prisma.paymentMethod.findMany({ where: { clientId }, orderBy: { displayOrder: 'asc' } });
+    const result = await this.prisma.paymentMethod.findMany({ where: { clientId }, orderBy: { displayOrder: 'asc' } });
+    await this.refreshLivePage(clientId);
+    return result;
   }
 
   async saveSocialAndReview(clientId: string, dto: SocialReviewDto) {
@@ -364,6 +372,7 @@ export class OnboardingService {
       });
     }
 
+    await this.refreshLivePage(clientId);
     return this.getStatus((await this.prisma.client.findUniqueOrThrow({ where: { id: clientId } })).userId);
   }
 
@@ -388,9 +397,7 @@ export class OnboardingService {
     const landingUrl = `${this.landingAppUrl}/site/${client.slug}`;
     const qrCode = await this.qrService.generateForClient(clientId);
 
-    this.revalidateLandingPage(client.slug).catch(() => {
-      // Best-effort — the ISR cache will still expire on its own schedule.
-    });
+    await this.refreshLivePage(clientId);
 
     return { landingUrl, qrImageUrl: qrCode.imageUrl, svgImageUrl: qrCode.svgImageUrl };
   }
@@ -401,7 +408,35 @@ export class OnboardingService {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug, secret }),
+      signal: AbortSignal.timeout(4000),
     });
+  }
+
+  /**
+   * Makes a saved change show on the live page now rather than in five
+   * minutes.
+   *
+   * The landing page is cached for 300 seconds and only the theme picker and
+   * "publish" ever purged that cache. Every other save — the logo, the
+   * banner, the business name, the address, social links, payments, gallery,
+   * menu, branches — went into the database and then didn't appear, so an
+   * owner who uploaded a new logo looked at their page and saw the old one.
+   *
+   * Awaited, with a short timeout, rather than fired and forgotten: on Vercel
+   * a promise left running after the response is frozen, so the purge the
+   * old call sites fired off could simply never happen. Still best-effort —
+   * a slow or failed purge must not fail the save, and the cache expires on
+   * its own regardless.
+   */
+  private async refreshLivePage(clientId: string): Promise<void> {
+    try {
+      const page = await this.prisma.landingPage.findUnique({ where: { clientId }, select: { status: true } });
+      if (page?.status !== 'published') return;
+      const client = await this.prisma.client.findUnique({ where: { id: clientId }, select: { slug: true } });
+      if (client) await this.revalidateLandingPage(client.slug);
+    } catch {
+      // Best-effort: see above.
+    }
   }
 
   /**

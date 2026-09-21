@@ -1,5 +1,7 @@
 'use client';
 
+import { BANNER_IMAGE } from '@vyaparqr/types';
+
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
 
@@ -69,6 +71,8 @@ const TILE_GAP = 8;
  * The rules carried over from the last dark pass still hold: the collection
  * takes the leftover height, nothing animates forever, and contrast is static.
  */
+const BANNER_ASPECT = `${String(BANNER_IMAGE.aspect)} / 1`;
+
 const CSS = `
 .qs-noor{--qs-display:"Cormorant",ui-serif,Georgia,serif;--qs-body:"Montserrat",ui-sans-serif,system-ui,sans-serif;
   --nr-line:#e7e5e4;
@@ -89,17 +93,23 @@ const CSS = `
 .nr-hair{position:absolute;left:50%;top:0;width:min(560px,130%);height:1px;transform:translateX(-50%);background:linear-gradient(90deg,transparent,var(--nr-tint-edge) 50%,transparent)}
 
 /* -- the banner -------------------------------------------------------- */
-/* The client's background image, as a cover strip the logo disc sits on.
-   The field has been in the theme schema and in the admin form all along; no
-   theme ever drew it, so uploading one changed nothing. It is a banner here
-   rather than a full-bleed backdrop because that is the one place a photo can
-   sit on a white page without competing with the text - it has its own band,
-   and the page below it stays white. */
-.nr-banner{position:relative;flex:0 0 auto;margin:0 -18px;height:clamp(96px,22cqh,164px);overflow:hidden;background:var(--nr-sunk)}
-.nr-banner img{width:100%;height:100%;object-fit:cover;display:block}
-/* A white-cornered photo would otherwise end in a hard line against a white
-   page; this fades it out instead. */
-.nr-banner::after{content:"";position:absolute;inset:auto 0 0;height:42%;background:linear-gradient(180deg,transparent,#ffffff)}
+/* The client's background image, as a cover across the top of the page with
+   the logo disc on its bottom edge.
+
+   Exactly the shape the crop step frames (BANNER_IMAGE in @vyaparqr/types),
+   so what the owner sets there is what shows here. It used to take its height
+   from the screen's height and its width from the screen's width — close to
+   2.3:1 on a typical phone against a 3:1 crop — and then cover-cropped the
+   result again, cutting the sides off an image that had already been cropped.
+   The white fade over its bottom 42% is gone for the same reason: it hid part
+   of the picture the owner had just positioned.
+
+   Full-bleed from the very top edge, with the share / save buttons floating
+   over it, the way a cover photo sits; the crop step shows where they land. */
+.nr-banner{position:relative;flex:0 0 auto;margin:calc(-1 * max(env(safe-area-inset-top),14px)) -18px 0;aspect-ratio:${BANNER_ASPECT};overflow:hidden;background:var(--nr-sunk)}
+.nr-banner img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.nr-has-banner .nr-head{position:absolute;top:max(env(safe-area-inset-top),14px);left:18px;right:18px;z-index:3}
+.nr-has-banner .nr-chip,.nr-has-banner .nr-icon-btn{box-shadow:0 2px 8px rgb(28 25 23/.18)}
 
 /* -- vertical plan ----------------------------------------------------- */
 .qs-noor .qs-frame{padding-bottom:0;--qs-logo:108px}
@@ -118,8 +128,11 @@ const CSS = `
    shop's own logo are already drawn, and it crops nothing. */
 .nr-disc{position:relative;width:var(--qs-logo);height:var(--qs-logo);border-radius:999px;background:var(--nr-card);box-shadow:0 0 0 1px var(--nr-tint-edge),0 0 0 5px #fff,0 0 0 6px var(--nr-line-soft),0 14px 30px -14px rgb(60 42 12/.30)}
 .nr-disc-inner{position:absolute;inset:0;overflow:hidden;border-radius:999px;display:grid;place-items:center;font-family:var(--qs-display);font-weight:600;font-size:calc(var(--qs-logo) * .36);color:var(--nr-ink);background:var(--nr-card)}
-/* Contain, never cover: a wordmark cropped to a circle is just a smear. */
-.nr-disc-inner img{width:100%;height:100%;object-fit:contain;padding:13%}
+/* Fills the circle, exactly as the crop step shows it. This used to shrink
+   the logo inside the circle with 13% padding, which made sense before there
+   was a crop step — an uncropped wordmark would otherwise be cut — but meant
+   the logo on the page was smaller than the one the owner had positioned. */
+.nr-disc-inner img{width:100%;height:100%;object-fit:cover}
 .nr-disc-ring{position:absolute;inset:-1px;border-radius:999px;border:1px solid transparent;background:linear-gradient(140deg,var(--t-accent),#f2dfae 40%,var(--t-accent) 72%,#e8cf96) border-box;-webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 
 /* -- name -------------------------------------------------------------- */
@@ -262,7 +275,7 @@ export function NoorTheme(props: ThemeRenderProps) {
       </div>
 
       <div className="qs-frame">
-        <header className="qs-rise flex shrink-0 items-center justify-between gap-3" style={{ '--i': 0 } as CSSProperties}>
+        <header className="nr-head qs-rise flex shrink-0 items-center justify-between gap-3" style={{ '--i': 0 } as CSSProperties}>
           {model.hours ? (
             <span className="nr-chip">
               <Icon name="clock" className="size-3.5 shrink-0" style={{ color: 'var(--nr-ink)' }} />
