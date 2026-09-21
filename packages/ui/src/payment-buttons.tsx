@@ -143,19 +143,6 @@ async function cancelClaim(slug: string, claimId: string) {
   });
 }
 
-/** The optional name and number, which is what puts the payment in the CRM
- * against a contact the business can follow up with. */
-async function attachCustomer(slug: string, claimId: string, body: { name?: string; phone?: string }) {
-  const response = await fetch(`${API_URL}/public/landing/${slug}/payment/claim/${claimId}/customer`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    throw new Error('Request failed');
-  }
-}
-
 type ClaimState = 'idle' | 'sending' | 'sent' | 'needs-manual-send' | 'error';
 
 function AmountPayCard({
@@ -179,9 +166,6 @@ function AmountPayCard({
   const [claimState, setClaimState] = useState<ClaimState>('idle');
   const [manualSendUrl, setManualSendUrl] = useState<string | null>(null);
   const [claimId, setClaimId] = useState<string | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [detailsState, setDetailsState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Set while the customer is away in their UPI app, so coming back records
    * the payment without them having to tap anything else. */
@@ -286,17 +270,6 @@ function AmountPayCard({
     setClaimId(null);
     setClaimState('idle');
     setHasOpened(false);
-  }
-
-  async function handleSaveDetails() {
-    if (!slug || !claimId || !customerPhone.trim()) return;
-    setDetailsState('saving');
-    try {
-      await attachCustomer(slug, claimId, { name: customerName.trim() || undefined, phone: customerPhone.trim() });
-      setDetailsState('saved');
-    } catch {
-      setDetailsState('idle');
-    }
   }
 
   async function copyUpiId() {
@@ -414,51 +387,6 @@ function AmountPayCard({
                   Send the confirmation on WhatsApp
                 </a>
               ) : null}
-
-              {/* A number turns this payment into a customer the business can
-                  thank or follow up with. Asked after paying, never before. */}
-              {detailsState === 'saved' ? (
-                <p className="text-center text-xs" style={MUTED}>
-                  Saved — {businessName} has your number.
-                </p>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-center text-xs" style={MUTED}>
-                    Want the receipt or offers on WhatsApp? (optional)
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      value={customerName}
-                      onChange={(event) => {
-                        setCustomerName(event.target.value);
-                      }}
-                      placeholder="Name"
-                      className="min-h-11 w-1/3 border px-3 py-2 text-sm"
-                      style={CARD}
-                    />
-                    <input
-                      value={customerPhone}
-                      onChange={(event) => {
-                        setCustomerPhone(event.target.value);
-                      }}
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="Your number"
-                      className="min-h-11 min-w-0 flex-1 border px-3 py-2 text-sm"
-                      style={CARD}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveDetails()}
-                      disabled={detailsState === 'saving' || customerPhone.trim() === ''}
-                      className="min-h-11 cursor-pointer px-4 py-2 text-sm font-medium disabled:opacity-50"
-                      style={ACCENT_BUTTON}
-                    >
-                      {detailsState === 'saving' ? '\u2026' : 'Save'}
-                    </button>
-                  </div>
-                </div>
-              )}
 
               <div className="flex items-center justify-center gap-4 pt-1">
                 <button
