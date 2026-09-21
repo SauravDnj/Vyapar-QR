@@ -1,10 +1,11 @@
 'use client';
 
-import { DEFAULT_THEME_NAME } from '@vyaparqr/types';
-import { ThemeRenderer } from '@vyaparqr/ui';
+import { DEFAULT_THEME_NAME, parseButtonColumns, parseButtonSize } from '@vyaparqr/types';
+import { countActionButtons, ThemeRenderer } from '@vyaparqr/ui';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ButtonLayoutControl } from '../../../components/button-layout-control';
 import { BANNER_SHAPE, ImageCropper, LOGO_SHAPE } from '../../../components/image-cropper';
 import { ImageField } from '../../../components/image-field';
 import { ProtectedRoute } from '../../../components/protected-route';
@@ -26,10 +27,11 @@ import {
   type OnboardingGalleryImage,
   type OnboardingStatus,
   type OnboardingTheme,
+  saveLayoutSection,
 } from '../../../lib/onboarding-api';
 
 import type { CropShape } from '../../../components/image-cropper';
-import type { PublicSocialLink, SocialPlatform, ThemeContent } from '@vyaparqr/types';
+import type { ButtonColumns, ButtonSize, PublicSocialLink, SocialPlatform, ThemeContent } from '@vyaparqr/types';
 
 
 
@@ -83,6 +85,9 @@ function LandingPageEditor() {
   const [bookingUrl, setBookingUrl] = useState('');
   const [isSavingBooking, setIsSavingBooking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [buttonColumns, setButtonColumns] = useState<ButtonColumns>('auto');
+  const [buttonSize, setButtonSize] = useState<ButtonSize>('auto');
+  const [isSavingLayout, setIsSavingLayout] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!accessToken) return;
@@ -91,6 +96,8 @@ function LandingPageEditor() {
       setStatus(onboardingStatus);
       setThemes(themeList);
       const content = onboardingStatus.landingPage?.contentJson ?? {};
+      setButtonColumns(parseButtonColumns(content.layout?.columns));
+      setButtonSize(parseButtonSize(content.layout?.size));
       setHeroAbout({
         headline: content.hero?.headline ?? onboardingStatus.client?.businessName ?? '',
         tagline: content.hero?.tagline ?? '',
@@ -176,6 +183,28 @@ function LandingPageEditor() {
     const next = { ...heroAbout, [field]: url };
     setHeroAbout(next);
     await persistHero(next, successMessage);
+  }
+
+  /** Saved as soon as it's picked, like the images: the preview beside it
+   * already shows the result, so a separate Save step would only be a way to
+   * change the preview and not the page. */
+  async function handleLayoutChange(next: { columns: ButtonColumns; size: ButtonSize }) {
+    if (!accessToken) return;
+    const previous = { columns: buttonColumns, size: buttonSize };
+    setButtonColumns(next.columns);
+    setButtonSize(next.size);
+    setIsSavingLayout(true);
+    setMessage(null);
+    try {
+      await saveLayoutSection(accessToken, next);
+      setMessage('Button layout saved — it’s live on your page.');
+    } catch {
+      setButtonColumns(previous.columns);
+      setButtonSize(previous.size);
+      setMessage('Couldn’t save the button layout.');
+    } finally {
+      setIsSavingLayout(false);
+    }
   }
 
   async function handleSaveSocials() {
@@ -314,6 +343,7 @@ function LandingPageEditor() {
     about: { description: heroAbout.description, address: heroAbout.address, hours: heroAbout.hours, phone: heroAbout.phone },
     menu: { heading: menuHeading, fileUrl: menuFileUrl },
     contact: { ...status.landingPage.contentJson.contact, bookingUrl },
+    layout: { columns: buttonColumns, size: buttonSize },
   };
   const previewSocialLinks: PublicSocialLink[] = socials
     .filter((s) => s.value.trim() !== '')
@@ -321,6 +351,16 @@ function LandingPageEditor() {
   const previewReviewConfig = status.googleReviewConfig?.reviewLink
     ? { reviewLink: status.googleReviewConfig.reviewLink, avgRatingCached: null }
     : null;
+  const previewSlug = status.client?.slug;
+  const buttonCount = countActionButtons({
+    slug: previewSlug,
+    businessName: heroAbout.headline,
+    content: previewContent,
+    paymentMethods: status.paymentMethods,
+    socialLinks: previewSocialLinks,
+    reviewConfig: previewReviewConfig,
+    locations: status.locations,
+  });
 
   return (
     <>
@@ -593,6 +633,16 @@ function LandingPageEditor() {
             </Link>
           </AccordionSection>
 
+          <AccordionSection title="Buttons layout">
+            <ButtonLayoutControl
+              count={buttonCount}
+              columns={buttonColumns}
+              size={buttonSize}
+              saving={isSavingLayout}
+              onChange={(next) => void handleLayoutChange(next)}
+            />
+          </AccordionSection>
+
           <AccordionSection title="Social links">
             {socials.map((social, index) => (
               <div key={index} className="flex gap-2">
@@ -639,6 +689,7 @@ function LandingPageEditor() {
           <PhoneFrame>
             <ThemeRenderer
               themeName={previewThemeName}
+              slug={previewSlug}
               businessName={heroAbout.headline || 'Your Business'}
               content={previewContent}
               paymentMethods={status.paymentMethods}

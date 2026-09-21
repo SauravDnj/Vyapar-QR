@@ -1,6 +1,6 @@
 'use client';
 
-import { BANNER_IMAGE, BANNER_OVERLAY } from '@vyaparqr/types';
+import { BANNER_IMAGE, BANNER_OVERLAY, buttonGrid, parseButtonColumns, parseButtonSize } from '@vyaparqr/types';
 
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
@@ -23,24 +23,11 @@ const GOLD = '#a16207';
 const FONTS =
   'https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap';
 
-/**
- * The action grid's shape, from how many buttons there are.
- *
- * Every button — Call, WhatsApp, Directions, Review, each social profile,
- * Enquire — is the same tile in the same grid, so the grid is what adapts:
- * a single row up to four, then 3×2, 4×2 and 3×3, the shapes that come out
- * even. A row of one to three is drawn at the width a tile has in a row of
- * four, so a short grid is a centred row of normal tiles, not three giants.
- * `rows` drives how compact the tiles get; the screen doesn't scroll, so a
- * second and third row are paid for in tile height, not page length.
- */
-export function actionGrid(count: number): { cols: number; rows: number; fillsWidth: boolean } {
-  const cols = count <= 4 ? Math.max(count, 1) : count <= 6 ? 3 : count <= 8 ? 4 : 3;
-  return { cols, rows: Math.ceil(count / cols), fillsWidth: count >= 4 };
-}
-
-/** Grid gap in px; the width sum below has to use the same number. */
-const TILE_GAP = 8;
+/* The grid's shape comes from buttonGrid() in @vyaparqr/types, which the
+   admin also uses to say what Auto will do. Auto picks the fewest columns
+   that keep the grid even and within three rows — 1–3 one row, 4 → 2×2,
+   5–6 → 3×2, 7–8 → 4×2, 9 → 3×3 — or the owner picks the columns and the
+   button size themselves. */
 
 /**
  * Noor — a jewellery counter in daylight.
@@ -210,6 +197,10 @@ const CSS = `
 
 /* -- quick actions ----------------------------------------------------- */
 .nr-tiles{display:grid;gap:8px;margin-inline:auto;width:100%}
+/* Each tile spans two half-columns, so a last row that isn't full can start
+   half a tile in and sit centred — 5 buttons as 3 + 2, 7 as 4 + 3 — instead
+   of leaving a gap on the right. */
+.nr-tiles>.nr-tile{grid-column:span 2}
 .nr-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:78px;padding:8px 5px;border-radius:15px;color:var(--t-text);font-size:12px;font-weight:500;line-height:1.2;text-align:center;text-wrap:balance;overflow-wrap:break-word;hyphens:auto;background:var(--nr-card);box-shadow:0 0 0 1px var(--nr-line),0 6px 14px -12px rgb(28 25 23/.4);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease}
 .nr-tile:active{transform:translateY(1px) scale(.97);box-shadow:0 0 0 1px var(--nr-tint-edge)}
 /* A brand mark is the logo itself, at full colour, with nothing tinted behind
@@ -227,6 +218,25 @@ const CSS = `
 .nr-tiles-3 .nr-tile{min-height:56px;gap:4px;padding:6px 3px;font-size:11px;border-radius:13px}
 .nr-tiles-3 .nr-tile-brand,.nr-tiles-3 .nr-tile-icon{width:26px;height:26px}
 .nr-tiles-3 .nr-tile-brand svg{border-radius:7px}
+/* Two columns or fewer: each button is twice as wide, so the icon sits beside
+   the label instead of above it — a tall narrow tile would waste the width. */
+.nr-tiles-wide>.nr-tile{flex-direction:row;justify-content:flex-start;gap:10px;padding:10px 14px;text-align:left;font-size:13px;min-height:58px}
+.nr-tiles-wide .nr-tile-brand,.nr-tiles-wide .nr-tile-icon{flex:0 0 auto;width:32px;height:32px}
+.nr-has-banner .nr-tiles-wide>.nr-tile{min-height:clamp(54px,7.5cqh,70px)}
+
+/* Manual sizes, chosen in the admin. More specific than every automatic rule
+   above so the owner's choice wins; the short-screen caps below still apply
+   so "Large" can't push the buttons off a small phone. */
+.qs-noor .nr-tiles.nr-size-small>.nr-tile{min-height:52px;gap:4px;padding:6px 3px;font-size:11px}
+.qs-noor .nr-tiles.nr-size-small .nr-tile-brand,.qs-noor .nr-tiles.nr-size-small .nr-tile-icon{width:26px;height:26px}
+.qs-noor .nr-tiles.nr-size-medium>.nr-tile{min-height:72px;gap:6px;padding:8px 5px;font-size:12px}
+.qs-noor .nr-tiles.nr-size-medium .nr-tile-brand,.qs-noor .nr-tiles.nr-size-medium .nr-tile-icon{width:32px;height:32px}
+.qs-noor .nr-tiles.nr-size-large>.nr-tile{min-height:92px;gap:8px;padding:10px 6px;font-size:13.5px}
+.qs-noor .nr-tiles.nr-size-large .nr-tile-brand,.qs-noor .nr-tiles.nr-size-large .nr-tile-icon{width:40px;height:40px}
+.qs-noor .nr-tiles-wide.nr-size-small>.nr-tile{min-height:46px;padding:8px 12px}
+.qs-noor .nr-tiles-wide.nr-size-medium>.nr-tile{min-height:58px;padding:10px 14px}
+.qs-noor .nr-tiles-wide.nr-size-large>.nr-tile{min-height:70px;padding:12px 16px;font-size:14.5px}
+
 /* More rows means less room above: the logo gives way before the buttons do. */
 .qs-noor.nr-dense-2 .qs-frame{--qs-logo:clamp(72px,13cqh,124px)}
 .qs-noor.nr-dense-3 .qs-frame{--qs-logo:clamp(60px,10cqh,100px)}
@@ -241,7 +251,7 @@ const CSS = `
 
 /* -- narrow screens ---------------------------------------------------- */
 @container qs (max-width:390px){.nr-tile{font-size:11px;padding-inline:3px}.nr-tiles{gap:7px}.nr-tiles-3 .nr-tile{font-size:10.5px}}
-@container qs (max-height:700px){.nr-dense-2 .nr-where-text{-webkit-line-clamp:1}}
+@container qs (max-height:700px){.nr-dense-2 .nr-where-text{-webkit-line-clamp:1}.qs-noor .nr-tiles.nr-size-large>.nr-tile{min-height:74px}.qs-noor .nr-tiles-wide.nr-size-large>.nr-tile{min-height:60px}}
 @container qs (max-height:720px){.nr-dense-3 .nr-where-text{-webkit-line-clamp:1}.nr-tiles-2 .nr-tile{min-height:60px}.nr-tiles-3 .nr-tile{min-height:50px}.qs-noor.nr-dense-3 .qs-frame{--qs-logo:60px}}
 
 /* -- short screens ----------------------------------------------------- */
@@ -264,7 +274,11 @@ export function NoorTheme(props: ThemeRenderProps) {
   const { model, dock } = screen;
   const accent = props.accentColor ?? GOLD;
   const bannerUrl = props.content.hero?.backgroundImageUrl ?? '';
-  const grid = actionGrid(model.actions.length);
+  const layout = props.content.layout ?? {};
+  const buttonSize = parseButtonSize(layout.size);
+  const grid = buttonGrid(model.actions.length, parseButtonColumns(layout.columns));
+  /** Where the (centred) last row starts, in half-columns. */
+  const lastRowStart = grid.lastRowCount > 0 ? model.actions.length - grid.lastRowCount : -1;
   /* One chip per app, not one per configured method: a shop with two GPay
      handles would otherwise show the same logo twice. */
   const payApps = [
@@ -419,14 +433,14 @@ export function NoorTheme(props: ThemeRenderProps) {
           {model.actions.length > 0 ? (
             <nav
               aria-label="Quick actions"
-              className={`nr-tiles ${grid.rows > 1 ? `nr-tiles-${String(Math.min(grid.rows, 3))}` : ''}`}
-              style={{
-                gridTemplateColumns: `repeat(${String(grid.cols)}, minmax(0, 1fr))`,
-                // A short row keeps the width a tile has in a row of four.
-                maxWidth: grid.fillsWidth
-                  ? undefined
-                  : `calc(${String(grid.cols)} * (100% - ${String(3 * TILE_GAP)}px) / 4 + ${String((grid.cols - 1) * TILE_GAP)}px)`,
-              }}
+              className={[
+                'nr-tiles',
+                // Auto size follows the row count; a chosen size replaces it.
+                buttonSize === 'auto' ? (grid.rows > 1 ? `nr-tiles-${String(Math.min(grid.rows, 3))}` : '') : `nr-size-${buttonSize}`,
+                grid.cols <= 2 ? 'nr-tiles-wide' : '',
+              ].join(' ')}
+              style={{ gridTemplateColumns: `repeat(${String(grid.cols * 2)}, minmax(0, 1fr))` }}
+              data-grid={`${String(grid.cols)}x${String(grid.rows)}`}
             >
               {model.actions.map((action, index) => {
                 const brand = brandFor(action);
@@ -438,7 +452,14 @@ export function NoorTheme(props: ThemeRenderProps) {
                     slug={props.slug}
                     businessName={props.businessName}
                     className="nr-tile qs-pop qs-press"
-                    style={{ '--i': index } as CSSProperties}
+                    style={
+                      {
+                        '--i': index,
+                        ...(index === lastRowStart
+                          ? { gridColumn: `${String(grid.cols - grid.lastRowCount + 1)} / span 2` }
+                          : {}),
+                      } as CSSProperties
+                    }
                   >
                     {brand ? (
                       <span className="nr-tile-brand">

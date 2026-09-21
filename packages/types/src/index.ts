@@ -7,3 +7,4 @@ export * from './plan.ts';
 export * from './staff.ts';
 export * from './sheets-apps-script.ts';
 export * from './image-shapes.ts';
+export * from './button-layout.ts';

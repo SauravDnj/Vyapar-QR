@@ -1,5 +1,6 @@
 import { ApiError } from './api-client';
 
+import type { ButtonColumns, ButtonSize } from '@vyaparqr/types';
 import type { PaymentMethodType, SocialPlatform, ThemeContent } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
@@ -159,6 +160,10 @@ export function addGalleryImage(accessToken: string, imageUrl: string) {
 
 export function removeGalleryImage(accessToken: string, id: string) {
   return onboardingFetch<void>(`/onboarding/gallery/${id}`, accessToken, 'DELETE');
+}
+
+export function saveLayoutSection(accessToken: string, data: { columns: ButtonColumns; size: ButtonSize }) {
+  return onboardingFetch<{ layout: { columns: string; size: string } }>('/onboarding/layout', accessToken, 'POST', data);
 }
 
 export function saveContactSection(accessToken: string, data: { heading?: string; bookingUrl?: string }) {

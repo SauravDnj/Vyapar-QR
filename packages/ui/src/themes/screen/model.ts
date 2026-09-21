@@ -218,3 +218,13 @@ export function readableOn(hex: string): string {
 
   return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.05 ? '#ffffff' : '#111111';
 }
+
+/**
+ * How many action buttons the page will show for these props — what the
+ * admin needs to say "Auto → 3 × 2 for your 5 buttons". None of the action
+ * tiles depend on the sections fetched after load (menu, offers, slots), so
+ * passing them as absent gives the live count.
+ */
+export function countActionButtons(props: ThemeRenderProps): number {
+  return buildScreenModel(props, { order: false, offers: false, slots: false }).actions.length;
+}

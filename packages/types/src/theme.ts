@@ -8,7 +8,19 @@ export interface ThemeField {
   placeholder?: string;
 }
 
-export type ThemeSectionKey = 'hero' | 'about' | 'menu' | 'locations' | 'payment' | 'reviews' | 'testimonials' | 'social' | 'contact' | 'footer';
+export type ThemeSectionKey =
+  | 'hero'
+  | 'about'
+  | 'menu'
+  | 'locations'
+  | 'payment'
+  | 'reviews'
+  | 'testimonials'
+  | 'social'
+  | 'contact'
+  | 'footer'
+  /** Action-button grid: columns and size, set from the admin (see button-layout.ts). */
+  | 'layout';
 
 export interface ThemeSection {
   key: ThemeSectionKey;

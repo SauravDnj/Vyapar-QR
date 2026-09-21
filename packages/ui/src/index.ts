@@ -17,6 +17,7 @@ export * from './booking-slots-widget';
 export * from './themes/registry';
 export { Icon } from './icon';
 export { NoorTheme } from './themes/noor';
+export { countActionButtons } from './themes/screen/model';
 export { PlatformLogo } from './brand-logos';
 export { BRAND_NAME, BRAND_TAGLINE, BrandLogo, BrandMark } from './brand';
 export type { IconName } from './icon';

@@ -223,6 +223,21 @@ export class OnboardingService {
     return { contact: content.contact };
   }
 
+  /** The action-button grid: columns and size, each 'auto' or a choice. */
+  async saveLayoutSection(clientId: string, dto: { columns: string; size: string }) {
+    const landingPage = await this.prisma.landingPage.findUnique({ where: { clientId } });
+    if (!landingPage) {
+      throw new NotFoundException('Finish onboarding before editing this section.');
+    }
+
+    const existingContent = (landingPage.contentJson as ThemeContent | undefined) ?? {};
+    const content: ThemeContent = { ...existingContent, layout: { columns: dto.columns, size: dto.size } };
+    await this.prisma.landingPage.update({ where: { clientId }, data: { contentJson: content } });
+
+    await this.refreshLivePage(clientId);
+    return { layout: content.layout };
+  }
+
   async saveBusinessInfo(userId: string, dto: BusinessInfoDto) {
     let client = await this.prisma.client.findUnique({ where: { userId }, include: { landingPage: true } });
 

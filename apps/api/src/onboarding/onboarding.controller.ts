@@ -9,6 +9,7 @@ import { AddGalleryImageDto } from './dto/add-gallery-image.dto';
 import { AiDraftDto } from './dto/ai-draft.dto';
 import { BusinessInfoDto } from './dto/business-info.dto';
 import { ContactSectionDto } from './dto/contact-section.dto';
+import { LayoutSectionDto } from './dto/layout-section.dto';
 import { AddLocationDto, UpdateLocationDto } from './dto/location.dto';
 import { MenuSectionDto } from './dto/menu-section.dto';
 import { SavePaymentMethodsDto } from './dto/payment-methods.dto';
@@ -76,6 +77,13 @@ export class OnboardingController {
   @UseGuards(ClientScopeGuard)
   contactSection(@CurrentClientId() clientId: string, @Body() dto: ContactSectionDto) {
     return this.onboardingService.saveContactSection(clientId, dto);
+  }
+
+  @Post('layout')
+  @Roles('client_admin')
+  @UseGuards(ClientScopeGuard)
+  layoutSection(@CurrentClientId() clientId: string, @Body() dto: LayoutSectionDto) {
+    return this.onboardingService.saveLayoutSection(clientId, dto);
   }
 
   @Post('locations')
