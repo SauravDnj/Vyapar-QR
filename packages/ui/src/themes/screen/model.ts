@@ -1,4 +1,4 @@
-import { socialHref } from '../../social-buttons';
+import { SOCIAL_LABEL, socialHref } from '../../social-buttons';
 import { orDefault } from '../../theme-content';
 
 import type { IconName } from '../../icon';
@@ -60,14 +60,22 @@ export interface ScreenModel {
   /** Sections for the dock, in priority order. */
   panels: PanelInfo[];
   socialLinks: PublicSocialLink[];
-  /** The social profiles a theme should show as their own row: every link the
-   * client added that is not already one of the quick actions, so each one
-   * appears exactly once and none of them can be buried. */
+  /** Social links the action grid couldn't show (a duplicate platform, or
+   * past the tile limit). Reachable from the Follow sheet. */
   socialRow: PublicSocialLink[];
 }
 
-/** How many quick actions fit on one row of a phone screen. */
+/** How many sections fit in the dock before the last slot becomes "More". */
 const MAX_ACTIONS = 4;
+
+/**
+ * The most action tiles the grid shows: three rows of three. Every tile —
+ * Call, WhatsApp, Directions, Review, each social profile, Enquire — is the
+ * same component in the same grid; past nine the grid would need a fourth row
+ * the single screen doesn't have room for, and Enquire (the one action that
+ * also lives in the dock) is the tile that gives way.
+ */
+const MAX_TILES = 9;
 
 function initialsOf(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -109,17 +117,36 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
   if (reviewConfig) {
     candidates.push({ kind: 'review', id: 'review', label: 'Review' });
   }
-  /* Instagram and Facebook used to queue here for one of the four grid slots.
-     On any page with a phone number, a WhatsApp number, an address and a
-     review link the queue was already full, so a client could add both, see
-     them saved, and never find them on the page again - they had been pushed
-     into the "Follow" sheet behind "More". Social profiles now have a row of
-     their own below the actions. */
+  /* Every social profile is a tile like the rest, in the same grid, at the
+     same size. They used to be a separate row of small round icons under the
+     actions — and before that they queued for one of only four slots and were
+     usually pushed behind "More" — so the buttons a customer taps most looked
+     like three different kinds of control. One per platform: a second
+     Instagram link stays reachable from the Follow sheet, not as a duplicate
+     tile. */
+  /** The one link per platform that gets a tile. */
+  const tiledLinkIds = new Set<string>(whatsapp ? [whatsapp.id] : []);
+  for (const link of links) {
+    if (link.platform === 'whatsapp') continue; // already a tile above
+    if (candidates.some((action) => action.id === link.platform)) continue;
+    tiledLinkIds.add(link.id);
+    candidates.push({
+      kind: 'link',
+      id: link.platform,
+      label: SOCIAL_LABEL[link.platform],
+      href: socialHref(link),
+      icon: link.platform,
+      external: true,
+    });
+  }
   if (slug) {
     candidates.push({ kind: 'panel', id: 'enquire', label: 'Enquire', panel: 'enquire', icon: 'message' });
   }
-  const actions = candidates.slice(0, MAX_ACTIONS);
+  const actions = candidates.slice(0, MAX_TILES);
   const inActions = new Set(actions.map((action) => action.id));
+  /* Links the grid couldn't show: a second profile on the same platform, or
+     one cut by the nine-tile limit. They go to the Follow sheet. */
+  const socialRow = links.filter((link) => !(tiledLinkIds.has(link.id) && inActions.has(link.platform)));
 
   const panels: PanelInfo[] = [];
   const add = (show: unknown, info: PanelInfo) => {
@@ -135,6 +162,7 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
   add(locations.length > 1, { key: 'locations', label: 'Branches', icon: 'map-pin' });
   add(props.loyaltyActive && slug, { key: 'loyalty', label: 'Rewards', icon: 'gift' });
   add(slug && !inActions.has('enquire'), { key: 'enquire', label: 'Enquire', icon: 'message' });
+  add(socialRow.length > 0, { key: 'follow', label: 'Follow', icon: 'heart' });
 
   const parsedRating = reviewConfig?.avgRatingCached ? Number(reviewConfig.avgRatingCached) : NaN;
 
@@ -151,7 +179,7 @@ export function buildScreenModel(props: ThemeRenderProps, live: LiveSections): S
     actions,
     panels,
     socialLinks: links,
-    socialRow: links.filter((link) => !inActions.has(link.platform)),
+    socialRow,
   };
 }
 

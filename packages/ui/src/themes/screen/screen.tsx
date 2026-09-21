@@ -30,7 +30,7 @@ import type { SocialPlatform, ThemeRenderProps } from '@vyaparqr/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 
-const SOCIAL_ICONS = new Set<string>(['whatsapp', 'instagram', 'facebook']);
+const SOCIAL_ICONS = new Set<string>(['whatsapp', 'instagram', 'facebook', 'linkedin', 'x', 'youtube']);
 
 export function trackClick(slug: string | undefined, label: string) {
   if (!slug) return;

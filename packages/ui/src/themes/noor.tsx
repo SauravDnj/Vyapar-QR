@@ -2,13 +2,13 @@
 
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
-import { SOCIAL_LABEL, socialHref } from '../social-buttons';
 
 import { readableOn } from './screen/model';
 import { Logo, Stars, ThemeAssets } from './screen/parts';
-import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, trackClick, useScreen } from './screen/screen';
+import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, useScreen } from './screen/screen';
 
 import type { BrandName } from '../brand-logos';
+import type { QuickAction } from './screen/model';
 import type { ThemeRenderProps } from '@vyaparqr/types';
 import type { CSSProperties } from 'react';
 
@@ -21,9 +21,24 @@ const GOLD = '#a16207';
 const FONTS =
   'https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap';
 
-/** Above this many quick actions the grid stretches to fill the width; below
- * it, fixed-width tiles are centred instead. */
-const ACTION_COLUMNS = 4;
+/**
+ * The action grid's shape, from how many buttons there are.
+ *
+ * Every button — Call, WhatsApp, Directions, Review, each social profile,
+ * Enquire — is the same tile in the same grid, so the grid is what adapts:
+ * a single row up to four, then 3×2, 4×2 and 3×3, the shapes that come out
+ * even. A row of one to three is drawn at the width a tile has in a row of
+ * four, so a short grid is a centred row of normal tiles, not three giants.
+ * `rows` drives how compact the tiles get; the screen doesn't scroll, so a
+ * second and third row are paid for in tile height, not page length.
+ */
+export function actionGrid(count: number): { cols: number; rows: number; fillsWidth: boolean } {
+  const cols = count <= 4 ? Math.max(count, 1) : count <= 6 ? 3 : count <= 8 ? 4 : 3;
+  return { cols, rows: Math.ceil(count / cols), fillsWidth: count >= 4 };
+}
+
+/** Grid gap in px; the width sum below has to use the same number. */
+const TILE_GAP = 8;
 
 /**
  * Noor — a jewellery counter in daylight.
@@ -144,7 +159,7 @@ const CSS = `
 .nr-cta-icon{margin-left:auto;display:grid;place-items:center;width:46px;height:46px;border-radius:13px;background:#fff;color:var(--nr-ink);box-shadow:0 2px 6px rgb(60 42 12/.28)}
 
 /* -- quick actions ----------------------------------------------------- */
-.nr-tiles{display:grid;justify-content:center;gap:9px}
+.nr-tiles{display:grid;gap:8px;margin-inline:auto;width:100%}
 .nr-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:78px;padding:8px 5px;border-radius:15px;color:var(--t-text);font-size:12px;font-weight:500;line-height:1.2;text-align:center;text-wrap:balance;overflow-wrap:break-word;hyphens:auto;background:var(--nr-card);box-shadow:0 0 0 1px var(--nr-line),0 6px 14px -12px rgb(28 25 23/.4);transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s ease}
 .nr-tile:active{transform:translateY(1px) scale(.97);box-shadow:0 0 0 1px var(--nr-tint-edge)}
 /* A brand mark is the logo itself, at full colour, with nothing tinted behind
@@ -153,15 +168,19 @@ const CSS = `
 .nr-tile-brand{display:grid;place-items:center;width:34px;height:34px}
 .nr-tile-brand svg{width:100%;height:100%;border-radius:8px}
 .nr-tile-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:999px;color:var(--nr-ink);background:var(--nr-tint);box-shadow:inset 0 0 0 1px var(--nr-tint-edge)}
-
-/* -- social row -------------------------------------------------------- */
-/* Every profile the client added, each as its own mark, always on the page.
-   Wraps rather than scrolls: six platforms is the whole set, and a row that
-   scrolls hides the last one. */
-.nr-socials{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px}
-.nr-social{display:grid;place-items:center;width:44px;height:44px;border-radius:999px;background:var(--nr-card);box-shadow:0 0 0 1px var(--nr-line),0 4px 10px -8px rgb(28 25 23/.5);transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease}
-.nr-social:active{transform:scale(.93)}
-.nr-social svg{width:26px;height:26px;border-radius:7px}
+/* Two and three rows: every tile gets smaller together, never some of them.
+   Brand logo and icon disc stay one size as each other, so a WhatsApp tile
+   and a Call tile are still the same button with different faces. */
+.nr-tiles-2 .nr-tile{min-height:66px;gap:5px;padding:7px 4px;font-size:11.5px}
+.nr-tiles-2 .nr-tile-brand,.nr-tiles-2 .nr-tile-icon{width:30px;height:30px}
+.nr-tiles-3{gap:7px}
+.nr-tiles-3 .nr-tile{min-height:56px;gap:4px;padding:6px 3px;font-size:11px;border-radius:13px}
+.nr-tiles-3 .nr-tile-brand,.nr-tiles-3 .nr-tile-icon{width:26px;height:26px}
+.nr-tiles-3 .nr-tile-brand svg{border-radius:7px}
+/* More rows means less room above: the logo gives way before the buttons do. */
+.qs-noor.nr-dense-2 .qs-frame{--qs-logo:88px}
+.qs-noor.nr-dense-3 .qs-frame{--qs-logo:72px}
+.nr-dense-3 .nr-id{gap:9px}
 
 /* -- sections ---------------------------------------------------------- */
 .nr-dock{display:flex;align-items:stretch;justify-content:center;gap:2px;padding-top:9px;border-top:1px solid var(--nr-line)}
@@ -171,7 +190,8 @@ const CSS = `
 .nr-brand{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#a8a29e;text-align:center}
 
 /* -- narrow screens ---------------------------------------------------- */
-@container qs (max-width:390px){.nr-tile{font-size:11px;padding-inline:3px}.nr-tiles{gap:7px}}
+@container qs (max-width:390px){.nr-tile{font-size:11px;padding-inline:3px}.nr-tiles{gap:7px}.nr-tiles-3 .nr-tile{font-size:10.5px}}
+@container qs (max-height:720px){.nr-tiles-2 .nr-tile{min-height:60px}.nr-tiles-3 .nr-tile{min-height:50px}.qs-noor.nr-dense-3 .qs-frame{--qs-logo:60px}}
 
 /* -- short screens ----------------------------------------------------- */
 @container qs (max-height:700px){.nr-cta{min-height:58px}}
@@ -179,19 +199,21 @@ const CSS = `
 @container qs (max-height:620px){.qs-noor .qs-frame{--qs-logo:76px}.nr-id{gap:8px}}
 `;
 
-/** Which quick actions are a brand, and therefore get their real logo. */
-const ACTION_BRAND: Partial<Record<string, BrandName>> = {
-  whatsapp: 'whatsapp',
-  instagram: 'instagram',
-  facebook: 'facebook',
-  review: 'google',
-};
+/** Tiles that open another company's app get that company's logo. */
+const BRAND_ICONS = new Set<string>(['whatsapp', 'instagram', 'facebook', 'linkedin', 'x', 'youtube']);
+
+function brandFor(action: QuickAction): BrandName | undefined {
+  if (action.kind === 'review') return 'google';
+  if (action.kind === 'link' && BRAND_ICONS.has(action.icon)) return action.icon as BrandName;
+  return undefined;
+}
 
 export function NoorTheme(props: ThemeRenderProps) {
   const screen = useScreen(props);
   const { model, dock } = screen;
   const accent = props.accentColor ?? GOLD;
   const bannerUrl = props.content.hero?.backgroundImageUrl ?? '';
+  const grid = actionGrid(model.actions.length);
   /* One chip per app, not one per configured method: a shop with two GPay
      handles would otherwise show the same logo twice. */
   const payApps = [
@@ -216,7 +238,10 @@ export function NoorTheme(props: ThemeRenderProps) {
   } as CSSProperties;
 
   return (
-    <div className={`qs-root qs-noor ${bannerUrl ? 'nr-has-banner' : ''}`} style={rootStyle}>
+    <div
+      className={`qs-root qs-noor ${bannerUrl ? 'nr-has-banner' : ''} ${grid.rows > 1 ? `nr-dense-${String(Math.min(grid.rows, 3))}` : ''}`}
+      style={rootStyle}
+    >
       <ThemeAssets id="noor" css={CSS} fontsHref={FONTS} />
 
       <div className="nr-art" aria-hidden="true">
@@ -326,16 +351,17 @@ export function NoorTheme(props: ThemeRenderProps) {
           {model.actions.length > 0 ? (
             <nav
               aria-label="Quick actions"
-              className="nr-tiles"
+              className={`nr-tiles ${grid.rows > 1 ? `nr-tiles-${String(Math.min(grid.rows, 3))}` : ''}`}
               style={{
-                gridTemplateColumns:
-                  model.actions.length >= ACTION_COLUMNS
-                    ? `repeat(${String(ACTION_COLUMNS)}, minmax(0, 1fr))`
-                    : `repeat(${String(model.actions.length)}, minmax(0, 84px))`,
+                gridTemplateColumns: `repeat(${String(grid.cols)}, minmax(0, 1fr))`,
+                // A short row keeps the width a tile has in a row of four.
+                maxWidth: grid.fillsWidth
+                  ? undefined
+                  : `calc(${String(grid.cols)} * (100% - ${String(3 * TILE_GAP)}px) / 4 + ${String((grid.cols - 1) * TILE_GAP)}px)`,
               }}
             >
               {model.actions.map((action, index) => {
-                const brand = ACTION_BRAND[action.id];
+                const brand = brandFor(action);
                 return (
                   <ScreenAction
                     key={action.id}
@@ -359,26 +385,6 @@ export function NoorTheme(props: ThemeRenderProps) {
                   </ScreenAction>
                 );
               })}
-            </nav>
-          ) : null}
-
-          {model.socialRow.length > 0 ? (
-            <nav aria-label="Social profiles" className="nr-socials qs-rise" style={{ '--i': 7 } as CSSProperties}>
-              {model.socialRow.map((link) => (
-                <a
-                  key={link.id}
-                  href={socialHref(link)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={SOCIAL_LABEL[link.platform]}
-                  className="nr-social qs-press"
-                  onClick={() => {
-                    trackClick(props.slug, link.platform);
-                  }}
-                >
-                  <PlatformLogo brand={link.platform} />
-                </a>
-              ))}
             </nav>
           ) : null}
 
