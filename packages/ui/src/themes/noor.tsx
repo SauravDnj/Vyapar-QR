@@ -3,9 +3,9 @@
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
 
-import { readableOn } from './screen/model';
+import { directionsUrl, readableOn } from './screen/model';
 import { Logo, Stars, ThemeAssets } from './screen/parts';
-import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, useScreen } from './screen/screen';
+import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, trackClick, useScreen } from './screen/screen';
 
 import type { BrandName } from '../brand-logos';
 import type { QuickAction } from './screen/model';
@@ -131,7 +131,20 @@ const CSS = `
 .nr-eyebrow i{width:5px;height:5px;rotate:45deg;background:var(--t-accent)}
 .nr-name{font-family:var(--qs-display);font-weight:600;font-size:clamp(30px,11cqw,44px);line-height:1.1;letter-spacing:.005em;text-wrap:balance;color:var(--t-text)}
 .nr-tagline{font-size:14px;line-height:1.55;color:var(--t-muted);text-wrap:balance}
-.nr-where{display:flex;align-items:center;justify-content:center;gap:6px;max-width:100%;font-size:13px;line-height:1.4;color:var(--t-muted)}
+/* The address wraps to two lines instead of ending in an ellipsis. It was a
+   one-line truncate, so a real address — "161, Ram Nagar, Gate No-6, Near
+   Jivan Vikas School, Udhana, Surat" — lost its area and city, the part a
+   customer actually needs. The measure is capped so the two lines come out
+   balanced rather than one long line and a stray word, and the pin sits
+   against the first line. It opens the address in Maps. */
+.nr-where{display:block;max-width:min(100%,36ch);padding:2px 4px;border-radius:8px;font-size:13px;line-height:1.45;color:var(--t-muted);text-align:center;text-decoration:none;transition:color .2s ease}
+.nr-where:active{color:var(--t-text)}
+.nr-where-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;text-wrap:balance}
+/* The pin is inline, as the first glyph of the text, so it sits against the
+   first word on whichever line that falls. As a separate flex item it stayed
+   at the edge of the text's box while the lines centred inside it, leaving it
+   floating a word's width away. */
+.nr-where-pin{display:inline-block;width:13px;height:13px;margin-right:5px;vertical-align:-2px;color:var(--nr-ink)}
 .nr-rating{display:inline-flex;align-items:center;gap:7px;padding:3px 11px 3px 9px;border-radius:999px;background:var(--nr-tint);box-shadow:inset 0 0 0 1px var(--nr-tint-edge);color:var(--nr-ink);font-size:13px}
 
 /* -- the act ----------------------------------------------------------- */
@@ -191,7 +204,7 @@ const CSS = `
 
 /* -- narrow screens ---------------------------------------------------- */
 @container qs (max-width:390px){.nr-tile{font-size:11px;padding-inline:3px}.nr-tiles{gap:7px}.nr-tiles-3 .nr-tile{font-size:10.5px}}
-@container qs (max-height:720px){.nr-tiles-2 .nr-tile{min-height:60px}.nr-tiles-3 .nr-tile{min-height:50px}.qs-noor.nr-dense-3 .qs-frame{--qs-logo:60px}}
+@container qs (max-height:720px){.nr-dense-3 .nr-where-text{-webkit-line-clamp:1}.nr-tiles-2 .nr-tile{min-height:60px}.nr-tiles-3 .nr-tile{min-height:50px}.qs-noor.nr-dense-3 .qs-frame{--qs-logo:60px}}
 
 /* -- short screens ----------------------------------------------------- */
 @container qs (max-height:700px){.nr-cta{min-height:58px}}
@@ -303,10 +316,22 @@ export function NoorTheme(props: ThemeRenderProps) {
           ) : null}
 
           {model.address ? (
-            <p className="nr-where qs-rise qs-hide-short" style={{ '--i': 4 } as CSSProperties}>
-              <Icon name="map-pin" className="size-3.5 shrink-0" style={{ color: 'var(--nr-ink)' }} />
-              <span className="truncate">{model.address}</span>
-            </p>
+            <a
+              href={directionsUrl(model.address)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={model.address}
+              className="nr-where qs-rise qs-hide-short"
+              style={{ '--i': 4 } as CSSProperties}
+              onClick={() => {
+                trackClick(props.slug, 'address');
+              }}
+            >
+              <span className="nr-where-text">
+                <Icon name="map-pin" className="nr-where-pin" />
+                {model.address}
+              </span>
+            </a>
           ) : null}
         </section>
 
