@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { leadPayload, paymentPayload } from '../webhooks/payloads';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
@@ -104,6 +105,10 @@ export class PaymentsService {
           },
         });
         leadId = lead.id;
+        // A lead is a lead wherever it came from. Only the contact form used
+        // to announce one, so every customer who paid and left a number was
+        // missing from any CRM sheet connected to this business.
+        await this.webhooksService.dispatch(client.id, 'lead.created', leadPayload(lead));
       }
     }
 
@@ -126,13 +131,7 @@ export class PaymentsService {
       },
     });
 
-    await this.webhooksService.dispatch(client.id, 'payment.claimed', {
-      id: claim.id,
-      amount: dto.amount ?? null,
-      method,
-      customerPhone: phone || null,
-      createdAt: claim.createdAt.toISOString(),
-    });
+    await this.webhooksService.dispatch(client.id, 'payment.claimed', paymentPayload(claim));
 
     const whatsappNumber = client.googleReviewConfig?.feedbackWhatsappNumber ?? null;
     if (!whatsappNumber) {
@@ -160,7 +159,8 @@ export class PaymentsService {
     if (!claim) {
       return { ok: false };
     }
-    await this.prisma.paymentClaim.update({ where: { id: claim.id }, data: { status: 'cancelled' } });
+    const cancelled = await this.prisma.paymentClaim.update({ where: { id: claim.id }, data: { status: 'cancelled' } });
+    await this.webhooksService.dispatch(client.id, 'payment.updated', paymentPayload(cancelled));
     return { ok: true };
   }
 
@@ -185,16 +185,18 @@ export class PaymentsService {
     let leadId = claim.leadId;
     if (phone && !leadId) {
       const existing = await this.prisma.lead.findFirst({ where: { clientId: client.id, phone } });
-      leadId =
-        existing?.id ??
-        (
-          await this.prisma.lead.create({
-            data: { clientId: client.id, name: name || 'Paying customer', phone, source: 'payment_claim' },
-          })
-        ).id;
+      if (existing) {
+        leadId = existing.id;
+      } else {
+        const lead = await this.prisma.lead.create({
+          data: { clientId: client.id, name: name || 'Paying customer', phone, source: 'payment_claim' },
+        });
+        leadId = lead.id;
+        await this.webhooksService.dispatch(client.id, 'lead.created', leadPayload(lead));
+      }
     }
 
-    await this.prisma.paymentClaim.update({
+    const updated = await this.prisma.paymentClaim.update({
       where: { id: claim.id },
       data: {
         customerName: name || claim.customerName,
@@ -203,6 +205,7 @@ export class PaymentsService {
         leadId,
       },
     });
+    await this.webhooksService.dispatch(client.id, 'payment.updated', paymentPayload(updated));
     return { ok: true };
   }
 
@@ -218,10 +221,14 @@ export class PaymentsService {
     if (!claim) {
       throw new NotFoundException('Payment not found');
     }
-    return this.prisma.paymentClaim.update({
+    const updated = await this.prisma.paymentClaim.update({
       where: { id: claim.id },
       data: { status, confirmedAt: status === 'confirmed' ? new Date() : null },
     });
+    // The owner checking their UPI app and confirming the money is the most
+    // useful fact a payments sheet can hold; it never used to leave the app.
+    await this.webhooksService.dispatch(clientId, 'payment.updated', paymentPayload(updated));
+    return updated;
   }
 
   /** Totals for the dashboard. Cancelled claims are excluded everywhere —

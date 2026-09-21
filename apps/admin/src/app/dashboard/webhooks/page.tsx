@@ -2,18 +2,35 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { formatWhen, GoogleSheetsConnect } from '../../../components/google-sheets-connect';
 import { ProtectedRoute } from '../../../components/protected-route';
 import { useAuth } from '../../../context/auth-context';
 import {
   ApiError,
   createWebhook,
   deleteWebhook,
+  isAppsScriptUrl,
   listWebhooks,
   type Webhook,
   type WebhookEventType,
 } from '../../../lib/webhooks-api';
 
-const EVENT_TYPES: WebhookEventType[] = ['lead.created', 'review.synced', 'subscription.updated'];
+/** Every event the API sends. This used to list three of the five that
+ * existed, so payments and orders could never be subscribed to. */
+const EVENT_TYPES: { type: WebhookEventType; label: string }[] = [
+  { type: 'lead.created', label: 'New lead' },
+  { type: 'lead.updated', label: 'Lead updated (status, notes, tags)' },
+  { type: 'payment.claimed', label: 'Customer marked a payment as paid' },
+  { type: 'payment.updated', label: 'Payment confirmed, cancelled or edited' },
+  { type: 'feedback.received', label: 'Feedback or a Google review' },
+  { type: 'order.created', label: 'New order' },
+  { type: 'review.synced', label: 'Reviews synced' },
+  { type: 'subscription.updated', label: 'Subscription changed' },
+];
+
+/** The Google Sheets connection: one still waiting for its URL, or one
+ * pointing at an Apps Script web app. */
+const isSheets = (webhook: Webhook) => webhook.url === '' || isAppsScriptUrl(webhook.url);
 
 function WebhooksContent() {
   const { accessToken } = useAuth();
@@ -74,14 +91,24 @@ function WebhooksContent() {
     }
   }
 
+  const sheets = webhooks.find(isSheets) ?? null;
+  const custom = webhooks.filter((webhook) => !isSheets(webhook));
+
   return (
     <main className="flex flex-1 flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Webhooks</h1>
-      <p className="max-w-lg text-sm text-muted">
-        Send a signed POST to your own endpoint when a new lead comes in, your reviews sync, or your subscription
-        changes — connect Zapier, Make, or your own system.
-      </p>
+      <h1 className="text-2xl font-semibold">Integrations</h1>
       {message && <p className="text-sm text-danger">{message}</p>}
+
+      {accessToken && !isLoading ? (
+        <GoogleSheetsConnect accessToken={accessToken} connection={sheets} onChange={refresh} />
+      ) : null}
+
+      <div className="flex max-w-2xl flex-col gap-1 pt-2">
+        <h2 className="text-lg font-semibold">Custom webhooks</h2>
+        <p className="text-sm text-muted">
+          Send a signed POST to your own endpoint on any of these events — for Zapier, Make, or your own system.
+        </p>
+      </div>
 
       <form onSubmit={(e) => void handleCreate(e)} className="flex max-w-md flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm">
@@ -97,14 +124,10 @@ function WebhooksContent() {
         </label>
         <div className="flex flex-col gap-1 text-sm">
           Events
-          {EVENT_TYPES.map((eventType) => (
-            <label key={eventType} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={selectedEvents.includes(eventType)}
-                onChange={() => toggleEvent(eventType)}
-              />
-              {eventType}
+          {EVENT_TYPES.map(({ type, label }) => (
+            <label key={type} className="flex items-center gap-2">
+              <input type="checkbox" checked={selectedEvents.includes(type)} onChange={() => toggleEvent(type)} />
+              {label} <code className="text-xs text-muted">{type}</code>
             </label>
           ))}
         </div>
@@ -119,11 +142,11 @@ function WebhooksContent() {
 
       {isLoading ? (
         <p>Loading…</p>
-      ) : webhooks.length === 0 ? (
-        <p className="text-muted">No webhooks yet.</p>
+      ) : custom.length === 0 ? (
+        <p className="text-muted">No custom webhooks yet.</p>
       ) : (
         <div className="flex max-w-2xl flex-col gap-3">
-          {webhooks.map((webhook) => (
+          {custom.map((webhook) => (
             <div key={webhook.id} className="rounded-md border border-border-color p-3 text-sm">
               <div className="flex items-center justify-between">
                 <p className="font-medium break-all">{webhook.url}</p>
@@ -137,6 +160,12 @@ function WebhooksContent() {
                 using this secret:
               </p>
               <code className="mt-1 block break-all text-xs">{webhook.secret}</code>
+              {webhook.lastDeliveredAt ? (
+                <p className={`mt-2 text-xs ${webhook.lastError ? 'text-danger' : 'text-success'}`}>
+                  Last delivery <time suppressHydrationWarning>{formatWhen(webhook.lastDeliveredAt)}</time>:{' '}
+                  {webhook.lastError ?? `OK${webhook.lastStatus ? ` (HTTP ${String(webhook.lastStatus)})` : ''}`}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>

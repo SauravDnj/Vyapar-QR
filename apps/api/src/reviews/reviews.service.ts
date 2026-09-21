@@ -6,6 +6,7 @@ import { GroqService } from '../ai/groq.service';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from '../sms/sms.service';
+import { feedbackPayload } from '../webhooks/payloads';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
@@ -506,7 +507,9 @@ export class ReviewsService {
 
     if (!routedToGoogle) {
       await this.alertOwnerOfLowRating(client.businessName, client.user.email, dto.rating, feedbackText, client.googleReviewConfig?.feedbackWhatsappNumber ?? null);
-      await this.logToSheet(client.googleReviewConfig, { rating: dto.rating, text: feedbackText, type: 'Private feedback', customerNotes: null });
+      const row = { rating: dto.rating, text: feedbackText, type: 'Private feedback', customerNotes: null };
+      await this.logToSheet(client.googleReviewConfig, row);
+      await this.webhooksService.dispatch(client.id, 'feedback.received', feedbackPayload(response, row));
     }
 
     return {
@@ -548,12 +551,17 @@ export class ReviewsService {
       data: { reviewText, customerNotes, aiDrafted, handedOffAt: new Date() },
     });
 
-    await this.logToSheet(client.googleReviewConfig, {
+    const row = {
       rating: response.ratingGiven,
       text: reviewText,
       type: aiDrafted ? 'Google review (AI-written)' : 'Google review',
       customerNotes,
-    });
+    };
+    await this.logToSheet(client.googleReviewConfig, row);
+    /* The service-account path above needs a Google Cloud project and a key
+       set on this deployment. The webhook needs neither — which is the only
+       reason a business without that setup can get its reviews in a sheet. */
+    await this.webhooksService.dispatch(client.id, 'feedback.received', feedbackPayload(response, row));
     return { ok: true };
   }
 

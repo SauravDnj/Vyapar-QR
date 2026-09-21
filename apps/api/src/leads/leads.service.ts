@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitorsService } from '../visitors/visitors.service';
+import { leadPayload } from '../webhooks/payloads';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { WhatsappAiService } from '../whatsapp/whatsapp-ai.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
@@ -77,7 +78,7 @@ export class LeadsService {
       throw new NotFoundException('Lead not found');
     }
 
-    return this.prisma.lead.update({
+    const updated = await this.prisma.lead.update({
       where: { id: leadId },
       data: {
         ...(dto.status ? { status: dto.status } : {}),
@@ -85,6 +86,10 @@ export class LeadsService {
         ...(dto.tags !== undefined ? { tags: dto.tags } : {}),
       },
     });
+    // Moving a lead through the pipeline is exactly what a CRM sheet exists
+    // to show, and it used to send nothing at all.
+    await this.webhooksService.dispatch(clientId, 'lead.updated', leadPayload(updated));
+    return updated;
   }
 
   async findOneOrThrow(clientId: string, leadId: string): Promise<Lead> {
@@ -148,13 +153,7 @@ export class LeadsService {
     // CRM can show how many times they scanned before getting in touch.
     await this.visitorsService.attachLead(client.id, visitorKey, lead.id);
 
-    await this.webhooksService.dispatch(client.id, 'lead.created', {
-      id: lead.id,
-      name: lead.name,
-      phone: lead.phone,
-      source: lead.source,
-      createdAt: lead.createdAt.toISOString(),
-    });
+    await this.webhooksService.dispatch(client.id, 'lead.created', leadPayload(lead));
 
     const adminAppUrl = this.configService.get<string>('ADMIN_APP_URL') ?? 'http://localhost:3001';
     await this.emailService.sendNewLead(client.user.email, client.businessName, lead.name, lead.phone, notes, `${adminAppUrl}/dashboard/leads`);

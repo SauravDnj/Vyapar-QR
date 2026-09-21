@@ -15,15 +15,6 @@ export interface NotificationItem {
   link: string;
 }
 
-/** `metaJson` values are unconstrained JSON; only primitives are meaningful
- * here, and anything else would stringify to '[object Object]'. */
-function asText(value: unknown): string | null {
-  if (value == null) return null;
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return null;
-}
-
 
 /** A derived, read-only activity feed — deliberately not a stateful
  * "notifications" table with read/unread tracking (that's a bigger feature

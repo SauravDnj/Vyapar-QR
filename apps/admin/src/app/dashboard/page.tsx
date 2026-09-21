@@ -269,7 +269,7 @@ function DashboardContent() {
               Team
             </a>
             <a href="/dashboard/webhooks" className="w-fit rounded-md border border-border-color px-3 py-1 text-sm">
-              Webhooks
+              Google Sheets &amp; webhooks
             </a>
           </div>
         </div>

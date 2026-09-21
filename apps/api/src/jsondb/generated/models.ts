@@ -496,6 +496,9 @@ export interface OutboundWebhook {
   eventTypes: Prisma.JsonValue;
   isActive: boolean;
   createdAt: Date;
+  lastDeliveredAt: Date | null;
+  lastStatus: number | null;
+  lastError: string | null;
 }
 
 export interface WhatsappMessage {

@@ -26,6 +26,10 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Leads (CRM)', href: '/dashboard/leads' },
       { label: 'Payments', href: '/dashboard/payments' },
+      // Beside the data it exports. It used to be reachable only from a
+      // "Webhooks" button on the dashboard home, which is not where anyone
+      // looking for Google Sheets would look.
+      { label: 'Google Sheets', href: '/dashboard/webhooks' },
       { label: 'Scan Activity', href: '/dashboard/visitors' },
       { label: 'Orders', href: '/dashboard/orders' },
       { label: 'WhatsApp', href: '/dashboard/whatsapp' },

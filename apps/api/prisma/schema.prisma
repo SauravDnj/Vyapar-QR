@@ -869,6 +869,15 @@ model OutboundWebhook {
   eventTypes Json     @map("event_types")
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
+  /**
+   * The outcome of the most recent delivery, so "why isn't my sheet
+   * updating?" has an answer on the page instead of in the server logs.
+   * Delivery was already best-effort and silent; without these a broken
+   * endpoint looked exactly like a working one with nothing to send.
+   */
+  lastDeliveredAt DateTime? @map("last_delivered_at")
+  lastStatus      Int?      @map("last_status")
+  lastError       String?   @map("last_error") @db.Text
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 

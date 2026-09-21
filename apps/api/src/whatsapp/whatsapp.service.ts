@@ -2,6 +2,8 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException } fr
 
 import { PrismaService } from '../prisma/prisma.service';
 import { buildGoogleReviewUrl } from '../reviews/google-review-link';
+import { leadPayload } from '../webhooks/payloads';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 import { WhatsappAiService } from './whatsapp-ai.service';
 import { WHATSAPP_CONFIG, type WhatsappConfig } from './whatsapp-config.provider';
@@ -45,6 +47,7 @@ export class WhatsappService {
     @Inject(WHATSAPP_CONFIG) private readonly config: WhatsappConfig | null,
     private readonly prisma: PrismaService,
     private readonly whatsappAiService: WhatsappAiService,
+    private readonly webhooksService: WebhooksService,
   ) {}
 
   get isConfigured(): boolean {
@@ -237,7 +240,7 @@ export class WhatsappService {
       const existing = await this.prisma.lead.findFirst({ where: { clientId, phone } });
       if (existing) return;
 
-      await this.prisma.lead.create({
+      const lead = await this.prisma.lead.create({
         data: {
           clientId,
           name: `WhatsApp ${phone.slice(-4)}`,
@@ -246,6 +249,7 @@ export class WhatsappService {
           notes: firstMessage.slice(0, 500),
         },
       });
+      await this.webhooksService.dispatch(clientId, 'lead.created', leadPayload(lead));
     } catch (error) {
       // A CRM write must never stop the customer's message being handled.
       this.logger.warn(`Couldn't create a lead for ${phone}: ${String(error)}`);
