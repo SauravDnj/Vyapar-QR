@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+import { ClientLoginPanel, CreateClientForm } from '../../../components/client-account-forms';
 import { ClientPlanPanel } from '../../../components/client-plan-panel';
 import { ProtectedRoute } from '../../../components/protected-route';
 import { Badge, type BadgeTone } from '../../../components/ui/badge';
@@ -141,6 +142,16 @@ function ClientDrawer({
       </div>
 
       {accessToken ? (
+        <ClientLoginPanel
+          key={`login-${displayClient.id}`}
+          accessToken={accessToken}
+          clientId={displayClient.id}
+          businessName={displayClient.businessName}
+          email={displayClient.user.email}
+        />
+      ) : null}
+
+      {accessToken ? (
         <ClientPlanPanel key={displayClient.id} accessToken={accessToken} clientId={displayClient.id} onChanged={onPlanChanged} />
       ) : null}
     </Drawer>
@@ -156,6 +167,7 @@ function ClientsContent() {
   const [selected, setSelected] = useState<AdminClient | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!accessToken) return;
@@ -204,7 +216,17 @@ function ClientsContent() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Clients</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">Clients</h1>
+        <button
+          onClick={() => {
+            setIsCreating(true);
+          }}
+          className="min-h-10 cursor-pointer rounded-md bg-accent px-4 text-sm font-medium text-accent-foreground"
+        >
+          + Create client
+        </button>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex overflow-hidden rounded-md border border-border-color font-mono text-sm">
@@ -276,6 +298,23 @@ function ClientsContent() {
         onImpersonate={handleImpersonate}
         onPlanChanged={refresh}
       />
+
+      <Drawer
+        isOpen={isCreating}
+        onClose={() => {
+          setIsCreating(false);
+        }}
+      >
+        {accessToken ? (
+          <CreateClientForm
+            accessToken={accessToken}
+            onCreated={refresh}
+            onClose={() => {
+              setIsCreating(false);
+            }}
+          />
+        ) : null}
+      </Drawer>
     </>
   );
 }

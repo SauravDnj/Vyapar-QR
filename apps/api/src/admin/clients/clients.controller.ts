@@ -1,11 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 
+import { ClientAccountsService } from './client-accounts.service';
 import { ClientPlansService } from './client-plans.service';
 import { ClientsService } from './clients.service';
 import { AssignPlanDto } from './dto/assign-plan.dto';
+import { CreateClientAccountDto, SetClientPasswordDto } from './dto/client-account.dto';
 import { ListClientsQueryDto } from './dto/list-clients.dto';
 
 import type { JwtPayload } from '../../auth/types/jwt-payload.interface';
@@ -16,11 +18,24 @@ export class ClientsController {
   constructor(
     private readonly clientsService: ClientsService,
     private readonly clientPlans: ClientPlansService,
+    private readonly clientAccounts: ClientAccountsService,
   ) {}
 
   @Get()
   list(@Query() query: ListClientsQueryDto) {
     return this.clientsService.list(query);
+  }
+
+  /** Open an account for a business: its login, and the business itself. */
+  @Post()
+  create(@Body() dto: CreateClientAccountDto, @CurrentUser() user: JwtPayload) {
+    return this.clientAccounts.create(dto, user.sub);
+  }
+
+  /** Give the client's owner a new password. */
+  @Put(':id/password')
+  setPassword(@Param('id') id: string, @Body() dto: SetClientPasswordDto, @CurrentUser() user: JwtPayload) {
+    return this.clientAccounts.setPassword(id, dto.password, user.sub);
   }
 
   @Patch(':id/approve')

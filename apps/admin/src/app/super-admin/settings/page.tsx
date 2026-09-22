@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 
+import { OwnPasswordForm } from '../../../components/own-password-form';
 import { ProtectedRoute } from '../../../components/protected-route';
 import { useAuth } from '../../../context/auth-context';
 import { getSettings, updateSettings } from '../../../lib/admin-api';
 
 function SettingsContent() {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const [supportEmail, setSupportEmail] = useState('');
   const [trialDays, setTrialDays] = useState('7');
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +83,8 @@ function SettingsContent() {
           Save
         </button>
       </form>
+
+      {accessToken ? <OwnPasswordForm accessToken={accessToken} email={user?.email} /> : null}
     </>
   );
 }

@@ -45,6 +45,23 @@ export function transitionClient(accessToken: string, id: string, action: Client
   return apiFetch<AdminClient>(`/admin/clients/${id}/${action}`, { method: 'PATCH', accessToken });
 }
 
+export interface NewClientAccount {
+  email: string;
+  password: string;
+  businessName: string;
+  planId?: string;
+}
+
+/** Opens a client account — login and business — already approved. */
+export function createClientAccount(accessToken: string, account: NewClientAccount) {
+  return apiFetch<Omit<AdminClient, 'currentPlan'>>('/admin/clients', { method: 'POST', body: account, accessToken });
+}
+
+/** Gives the client's owner a new password and signs out their old sessions. */
+export function setClientPassword(accessToken: string, clientId: string, password: string) {
+  return apiFetch<{ email: string }>(`/admin/clients/${clientId}/password`, { method: 'PUT', body: { password }, accessToken });
+}
+
 export function impersonateClient(accessToken: string, id: string) {
   return apiFetch<{ accessToken: string; expiresIn: string }>(`/admin/clients/${id}/impersonate`, {
     method: 'POST',

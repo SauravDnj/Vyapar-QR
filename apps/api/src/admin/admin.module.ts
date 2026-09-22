@@ -9,6 +9,7 @@ import { AgenciesService } from './agencies/agencies.service';
 import { AdminAnalyticsController } from './analytics/admin-analytics.controller';
 import { AdminAnalyticsService } from './analytics/admin-analytics.service';
 import { AuditLogController } from './audit-log/audit-log.controller';
+import { ClientAccountsService } from './clients/client-accounts.service';
 import { ClientPlansService } from './clients/client-plans.service';
 import { ClientsController } from './clients/clients.controller';
 import { ClientsService } from './clients/clients.service';
@@ -35,6 +36,6 @@ import { AdminThemesController } from './themes/admin-themes.controller';
     AdminThemesController,
     AgenciesController,
   ],
-  providers: [ClientsService, ClientPlansService, PlansService, SettingsService, ImpersonateService, ReportsService, AdminAnalyticsService, AgenciesService],
+  providers: [ClientsService, ClientPlansService, ClientAccountsService, PlansService, SettingsService, ImpersonateService, ReportsService, AdminAnalyticsService, AgenciesService],
 })
 export class AdminModule {}
