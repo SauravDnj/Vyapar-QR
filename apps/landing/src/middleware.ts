@@ -10,17 +10,22 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
  * real domain of its own: without it, that domain would fall through to the
  * custom-domain lookup, find no client, and serve the wrong thing. Preview
  * deploys are covered by the `.vercel.app` check.
+ *
+ * It takes a comma-separated list, because moving to a new domain means
+ * serving the old one and the new one at the same time for a while.
  */
 const PLATFORM_HOSTS = new Set(
   [
     'localhost:3002',
     '127.0.0.1:3002',
-    process.env.NEXT_PUBLIC_PLATFORM_HOST,
-  ].filter((host): host is string => Boolean(host)),
+    ...(process.env.NEXT_PUBLIC_PLATFORM_HOST ?? '').split(','),
+  ]
+    .map((host) => host.trim().toLowerCase())
+    .filter((host) => host.length > 0),
 );
 
 export async function middleware(request: NextRequest) {
-  const host = request.headers.get('host') ?? '';
+  const host = (request.headers.get('host') ?? '').toLowerCase();
 
   if (PLATFORM_HOSTS.has(host) || host.endsWith('.vercel.app')) {
     return NextResponse.next();
