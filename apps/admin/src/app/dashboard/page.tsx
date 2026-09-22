@@ -4,30 +4,20 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ProtectedRoute } from '../../components/protected-route';
+import { QrStudio, studioBrandFrom } from '../../components/qr-studio';
 import { StatCard } from '../../components/ui/stat-card';
 import { useAuth } from '../../context/auth-context';
 import { getAnalyticsSummary, type AnalyticsSummary } from '../../lib/analytics-api';
 import { getOnboardingStatus, type OnboardingStatus } from '../../lib/onboarding-api';
-import { getPosterPdf, getQrCode, regenerateQrCode, type QrCodeInfo } from '../../lib/qr-api';
+import { getQrCode, regenerateQrCode, type QrCodeInfo } from '../../lib/qr-api';
 
 const LANDING_APP_URL = process.env.NEXT_PUBLIC_LANDING_APP_URL ?? 'http://localhost:3002';
 
-async function downloadFile(url: string, filename: string) {
-  const response = await fetch(url);
-  const blob = await response.blob();
-  const blobUrl = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = blobUrl;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(blobUrl);
-}
-
-function QrCodeSection({ accessToken, slug }: { accessToken: string; slug: string }) {
+function QrCodeSection({ accessToken, status }: { accessToken: string; status: OnboardingStatus }) {
   const [qrCode, setQrCode] = useState<QrCodeInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [isDownloadingPoster, setIsDownloadingPoster] = useState(false);
+  const slug = status.client?.slug ?? 'my-page';
 
   const refresh = useCallback(async () => {
     setIsLoading(true);
@@ -62,92 +52,73 @@ function QrCodeSection({ accessToken, slug }: { accessToken: string; slug: strin
     }
   }
 
-  async function handleDownloadPoster() {
-    setIsDownloadingPoster(true);
-    try {
-      const blob = await getPosterPdf(accessToken);
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `${slug}-poster.pdf`;
-      link.click();
-      URL.revokeObjectURL(blobUrl);
-    } finally {
-      setIsDownloadingPoster(false);
-    }
-  }
-
   if (isLoading) {
     return null;
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border-color p-4">
-      <p className="font-medium">My QR Code</p>
-      {qrCode?.imageUrl ? (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrCode.imageUrl} alt="Your master QR code" className="h-40 w-40" />
+    <section className="flex flex-col gap-4 rounded-md border border-border-color p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <p className="font-medium">QR code &amp; posters</p>
           <p className="text-sm text-muted">
             {LANDING_APP_URL}/site/{slug}
+            {qrCode ? ` · ${String(qrCode.scanCount)} scans` : ''}
           </p>
-          <p className="text-sm text-muted">Scans: {qrCode.scanCount}</p>
+        </div>
+        {qrCode ? (
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <label className="flex items-center gap-1">
-              Color
+            <label className="flex min-h-10 items-center gap-2">
+              Code colour
               <input
                 type="color"
-                value={qrCode.foregroundColor ?? '#000000'}
+                value={qrCode.foregroundColor ?? '#1c1917'}
                 onChange={(e) => void handleRestyle({ foregroundColor: e.target.value })}
                 disabled={isRegenerating}
-                className="h-7 w-7 cursor-pointer rounded border border-border-color bg-transparent p-0"
+                className="h-8 w-8 cursor-pointer rounded border border-border-color bg-transparent p-0"
               />
             </label>
-            <label className="flex items-center gap-1">
+            <label className="flex min-h-10 cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={qrCode.logoEnabled}
                 onChange={(e) => void handleRestyle({ logoEnabled: e.target.checked })}
                 disabled={isRegenerating}
               />
-              Embed logo (SVG download only)
+              Logo in the middle
             </label>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => void downloadFile(qrCode.imageUrl!, `${slug}-qr.png`)}
-              className="rounded-md border border-border-color px-3 py-1 text-sm"
-            >
-              Download PNG
-            </button>
-            {qrCode.svgImageUrl && (
-              <button
-                onClick={() => void downloadFile(qrCode.svgImageUrl!, `${slug}-qr.svg`)}
-                className="rounded-md border border-border-color px-3 py-1 text-sm"
-              >
-                Download SVG
-              </button>
-            )}
             <button
               disabled={isRegenerating}
               onClick={() => void handleRegenerate()}
-              className="rounded-md border border-border-color px-3 py-1 text-sm disabled:opacity-50"
+              className="min-h-10 rounded-md border border-border-color px-3 text-sm disabled:opacity-50"
             >
-              Regenerate
-            </button>
-            <button
-              disabled={isDownloadingPoster}
-              onClick={() => void handleDownloadPoster()}
-              className="rounded-md border border-border-color px-3 py-1 text-sm disabled:opacity-50"
-            >
-              {isDownloadingPoster ? 'Generating…' : 'Download poster'}
+              {isRegenerating ? 'Updating…' : 'Regenerate'}
             </button>
           </div>
-        </>
+        ) : null}
+      </div>
+
+      {qrCode ? (
+        <QrStudio
+          targetUrl={qrCode.targetUrl}
+          foreground={qrCode.foregroundColor}
+          withLogo={qrCode.logoEnabled}
+          brand={studioBrandFrom(status, LANDING_APP_URL)}
+          fileBase={slug}
+        />
       ) : (
-        <p className="text-sm text-muted">No QR code yet.</p>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted">No QR code yet.</p>
+          <button
+            disabled={isRegenerating}
+            onClick={() => void handleRegenerate()}
+            className="w-fit rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground disabled:opacity-50"
+          >
+            {isRegenerating ? 'Creating…' : 'Create my QR code'}
+          </button>
+        </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -283,7 +254,7 @@ function DashboardContent() {
       )}
 
       {!isLoading && isPublished && status?.client && accessToken && (
-        <QrCodeSection accessToken={accessToken} slug={status.client.slug} />
+        <QrCodeSection accessToken={accessToken} status={status} />
       )}
 
       {!isLoading && isPublished && accessToken && <AnalyticsWidget accessToken={accessToken} />}

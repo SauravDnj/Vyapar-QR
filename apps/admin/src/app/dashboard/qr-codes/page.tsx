@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { ProtectedRoute } from '../../../components/protected-route';
+import { QrStudio, studioBrandFrom, type StudioBrand } from '../../../components/qr-studio';
 import { useAuth } from '../../../context/auth-context';
+import { getOnboardingStatus } from '../../../lib/onboarding-api';
 import {
   createAdditionalQrCode,
   createBulkQrCodes,
@@ -16,16 +18,7 @@ import {
   type AdditionalQrCode,
 } from '../../../lib/qr-api';
 
-async function downloadFile(url: string, filename: string) {
-  const response = await fetch(url);
-  const blob = await response.blob();
-  const blobUrl = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = blobUrl;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(blobUrl);
-}
+const LANDING_APP_URL = process.env.NEXT_PUBLIC_LANDING_APP_URL ?? 'http://localhost:3002';
 
 function ScanTrend({ accessToken, id }: { accessToken: string; id: string }) {
   const [trend, setTrend] = useState<{ date: string; count: number }[] | null>(null);
@@ -65,6 +58,7 @@ function QrCard({
   onRestyle,
   onDelete,
   onRedirectSaved,
+  onOpenDownloads,
   isRestyling,
 }: {
   accessToken: string;
@@ -72,6 +66,7 @@ function QrCard({
   onRestyle: (id: string, style: { foregroundColor?: string; backgroundColor?: string; logoEnabled?: boolean }) => void;
   onDelete: (id: string) => void;
   onRedirectSaved: (updated: AdditionalQrCode) => void;
+  onOpenDownloads: (qr: AdditionalQrCode) => void;
   isRestyling: boolean;
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -133,27 +128,19 @@ function QrCard({
             }}
             disabled={isRestyling}
           />
-          Logo (SVG)
+          Logo in the middle
         </label>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {qr.imageUrl && (
-          <button
-            onClick={() => void downloadFile(qr.imageUrl!, `${qr.label ?? 'promo'}-qr.png`)}
-            className="rounded-md border border-border-color px-3 py-1 text-xs"
-          >
-            PNG
-          </button>
-        )}
-        {qr.svgImageUrl && (
-          <button
-            onClick={() => void downloadFile(qr.svgImageUrl!, `${qr.label ?? 'promo'}-qr.svg`)}
-            className="rounded-md border border-border-color px-3 py-1 text-xs"
-          >
-            SVG
-          </button>
-        )}
+        <button
+          onClick={() => {
+            onOpenDownloads(qr);
+          }}
+          className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-foreground"
+        >
+          Download &amp; posters
+        </button>
         <button onClick={() => setShowAdvanced((prev) => !prev)} className="rounded-md border border-border-color px-3 py-1 text-xs">
           {showAdvanced ? 'Hide advanced' : 'Advanced'}
         </button>
@@ -221,6 +208,8 @@ function QrCodesContent() {
   const [isDownloadingSheet, setIsDownloadingSheet] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [restylingId, setRestylingId] = useState<string | null>(null);
+  const [brand, setBrand] = useState<StudioBrand | null>(null);
+  const [downloading, setDownloading] = useState<AdditionalQrCode | null>(null);
 
   const refresh = useCallback(async () => {
     if (!accessToken) return;
@@ -236,6 +225,18 @@ function QrCodesContent() {
       await refresh();
     })();
   }, [refresh]);
+
+  // What the posters print — the business's name, logo and colour.
+  useEffect(() => {
+    if (!accessToken) return;
+    void (async () => {
+      try {
+        setBrand(studioBrandFrom(await getOnboardingStatus(accessToken), LANDING_APP_URL));
+      } catch {
+        setBrand(null);
+      }
+    })();
+  }, [accessToken]);
 
   async function handleCreate() {
     if (!accessToken || !label.trim()) return;
@@ -390,11 +391,49 @@ function QrCodesContent() {
               onRestyle={(id, style) => void handleRestyle(id, style)}
               onDelete={(id) => void handleDelete(id)}
               onRedirectSaved={(updated) => setQrCodes((prev) => prev.map((existing) => (existing.id === updated.id ? updated : existing)))}
+              onOpenDownloads={setDownloading}
               isRestyling={restylingId === qr.id}
             />
           ))}
         </div>
       )}
+      {downloading && brand ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-labelledby="qr-downloads-title">
+          <button
+            aria-label="Close"
+            className="absolute inset-0 cursor-default bg-black/45"
+            onClick={() => {
+              setDownloading(null);
+            }}
+          />
+          <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col gap-4 overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-xl sm:rounded-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p id="qr-downloads-title" className="font-medium">
+                  {downloading.label ?? 'Promo QR'} — download &amp; posters
+                </p>
+                <p className="text-xs text-muted">The label is printed on every poster, so each table or flyer can be told apart.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setDownloading(null);
+                }}
+                className="min-h-10 rounded-md border border-border-color px-3 text-sm"
+              >
+                Close
+              </button>
+            </div>
+            <QrStudio
+              targetUrl={downloading.targetUrl}
+              foreground={downloading.foregroundColor}
+              withLogo={downloading.logoEnabled}
+              brand={brand}
+              label={downloading.label}
+              fileBase={downloading.label ?? 'promo'}
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

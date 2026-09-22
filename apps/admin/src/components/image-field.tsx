@@ -58,7 +58,7 @@ export function ImageField({
     <div className="flex flex-col gap-2 text-sm">
       <div>
         <p className="font-medium">{shape.label}</p>
-        <p className="text-xs text-text-muted">{shape.hint}</p>
+        <p className="text-xs text-muted">{shape.hint}</p>
       </div>
 
       {url ? (
@@ -80,7 +80,7 @@ export function ImageField({
         </div>
       ) : (
         <div
-          className={`flex items-center justify-center border border-dashed border-border-color text-xs text-text-muted ${shape.round ? 'size-24 rounded-full' : 'w-full max-w-sm rounded-md'}`}
+          className={`flex items-center justify-center border border-dashed border-border-color text-xs text-muted ${shape.round ? 'size-24 rounded-full' : 'w-full max-w-sm rounded-md'}`}
           style={shape.round ? undefined : { aspectRatio: `${String(shape.aspect)} / 1` }}
         >
           No image

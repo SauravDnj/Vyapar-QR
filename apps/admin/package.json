@@ -14,15 +14,17 @@
     "@vyaparqr/ui": "workspace:*",
     "framer-motion": "^13.1.0",
     "next": "^16.3.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@vyaparqr/config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.2.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@vyaparqr/config": "workspace:*",
     "eslint": "^9.18.0",
     "eslint-config-next": "^16.3.0",
     "postcss": "^8.5.26",

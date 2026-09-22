@@ -60,7 +60,7 @@ export function ButtonLayoutControl({
           <p className="font-medium">
             {count === 0 ? 'No buttons yet' : `${String(count)} button${count === 1 ? '' : 's'} → ${String(grid.cols)} × ${String(grid.rows)}`}
           </p>
-          <p className="text-xs text-text-muted">
+          <p className="text-xs text-muted">
             {columns === 'auto'
               ? 'Auto picks the fewest columns that keep the grid even, so buttons stay as big as possible.'
               : `Auto would use ${String(auto.cols)} × ${String(auto.rows)}.`}
@@ -70,8 +70,8 @@ export function ButtonLayoutControl({
               {columns} per row would need more than 3 rows, which doesn’t fit on a phone, so {String(grid.cols)} are used.
             </p>
           ) : null}
-          {grid.lastRowCount > 0 ? <p className="text-xs text-text-muted">The last row is centred.</p> : null}
-          {saving ? <p className="text-xs text-text-muted">Saving…</p> : null}
+          {grid.lastRowCount > 0 ? <p className="text-xs text-muted">The last row is centred.</p> : null}
+          {saving ? <p className="text-xs text-muted">Saving…</p> : null}
         </div>
       </div>
     </div>

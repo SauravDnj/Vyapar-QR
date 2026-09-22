@@ -87,14 +87,3 @@ export async function getPrintSheetPdf(accessToken: string): Promise<Blob> {
   }
   return response.blob();
 }
-
-export async function getPosterPdf(accessToken: string): Promise<Blob> {
-  const response = await fetch(`${API_URL}/qr/poster`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    credentials: 'include',
-  });
-  if (!response.ok) {
-    throw new ApiError(response.status, 'Failed to generate poster.');
-  }
-  return response.blob();
-}
