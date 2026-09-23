@@ -382,6 +382,31 @@ no-ops/logs "not configured" when blank:
 
 ---
 
+## Locked out? Set a password from the command line
+
+`db:seed` never touches an existing account's password, and "Forgot password"
+is useless without an SMTP server, so a lost Super Admin password would
+otherwise lock the platform. Run this where the database is reachable:
+
+```bash
+pnpm --filter api set-password admin@yourdomain.com     # asks for the new password
+```
+
+It does not echo what you type, so the password stays out of the shell
+history, and it ends any session signed in with the old password. Against a
+Vercel deployment, load that environment first:
+
+```bash
+cd apps/api && vercel env pull .env.production.local
+set -a && . ./.env.production.local && set +a && JSONDB_DRIVER=redis pnpm set-password admin@yourdomain.com
+```
+
+A Super Admin who *is* signed in can change their own password under
+**Settings → Your password**, and can set any client's under
+**Clients → the client → Login & password**.
+
+---
+
 ## Post-deploy verification checklist
 
 1. `curl https://api.yourdomain.com/themes` → real JSON array, not an error.

@@ -23,7 +23,8 @@
     "db:generate": "ts-node -P tsconfig.scripts.json src/jsondb/generate-types.ts",
     "db:seed": "ts-node -P tsconfig.scripts.json prisma/seed.ts",
     "db:sync-themes": "ts-node -P tsconfig.scripts.json prisma/sync-themes.ts",
-    "db:demo": "ts-node -P tsconfig.scripts.json prisma/seed-demo-client.ts"
+    "db:demo": "ts-node -P tsconfig.scripts.json prisma/seed-demo-client.ts",
+    "set-password": "ts-node -P tsconfig.scripts.json scripts/set-password.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.5",
