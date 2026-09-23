@@ -21,16 +21,20 @@ export const SHEETS_EVENT_TYPES: WebhookEventType[] = [
 ];
 
 /**
- * A delivery gives up after this long.
+ * How long one attempt waits for the receiver.
  *
- * Every dispatch is awaited inside the request that caused it — a customer's
- * contact form, a payment — because on Vercel a promise left running after the
- * response is simply frozen and never delivered. So a slow endpoint is a slow
- * customer. Google Apps Script cold-starts in several seconds, and without a
- * limit a hung one would hold the customer's submit button for as long as the
- * platform allowed the function to run.
+ * A measured Apps Script round trip is 4-5 seconds when warm, and a cold start
+ * or a slow sheet write is slower still, so the old 10s limit turned an
+ * ordinary slow answer into "No answer within 10s" and lost the record. The
+ * customer no longer waits for any of this (see `deliverInBackground`), so the
+ * limit can be generous.
  */
-const DELIVERY_TIMEOUT_MS = 10_000;
+const DELIVERY_TIMEOUT_MS = 25_000;
+
+/** Attempts per delivery. Google answers a healthy script with an occasional
+ * 404 HTML page; a second try a moment later succeeds. */
+const DELIVERY_ATTEMPTS = 3;
+const RETRY_BACKOFF_MS = [700, 2_500];
 
 /** How many records go in one backfill request. An Apps Script run is capped
  * at six minutes; this keeps each one to a few seconds of sheet writes. */
@@ -39,6 +43,34 @@ const BACKFILL_CHUNK = 200;
 /** Events a receiver can be sent that nobody subscribes to — they are sent to
  * one webhook on purpose, by id. */
 type DirectEvent = 'test' | 'lead.backfill' | 'payment.backfill';
+
+/** Made by "Connect Google Sheets": Google's own script URL, or a copy of
+ * the connector subscribed to exactly the events that flow has. */
+function isSheetsConnection(webhook: OutboundWebhook): boolean {
+  if (webhook.url.includes('script.google.com')) return true;
+  const events = webhook.eventTypes as unknown as string[];
+  return SHEETS_EVENT_TYPES.every((event) => events.includes(event));
+}
+
+/** A review as the connected sheet hands it back. */
+export interface ConnectorReview {
+  name: string;
+  rating: number;
+  comment: string;
+  date: string | null;
+}
+
+/**
+ * Worth trying again: nothing answered, the receiver is broken or busy, or
+ * Google served one of its occasional error pages for a script that is in
+ * fact fine. A refusal the receiver *meant* — a bad signature answered with
+ * `{ok:false}`, a 403 — will say the same thing every time, so it stands.
+ */
+function isWorthRetrying(result: DeliveryResult): boolean {
+  if (result.status === null) return true;
+  if (result.status >= 500 || result.status === 429) return true;
+  return result.status === 404;
+}
 
 export interface DeliveryResult {
   ok: boolean;
@@ -101,11 +133,35 @@ export class WebhooksService {
     try {
       const webhooks = await this.prisma.outboundWebhook.findMany({ where: { clientId, isActive: true } });
       const targets = webhooks.filter((webhook) => (webhook.eventTypes as unknown as string[]).includes(eventType));
-      await Promise.all(targets.map((webhook) => this.deliver(webhook, eventType, payload)));
+      if (targets.length === 0) return;
+      await this.inBackground(Promise.all(targets.map((webhook) => this.deliver(webhook, eventType, payload))));
     } catch (error) {
       // Even the lookup failing must not fail the lead or payment behind it.
       this.logger.warn(`Webhook dispatch for ${eventType} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /**
+   * Keeps the customer out of the waiting.
+   *
+   * A serverless function freezes the moment it answers, so work left running
+   * after the response is simply never finished — which is why every delivery
+   * used to be awaited inside the customer's own request, making a slow sheet
+   * a slow submit button. `waitUntil`, where the platform provides it, holds
+   * the function open for exactly this: the customer gets their answer now and
+   * the sheet is written straight after. Anywhere else the promise is awaited
+   * as before, which is correct, just slower.
+   */
+  private async inBackground(work: Promise<unknown>): Promise<void> {
+    const context = (globalThis as Record<symbol, unknown>)[Symbol.for('@vercel/request-context')] as
+      | { get?: () => { waitUntil?: (promise: Promise<unknown>) => void } | undefined }
+      | undefined;
+    const waitUntil = context?.get?.()?.waitUntil;
+    if (typeof waitUntil === 'function') {
+      waitUntil(work.catch(() => undefined));
+      return;
+    }
+    await work.catch(() => undefined);
   }
 
   /** "Send test" in the admin: proves the URL, the deployment settings and the
@@ -148,6 +204,79 @@ export class WebhooksService {
     return { leads: leads.length, payments: payments.length, failed };
   }
 
+  /**
+   * Reads the Reviews tab back out of the client's connected sheet.
+   *
+   * The same script, the same secret, the same URL they already pasted — so
+   * showing Google reviews on a page needs no Google API keys and no second
+   * setup step. A GET has no body to sign, so the signature covers
+   * `reviews:<timestamp>` and the script refuses anything older than ten
+   * minutes.
+   */
+  async fetchReviews(clientId: string): Promise<ConnectorReview[] | null> {
+    const webhooks = await this.prisma.outboundWebhook.findMany({ where: { clientId, isActive: true } });
+    // Only a Sheets connection is asked for reviews. A client's own webhook
+    // endpoint is not a connector and must not be probed, nor turned into a
+    // "review sync failed" error.
+    const candidates = webhooks.filter(isSheetsConnection);
+    if (candidates.length === 0) return null;
+
+    let lastError = 'No answer';
+    for (const connector of candidates) {
+      try {
+        return await this.readReviewsFrom(connector);
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
+    throw new Error(lastError);
+  }
+
+  private async readReviewsFrom(connector: OutboundWebhook): Promise<ConnectorReview[]> {
+    const stamp = String(Date.now());
+    const signature = createHmac('sha256', connector.secret).update(`reviews:${stamp}`).digest('hex');
+    const target = new URL(connector.url);
+    target.searchParams.set('vqr_action', 'reviews');
+    target.searchParams.set('vqr_ts', stamp);
+    target.searchParams.set('vqr_signature', signature);
+
+    let lastError = 'No answer';
+    for (let attempt = 0; attempt < DELIVERY_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetch(target, { redirect: 'follow', signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS) });
+        if (!response.ok) {
+          lastError = `HTTP ${String(response.status)}`;
+          if (!isWorthRetrying({ ok: false, status: response.status, error: lastError })) break;
+        } else {
+          const parsed = (await response.json().catch(() => null)) as
+            | { ok?: unknown; error?: unknown; reviews?: unknown }
+            | null;
+          if (parsed?.ok === true && Array.isArray(parsed.reviews)) {
+            return parsed.reviews
+              .map((row) => row as Record<string, unknown>)
+              .filter((row) => typeof row.name === 'string' && Number.isFinite(Number(row.rating)))
+              .map((row) => ({
+                name: String(row.name),
+                rating: Number(row.rating),
+                comment: typeof row.comment === 'string' ? row.comment : '',
+                date: typeof row.date === 'string' ? row.date : null,
+              }));
+          }
+          lastError = typeof parsed?.error === 'string' ? parsed.error : 'The sheet did not return any reviews.';
+          break;
+        }
+      } catch (error) {
+        const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+        lastError = timedOut ? `No answer within ${String(DELIVERY_TIMEOUT_MS / 1000)}s` : String(error);
+      }
+      const wait = RETRY_BACKOFF_MS.at(attempt);
+      if (wait === undefined) break;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+
+    throw new Error(lastError);
+  }
+
   private async findOwned(clientId: string, id: string): Promise<OutboundWebhook> {
     const webhook = await this.prisma.outboundWebhook.findFirst({ where: { id, clientId } });
     if (!webhook) {
@@ -156,7 +285,30 @@ export class WebhooksService {
     return webhook;
   }
 
+  /** Tries a delivery, retrying the failures that are worth retrying, and
+   * records only the outcome that stands. */
   private async deliver(
+    webhook: OutboundWebhook,
+    eventType: WebhookEventType | DirectEvent,
+    payload: Record<string, unknown>,
+  ): Promise<DeliveryResult> {
+    let result: DeliveryResult = { ok: false, status: null, error: 'Not attempted' };
+    for (let attempt = 0; attempt < DELIVERY_ATTEMPTS; attempt += 1) {
+      result = await this.attemptDelivery(webhook, eventType, payload);
+      if (result.ok || !isWorthRetrying(result)) break;
+      const wait = RETRY_BACKOFF_MS.at(attempt);
+      if (wait === undefined) break;
+      await new Promise((resolve) => setTimeout(resolve, wait));
+    }
+
+    if (!result.ok) {
+      this.logger.warn(`Webhook ${eventType} to ${webhook.url} failed: ${result.error ?? 'unknown'}`);
+    }
+    await this.recordOutcome(webhook.id, result);
+    return result;
+  }
+
+  private async attemptDelivery(
     webhook: OutboundWebhook,
     eventType: WebhookEventType | DirectEvent,
     payload: Record<string, unknown>,
@@ -210,10 +362,6 @@ export class WebhooksService {
       };
     }
 
-    if (!result.ok) {
-      this.logger.warn(`Webhook ${eventType} to ${webhook.url} failed: ${result.error ?? 'unknown'}`);
-    }
-    await this.recordOutcome(webhook.id, result);
     return result;
   }
 

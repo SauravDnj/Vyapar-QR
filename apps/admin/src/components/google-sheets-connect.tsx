@@ -3,6 +3,7 @@
 import { buildAppsScript } from '@vyaparqr/types';
 import { useState } from 'react';
 
+import { syncReviewsNow } from '../lib/reviews-api';
 import {
   ApiError,
   backfillWebhook,
@@ -32,7 +33,7 @@ export function GoogleSheetsConnect({
   onChange: () => Promise<void>;
 }) {
   const [url, setUrl] = useState('');
-  const [busy, setBusy] = useState<null | 'start' | 'connect' | 'test' | 'sync' | 'remove'>(null);
+  const [busy, setBusy] = useState<null | 'start' | 'connect' | 'test' | 'sync' | 'reviews' | 'remove'>(null);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [showScript, setShowScript] = useState(false);
@@ -72,7 +73,8 @@ export function GoogleSheetsConnect({
         <h2 className="text-lg font-semibold">Connect Google Sheets</h2>
         <p className="mt-1 text-sm text-muted">
           Keep a Google Sheet up to date with your leads, payments and customer feedback — automatically, as they
-          happen. It takes about five minutes and needs only your Google account.
+          happen — and show the reviews you keep in its <b>Reviews</b> tab on your page. It takes about five minutes
+          and needs only your Google account.
         </p>
       </div>
 
@@ -235,6 +237,27 @@ export function GoogleSheetsConnect({
               className="cursor-pointer rounded-md border border-border-color px-3 py-1.5 disabled:opacity-50"
             >
               {busy === 'sync' ? 'Syncing…' : 'Sync existing data'}
+            </button>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() =>
+                void run(
+                  'reviews',
+                  () => syncReviewsNow(accessToken),
+                  (config) => {
+                    setNotice({
+                      tone: 'ok',
+                      text: config.avgRatingCached
+                        ? `Reviews loaded from your sheet — average ${config.avgRatingCached} stars.`
+                        : 'Your sheet has no reviews yet. Put them in the Reviews tab, then try again.',
+                    });
+                  },
+                )
+              }
+              className="cursor-pointer rounded-md border border-border-color px-3 py-1.5 disabled:opacity-50"
+            >
+              {busy === 'reviews' ? 'Loading…' : 'Get reviews from sheet'}
             </button>
             <button
               type="button"

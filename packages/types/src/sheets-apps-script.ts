@@ -43,6 +43,14 @@ export function buildAppsScript(secret: string): string {
 // anyone with it can write to this sheet.
 const SECRET = '${secret}';
 
+// Reviews you want shown on your page. Paste them in this tab (or let the
+// Google review form fill it) and Vyapar QR reads them from here.
+const REVIEWS_TAB = {
+  name: 'Reviews',
+  columns: ['name', 'rating', 'comment', 'date'],
+  headers: ['Name', 'Rating (1-5)', 'Review', 'Date'],
+};
+
 const TABS = {
   lead: {
     name: 'Leads',
@@ -110,10 +118,52 @@ function doPost(e) {
   }
 }
 
-// Opening the web app URL in a browser shows this, which is how you can tell
-// the deployment itself is working.
-function doGet() {
-  return ContentService.createTextOutput('Vyapar QR connector is running. Paste this URL into your Vyapar QR dashboard.');
+/**
+ * Opening the web app URL in a browser shows a plain line, which is how you
+ * can tell the deployment itself is working.
+ *
+ * Vyapar QR also reads your Reviews tab back through this same URL, so the
+ * reviews on your page come from this sheet with nothing else to set up. A
+ * GET carries no body to sign, so the signature covers "reviews:<timestamp>"
+ * and anything older than ten minutes is refused — a copied URL cannot be
+ * replayed later.
+ */
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+  if (params.vqr_action !== 'reviews') {
+    return ContentService.createTextOutput('Vyapar QR connector is running. Paste this URL into your Vyapar QR dashboard.');
+  }
+  const stamp = String(params.vqr_ts || '');
+  if (!isSigned('reviews:' + stamp, params.vqr_signature || '')) {
+    return reply({ ok: false, error: 'bad signature - check the SECRET in this script' });
+  }
+  const age = Math.abs(Date.now() - Number(stamp));
+  if (!stamp || isNaN(age) || age > 10 * 60 * 1000) {
+    return reply({ ok: false, error: 'stale request' });
+  }
+  return reply({ ok: true, reviews: readReviews() });
+}
+
+function readReviews() {
+  const sheet = sheetFor(REVIEWS_TAB);
+  const last = sheet.getLastRow();
+  if (last < 2) return [];
+  const values = sheet.getRange(2, 1, last - 1, REVIEWS_TAB.columns.length).getValues();
+  const out = [];
+  values.forEach(function (row) {
+    const name = String(row[0] === null || row[0] === undefined ? '' : row[0]).trim();
+    const rating = Number(row[1]);
+    // A half-typed row is skipped rather than shown as a nameless 0-star.
+    if (!name || !rating || rating < 1 || rating > 5) return;
+    const date = row[3] instanceof Date ? row[3] : row[3] ? new Date(row[3]) : null;
+    out.push({
+      name: name,
+      rating: rating,
+      comment: String(row[2] === null || row[2] === undefined ? '' : row[2]).trim(),
+      date: date && !isNaN(date.getTime()) ? date.toISOString() : null,
+    });
+  });
+  return out;
 }
 
 function isSigned(body, signature) {

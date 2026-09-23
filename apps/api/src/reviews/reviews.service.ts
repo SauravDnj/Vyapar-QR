@@ -210,8 +210,10 @@ export class ReviewsService {
 
   /** Prefers a live Places API pull when the client has a `googlePlaceId`
    * set and the platform has a Places API key configured — fresher than a
-   * manually-maintained sheet. Falls back to the Sheets sync otherwise, so
-   * a client with only a sheet keeps working exactly as before. */
+   * manually-maintained sheet. Then the client's own connected sheet, which
+   * needs nothing configured on the platform at all. The service-account
+   * Sheets API is last: it only works where someone has set Google service
+   * credentials, which most deployments never do. */
   async syncNow(clientId: string): Promise<GoogleReviewConfig> {
     const config = await this.prisma.googleReviewConfig.findUnique({ where: { clientId } });
 
@@ -220,8 +222,16 @@ export class ReviewsService {
       return this.writeReviewsToCache(clientId, rows, avgRating);
     }
 
+    const fromConnector = await this.reviewsFromConnectedSheet(clientId);
+    if (fromConnector) {
+      const avg = fromConnector.length > 0 ? fromConnector.reduce((sum, row) => sum + row.rating, 0) / fromConnector.length : null;
+      return this.writeReviewsToCache(clientId, fromConnector, avg);
+    }
+
     if (!this.googleSheetsService.isConfigured) {
-      throw new BadRequestException('Neither the Places API nor Google Sheets sync is configured on this deployment yet.');
+      throw new BadRequestException(
+        'Connect Google Sheets first (Dashboard → Google Sheets & webhooks), then put your reviews in the Reviews tab.',
+      );
     }
     if (!config?.sheetId || !config.sheetRange) {
       throw new BadRequestException('Connect a Google Sheet (ID and range) before syncing.');
@@ -231,6 +241,19 @@ export class ReviewsService {
     const rows = await this.googleSheetsService.fetchRows(config.sheetId, config.sheetRange, columnMapping);
     const avgRating = rows.length > 0 ? rows.reduce((sum, row) => sum + row.rating, 0) / rows.length : null;
     return this.writeReviewsToCache(clientId, rows, avgRating);
+  }
+
+  /** Reviews out of the client's own connected sheet, or null when they have
+   * no connection — which is not an error, just a different route. */
+  private async reviewsFromConnectedSheet(clientId: string): Promise<SheetReviewRow[] | null> {
+    const rows = await this.webhooksService.fetchReviews(clientId);
+    if (!rows) return null;
+    return rows.map((row) => ({
+      reviewerName: row.name,
+      rating: row.rating,
+      comment: row.comment,
+      reviewDate: row.date ? new Date(row.date) : null,
+    }));
   }
 
   private async writeReviewsToCache(clientId: string, rows: SheetReviewRow[], avgRating: number | null): Promise<GoogleReviewConfig> {
@@ -271,20 +294,29 @@ export class ReviewsService {
   /** Called by the scheduled sweep — logs and skips rather than throwing, so
    * one client's missing/broken sheet doesn't stop the rest of the sweep. */
   async syncAllConfiguredClients(): Promise<{ synced: number; skipped: number }> {
-    if (!this.googleSheetsService.isConfigured && !this.placesApiService.isConfigured) {
-      this.logger.warn('Review sync skipped — neither Google Sheets nor the Places API is configured.');
-      return { synced: 0, skipped: 0 };
-    }
+    // Every client with a connected sheet is syncable, whatever this
+    // deployment has configured, so the sweep can no longer be skipped
+    // wholesale.
+    const connected = new Set(
+      (await this.prisma.outboundWebhook.findMany({ where: { isActive: true }, select: { clientId: true, url: true } }))
+        .filter((webhook) => webhook.url.includes('script.google.com'))
+        .map((webhook) => webhook.clientId),
+    );
 
     const configs = await this.prisma.googleReviewConfig.findMany({
       where: {
         OR: [
           { sheetId: { not: null }, sheetRange: { not: null } },
           ...(this.placesApiService.isConfigured ? [{ googlePlaceId: { not: null } }] : []),
+          ...(connected.size > 0 ? [{ clientId: { in: [...connected] } }] : []),
         ],
       },
       select: { clientId: true },
     });
+
+    if (configs.length === 0) {
+      return { synced: 0, skipped: 0 };
+    }
 
     let synced = 0;
     let skipped = 0;

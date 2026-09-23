@@ -18,6 +18,9 @@ Owner moves a lead      ───► lead.updated        ├──  POST ──�
 Customer pays           ───► payment.claimed     │              the row into the Leads,
 Owner confirms payment  ───► payment.updated     │              Payments or Feedback tab
 Leaves feedback/review  ───► feedback.received  ─┘
+
+You type reviews into   ◄─── reviews on your ──── signed GET, read back out of
+the Reviews tab              landing page             the Reviews tab
 ```
 
 - **One sheet, three tabs.** `Leads`, `Payments` and `Feedback` are created automatically the first time each is needed, each with a header row. You don't set up any columns.
@@ -31,6 +34,9 @@ Leaves feedback/review  ───► feedback.received  ─┘
 | **Leads** | ID · Name · Phone · Source · Status · Notes · Tags · Created |
 | **Payments** | ID · Amount (₹) · Paid with · Status · Customer · Phone · Note · Lead ID · Confirmed · Created |
 | **Feedback** | ID · Rating · Type · Feedback / review · Customer notes · Received |
+| **Reviews** | Name · Rating (1-5) · Review · Date — *you* fill this one; Vyapar QR reads it |
+
+**Reviews work both ways.** The three tabs above are written *to*. The `Reviews` tab is read *from*: put your Google reviews there (name, rating, the text, the date) and they appear on your landing page — press **Get reviews from sheet** in the dashboard, and the nightly sync keeps it current. Rows without a name, or with a rating outside 1-5, are skipped. Reading is signed the same way as writing, with a timestamp that expires after ten minutes, so the URL alone gives nobody your reviews.
 
 *Source* is where the lead came from: `contact_form`, `payment_claim` or `whatsapp_message`. A payment's *Status* is `claimed` (the customer says they paid), `confirmed` (you saw the money in your UPI app) or `cancelled`. A claimed payment is self-reported until you confirm it.
 
@@ -90,6 +96,14 @@ From here on it's automatic.
 // Your connector secret, from the Vyapar QR dashboard. Keep it private:
 // anyone with it can write to this sheet.
 const SECRET = 'PASTE_YOUR_SECRET_HERE';
+
+// Reviews you want shown on your page. Paste them in this tab (or let the
+// Google review form fill it) and Vyapar QR reads them from here.
+const REVIEWS_TAB = {
+  name: 'Reviews',
+  columns: ['name', 'rating', 'comment', 'date'],
+  headers: ['Name', 'Rating (1-5)', 'Review', 'Date'],
+};
 
 const TABS = {
   lead: {
@@ -158,10 +172,52 @@ function doPost(e) {
   }
 }
 
-// Opening the web app URL in a browser shows this, which is how you can tell
-// the deployment itself is working.
-function doGet() {
-  return ContentService.createTextOutput('Vyapar QR connector is running. Paste this URL into your Vyapar QR dashboard.');
+/**
+ * Opening the web app URL in a browser shows a plain line, which is how you
+ * can tell the deployment itself is working.
+ *
+ * Vyapar QR also reads your Reviews tab back through this same URL, so the
+ * reviews on your page come from this sheet with nothing else to set up. A
+ * GET carries no body to sign, so the signature covers "reviews:<timestamp>"
+ * and anything older than ten minutes is refused — a copied URL cannot be
+ * replayed later.
+ */
+function doGet(e) {
+  const params = (e && e.parameter) || {};
+  if (params.vqr_action !== 'reviews') {
+    return ContentService.createTextOutput('Vyapar QR connector is running. Paste this URL into your Vyapar QR dashboard.');
+  }
+  const stamp = String(params.vqr_ts || '');
+  if (!isSigned('reviews:' + stamp, params.vqr_signature || '')) {
+    return reply({ ok: false, error: 'bad signature - check the SECRET in this script' });
+  }
+  const age = Math.abs(Date.now() - Number(stamp));
+  if (!stamp || isNaN(age) || age > 10 * 60 * 1000) {
+    return reply({ ok: false, error: 'stale request' });
+  }
+  return reply({ ok: true, reviews: readReviews() });
+}
+
+function readReviews() {
+  const sheet = sheetFor(REVIEWS_TAB);
+  const last = sheet.getLastRow();
+  if (last < 2) return [];
+  const values = sheet.getRange(2, 1, last - 1, REVIEWS_TAB.columns.length).getValues();
+  const out = [];
+  values.forEach(function (row) {
+    const name = String(row[0] === null || row[0] === undefined ? '' : row[0]).trim();
+    const rating = Number(row[1]);
+    // A half-typed row is skipped rather than shown as a nameless 0-star.
+    if (!name || !rating || rating < 1 || rating > 5) return;
+    const date = row[3] instanceof Date ? row[3] : row[3] ? new Date(row[3]) : null;
+    out.push({
+      name: name,
+      rating: rating,
+      comment: String(row[2] === null || row[2] === undefined ? '' : row[2]).trim(),
+      date: date && !isNaN(date.getTime()) ? date.toISOString() : null,
+    });
+  });
+  return out;
 }
 
 function isSigned(body, signature) {
@@ -249,6 +305,7 @@ function logTest() {
 function reply(value) {
   return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
 }
+
 ```
 
 ---
