@@ -73,7 +73,6 @@ export const BODY_FONT = '"Montserrat", ui-sans-serif, system-ui, sans-serif';
 
 const TEXT = '#1c1917';
 const MUTED = '#57534e';
-const SOFT = '#78716c';
 
 /** Units per sheet width. */
 const W = 1000;
@@ -179,72 +178,56 @@ function drawStandee(kit: Kit): QrPlacement {
 
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
-  softGlow(ctx, 500, 360, 620, p.tint);
 
-  // The blue band: edge to edge, curving down to cradle the logo. Deeper at
-  // the sides, Facebook blue through the middle.
-  const archBottom = 330;
+  // 1. Who made this — small, at the very top, on white.
+  const headerEnd = partnerHeader(kit, 150);
+
+  // 2. Whose shop this is — the one band of colour, ending in a curve that
+  //    the logo sits over, so the eye goes name first, then code.
+  const bandBottom = 560;
   ctx.save();
   ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(W, 0);
-  ctx.lineTo(W, archBottom - 30);
-  ctx.quadraticCurveTo(500, archBottom + 110, 0, archBottom - 30);
+  ctx.moveTo(0, headerEnd);
+  ctx.lineTo(W, headerEnd);
+  ctx.lineTo(W, bandBottom - 34);
+  ctx.quadraticCurveTo(500, bandBottom + 46, 0, bandBottom - 34);
   ctx.closePath();
-  const band = ctx.createLinearGradient(0, 0, 0, archBottom + 110);
+  const band = ctx.createLinearGradient(0, headerEnd, 0, bandBottom);
   band.addColorStop(0, p.sky);
-  band.addColorStop(0.55, p.accent);
   band.addColorStop(1, p.deep);
   ctx.fillStyle = band;
   ctx.fill();
-  // A soft highlight behind the logo, so the band reads as lit from above.
-  softGlow(ctx, 500, 40, 520, withAlpha('#ffffff', 0.18));
   ctx.clip();
-  rings(ctx, 500, archBottom + 40, p.onAccent, 0.1);
+  softGlow(ctx, 500, headerEnd, 460, withAlpha('#ffffff', 0.16));
   ctx.restore();
 
-  platformRow(kit, 56, 62, true);
-  spaced(
-    ctx,
-    content.label ? content.label.toUpperCase() : 'SCAN ME',
-    500,
-    182,
-    `600 24px ${BODY_FONT}`,
-    withAlpha(p.onAccent, 0.9),
-    6,
-  );
-  diamondRule(ctx, 500, 212, 150, withAlpha(p.onAccent, 0.6));
+  logoDisc(kit, 500, headerEnd + 132, 92);
 
-  logoDisc(kit, 500, archBottom + 46, 100);
-
-  let y = archBottom + 46 + 100 + 82;
-  y = nameBlock(ctx, content.businessName, 500, y, 840, 76, 48, TEXT);
+  const y = nameBlock(ctx, content.businessName, 500, headerEnd + 132 + 92 + 78, 800, 66, 42, p.onAccent);
   if (content.tagline) {
-    y = fitOneLine(ctx, content.tagline, 500, y + 40, 820, `500 {s}px ${BODY_FONT}`, 26, 18, MUTED);
+    fitOneLine(ctx, content.tagline, 500, y + 38, 780, `500 {s}px ${BODY_FONT}`, 24, 17, withAlpha(p.onAccent, 0.88));
   }
 
-  y += 50;
-  eyebrow(ctx, `SCAN TO ${content.verbs.join(' · ').toUpperCase()}`, 500, y, p);
+  // 3. What scanning does, in one line under the band.
+  const eyebrowY = bandBottom + 74;
+  eyebrow(ctx, content.label ? content.label.toUpperCase() : `SCAN TO ${content.verbs.join(' · ').toUpperCase()}`, 500, eyebrowY, p);
 
-  // Everything under the code is placed first — the pill that overlaps the
-  // card, the app logos, the address — and the code is then centred in the
-  // band that is left, which is what puts it in the middle of the sheet.
-  const addressY = H - 46;
-  const brandsY = content.brands.length > 0 ? addressY - 62 : addressY;
-  const top = y + 30;
-  const bottom = brandsY - (content.brands.length > 0 ? 54 : 34) - 34;
-  const qrSize = clamp((bottom - top) / 1.22, 380, 680);
-  const qrTop = top + (bottom - top - qrSize * 1.22) / 2 + qrSize * 0.075;
+  // 4. The code: the subject of the sheet, centred in everything left over.
+  const footerTop = H - 150;
+  const brandsY = content.brands.length > 0 ? footerTop - 66 : footerTop;
+  const top = eyebrowY + 34;
+  const bottom = brandsY - (content.brands.length > 0 ? 56 : 30);
+  const qrSize = fitSquare(bottom - top, 1.26);
+  const qrTop = top + (bottom - top - qrSize * 1.26) / 2 + qrSize * 0.075;
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize);
   pill(ctx, 'Scan with your phone camera', 500, qrTop + qrSize + qrSize * 0.075, p);
 
   if (content.brands.length > 0) {
-    brandRow(ctx, content.brands, 500, brandsY, 40, 880);
+    brandRow(ctx, content.brands, 500, brandsY, 40, 840);
   }
-  fitOneLine(ctx, content.address, 500, addressY, 860, `500 {s}px ${BODY_FONT}`, 19, 13, SOFT);
 
-  ctx.fillStyle = p.accent;
-  ctx.fillRect(0, H - 14, W, 14);
+  // 5. Who powers it, and where it was made.
+  footerStrip(kit, footerTop);
   return qr;
 }
 
@@ -255,53 +238,51 @@ function drawPoster(kit: Kit): QrPlacement {
 
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
-  softGlow(ctx, 500, 0, 820, p.tint);
 
-  // A fine double frame with diamonds at the corners, the way a printed
-  // certificate or a jeweller's box card is edged.
-  ctx.strokeStyle = p.accent;
-  ctx.lineWidth = 4;
-  ctx.strokeRect(34, 34, W - 68, H - 68);
-  ctx.strokeStyle = withAlpha(p.sky, 0.45);
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(48, 48, W - 96, H - 96);
-  for (const [cx, cy] of [
-    [34, 34],
-    [W - 34, 34],
-    [34, H - 34],
-    [W - 34, H - 34],
-  ] as const) {
-    diamond(ctx, cx, cy, 13, p.accent);
-    diamond(ctx, cx, cy, 5, '#ffffff');
-  }
+  const headerEnd = partnerHeader(kit, 150);
 
-  // The platform's marks sit inside the frame, above everything else.
-  platformRow(kit, 74, 60, false);
-  if (content.label) tag(ctx, content.label, 500, 196, p);
+  // The band is shallower than the standee's — an A4 is read from further
+  // away, so the code gets the room instead.
+  const bandBottom = headerEnd + (content.tagline ? 330 : 290);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, headerEnd);
+  ctx.lineTo(W, headerEnd);
+  ctx.lineTo(W, bandBottom - 30);
+  ctx.quadraticCurveTo(500, bandBottom + 44, 0, bandBottom - 30);
+  ctx.closePath();
+  const band = ctx.createLinearGradient(0, headerEnd, 0, bandBottom);
+  band.addColorStop(0, p.sky);
+  band.addColorStop(1, p.deep);
+  ctx.fillStyle = band;
+  ctx.fill();
+  ctx.clip();
+  softGlow(ctx, 500, headerEnd, 520, withAlpha('#ffffff', 0.16));
+  ctx.restore();
 
-  const logoY = content.label ? 282 : 230;
-  logoDisc(kit, 500, logoY, 70);
-  let y = logoY + 70 + 72;
-  y = nameBlock(ctx, content.businessName, 500, y, 780, 66, 42, TEXT);
+  if (content.label) tag(ctx, content.label, 500, headerEnd + 54, p);
+
+  const discY = headerEnd + (content.label ? 172 : 124);
+  logoDisc(kit, 500, discY, 76);
+  const y = nameBlock(ctx, content.businessName, 500, discY + 76 + 66, 800, 58, 38, p.onAccent);
   if (content.tagline) {
-    y = fitOneLine(ctx, content.tagline, 500, y + 44, 760, `500 {s}px ${BODY_FONT}`, 22, 16, MUTED);
+    fitOneLine(ctx, content.tagline, 500, y + 36, 780, `500 {s}px ${BODY_FONT}`, 22, 16, withAlpha(p.onAccent, 0.88));
   }
-  y += 34;
-  diamondRule(ctx, 500, y, 260, p.accent);
-  y += 80;
-  const headline = `Scan to ${joinAnd(content.verbs.slice(0, 2))}`;
-  fitOneLine(ctx, headline, 500, y, 820, `600 {s}px ${DISPLAY_FONT}`, 84, 54, p.ink);
 
-  // Laid out from the frame upwards — address, logo row, the three steps —
-  // so those always fit; the code gets the height that is left, centred in it.
-  const addressY = H - 88;
+  const headlineY = bandBottom + 96;
+  const headline = `Scan to ${joinAnd(content.verbs.slice(0, 2))}`;
+  fitOneLine(ctx, headline, 500, headlineY, 820, `600 {s}px ${DISPLAY_FONT}`, 84, 54, p.ink);
+
+  // Laid out from the footer upwards — the three steps and the app logos
+  // always fit — and the code takes the middle.
+  const footerTop = H - 132;
   const hasBrands = content.brands.length > 0;
-  const brandsY = addressY - 58;
-  const stepsTextY = hasBrands ? brandsY - 62 : addressY - 60;
-  const stepsY = stepsTextY - 66;
-  const top = y + 46;
-  const bottom = stepsY - 70;
-  const qrSize = clamp((bottom - top) / 1.15, 300, 660);
+  const brandsY = hasBrands ? footerTop - 58 : footerTop;
+  const stepsTextY = brandsY - (hasBrands ? 68 : 36);
+  const stepsY = stepsTextY - 58;
+  const top = headlineY + 34;
+  const bottom = stepsY - 44;
+  const qrSize = fitSquare(bottom - top, 1.15);
   const qrTop = top + (bottom - top - qrSize * 1.15) / 2 + qrSize * 0.075;
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize);
 
@@ -317,7 +298,7 @@ function drawPoster(kit: Kit): QrPlacement {
     ctx.font = `700 26px ${BODY_FONT}`;
     ctx.textAlign = 'center';
     ctx.fillText(String(index + 1), cx, stepsY + 9);
-    fitOneLine(ctx, text, cx, stepsY + 66, 250, `600 {s}px ${BODY_FONT}`, 21, 15, TEXT);
+    fitOneLine(ctx, text, cx, stepsTextY, 250, `600 {s}px ${BODY_FONT}`, 21, 15, TEXT);
     if (index < steps.length - 1) {
       ctx.strokeStyle = p.edge;
       ctx.lineWidth = 2;
@@ -330,8 +311,8 @@ function drawPoster(kit: Kit): QrPlacement {
     }
   });
 
-  if (hasBrands) brandRow(ctx, content.brands, 500, brandsY, 40, 780);
-  fitOneLine(ctx, content.address, 500, addressY, 780, `500 {s}px ${BODY_FONT}`, 19, 13, SOFT);
+  if (hasBrands) brandRow(ctx, content.brands, 500, brandsY, 42, 800);
+  footerStrip(kit, footerTop);
   return qr;
 }
 
@@ -368,62 +349,116 @@ function drawSticker(kit: Kit): QrPlacement {
 /* ─── Shared pieces ────────────────────────────────────────────────────── */
 
 /**
- * The platform's marks across the top: Waloop on the left, the Meta partner
- * badge on the right, each on a white chip so a coloured logo reads against
- * the blue. Until the image files exist, the chip holds its name instead, so
- * the sheet is never missing a corner.
+ * The partner header: the two marks along the very top of the sheet, on
+ * white, with a hairline under them.
+ *
+ * They sit on white rather than on the colour, because both marks are
+ * multi-coloured artwork and only white keeps them true. The hairline is
+ * what separates "who made this" from "whose shop this is" — the reason the
+ * old version read as clutter is that the two were sharing one band.
+ *
+ * Returns the y the sheet's own content can start at.
  */
-function platformRow(kit: Kit, y: number, height: number, onColour: boolean) {
+function partnerHeader(kit: Kit, height: number): number {
   const { ctx, palette: p, content } = kit;
-  const width = height * PLATFORM_MARKS.left.aspect;
-  const inset = 64;
-  const slots = [
-    { mark: PLATFORM_MARKS.left, image: content.platform.left, x: inset },
-    { mark: PLATFORM_MARKS.right, image: content.platform.right, x: W - inset - width },
-  ];
+  const inset = 66;
+  const top = height * 0.34;
+  const slotH = height * 0.42;
 
-  for (const slot of slots) {
-    ctx.fillStyle = onColour ? withAlpha('#ffffff', 0.96) : '#ffffff';
-    ctx.strokeStyle = onColour ? withAlpha('#ffffff', 0.5) : p.edge;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(slot.x, y, width, height, height * 0.32);
-    ctx.fill();
-    ctx.stroke();
+  const left = { mark: PLATFORM_MARKS.left, image: content.platform.left };
+  const right = { mark: PLATFORM_MARKS.right, image: content.platform.right };
 
-    const pad = height * 0.18;
-    if (slot.image) {
-      drawContain(ctx, slot.image, slot.x + pad, y + pad, width - pad * 2, height - pad * 2);
-      continue;
-    }
-    // Placeholder: the name, and a hairline that says this is a slot.
-    const hasSub = Boolean(slot.mark.sub);
-    fitOneLine(
-      ctx,
-      slot.mark.label,
-      slot.x + width / 2,
-      y + height * (hasSub ? 0.46 : 0.62),
-      width - pad * 3,
-      `700 {s}px ${BODY_FONT}`,
-      Math.round(height * 0.3),
-      11,
-      p.ink,
-      2,
-    );
-    if (slot.mark.sub) {
-      fitOneLine(
-        ctx,
-        slot.mark.sub,
-        slot.x + width / 2,
-        y + height * 0.78,
-        width - pad * 2,
-        `500 {s}px ${BODY_FONT}`,
-        Math.round(height * 0.2),
-        9,
-        MUTED,
-      );
-    }
+  if (left.image) {
+    drawContain(ctx, left.image, inset, top, slotH * left.mark.aspect * 1.08, slotH * 1.08);
+  } else {
+    fitOneLine(ctx, left.mark.label, inset + slotH, top + slotH * 0.72, slotH * 2, `700 {s}px ${BODY_FONT}`, Math.round(slotH * 0.5), 12, p.ink, 2);
   }
+
+  if (right.image) {
+    const w = slotH * right.mark.aspect;
+    drawContain(ctx, right.image, W - inset - w, top + slotH * 0.06, w, slotH * 0.94);
+  } else {
+    fitOneLine(ctx, right.mark.label, W - inset - slotH, top + slotH * 0.72, slotH * 2, `700 {s}px ${BODY_FONT}`, Math.round(slotH * 0.5), 12, p.ink, 2);
+  }
+
+  const y = height;
+  const rule = ctx.createLinearGradient(inset, 0, W - inset, 0);
+  rule.addColorStop(0, withAlpha(p.accent, 0));
+  rule.addColorStop(0.5, p.edge);
+  rule.addColorStop(1, withAlpha(p.accent, 0));
+  ctx.strokeStyle = rule;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(inset, y);
+  ctx.lineTo(W - inset, y);
+  ctx.stroke();
+  return y;
+}
+
+/**
+ * The foot of the sheet: "Powered by <Waloop>" on the left, "Made in India"
+ * with a small flag on the right, on a tinted strip whose top edge dips in
+ * the middle — the same curve the blue band above ends with, so the sheet is
+ * bracketed by one shape instead of ending in a plain line.
+ */
+function footerStrip(kit: Kit, top: number) {
+  const { ctx, palette: p, H } = kit;
+  const dip = 26;
+
+  ctx.beginPath();
+  ctx.moveTo(0, top);
+  ctx.quadraticCurveTo(500, top + dip * 2, W, top);
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fillStyle = p.tint;
+  ctx.fill();
+
+  const mid = (top + dip + H - 18) / 2 + 6;
+  const inset = 72;
+
+  // Left: "Powered by Waloop" — set, not drawn from the logo file. The mark
+  // is an infinity symbol above a wordmark, and at footer height the word
+  // inside it would be about three units tall: unreadable in print.
+  ctx.font = `600 22px ${BODY_FONT}`;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = MUTED;
+  const poweredWidth = ctx.measureText('Powered by ').width;
+  ctx.fillText('Powered by ', inset, mid + 7);
+  ctx.font = `700 23px ${BODY_FONT}`;
+  ctx.fillStyle = p.ink;
+  ctx.fillText('Waloop', inset + poweredWidth, mid + 7);
+
+  // Right: the flag, then the words, ending flush with the left inset.
+  ctx.font = `600 22px ${BODY_FONT}`;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = MUTED;
+  const madeWidth = ctx.measureText('Made in India').width;
+  ctx.fillText('Made in India', W - inset, mid + 7);
+  indiaFlag(ctx, W - inset - madeWidth - 42, mid - 11, 32, 22);
+
+  // The sheet ends on the blue it started with.
+  ctx.fillStyle = p.accent;
+  ctx.fillRect(0, H - 12, W, 12);
+}
+
+/** A small Indian flag: saffron, white, green, with the wheel as a ring. */
+function indiaFlag(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  const band = h / 3;
+  ctx.fillStyle = '#ff9933';
+  ctx.fillRect(x, y, w, band);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y + band, w, band);
+  ctx.fillStyle = '#138808';
+  ctx.fillRect(x, y + band * 2, w, band);
+  ctx.strokeStyle = '#0f3d7a';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.arc(x + w / 2, y + h / 2, band * 0.36, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = withAlpha('#1c1917', 0.18);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
 /** Like CSS `object-fit: contain` — a logo must not be cropped. */
@@ -539,42 +574,27 @@ function nameBlock(ctx: CanvasRenderingContext2D, text: string, cx: number, y: n
   return y + (lines.length - 1) * used * 1.02;
 }
 
-/** Small spaced capitals between two hairlines ending in diamonds. */
+/** Small spaced capitals with a fading rule either side. */
 function eyebrow(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, p: Palette) {
-  const font = `600 21px ${BODY_FONT}`;
-  ctx.font = font;
-  ctx.letterSpacing = '4px';
-  const width = Math.min(ctx.measureText(text).width, 700);
+  const spacing = 4;
+  ctx.font = `600 21px ${BODY_FONT}`;
+  ctx.letterSpacing = `${String(spacing)}px`;
+  const width = Math.min(ctx.measureText(text).width, 720);
   ctx.letterSpacing = '0px';
-  fitOneLine(ctx, text, cx, y, 700, `600 {s}px ${BODY_FONT}`, 21, 15, p.ink, 4);
-  const half = width / 2 + 26;
-  for (const dir of [-1, 1]) {
-    const grad = ctx.createLinearGradient(cx + dir * half, 0, cx + dir * (half + 70), 0);
-    grad.addColorStop(0, p.accent);
-    grad.addColorStop(1, withAlpha(p.accent, 0));
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cx + dir * half, y - 7);
-    ctx.lineTo(cx + dir * (half + 70), y - 7);
-    ctx.stroke();
-    diamond(ctx, cx + dir * (half - 10), y - 7, 5, p.accent);
-  }
-}
+  fitOneLine(ctx, text, cx, y, 720, `600 {s}px ${BODY_FONT}`, 21, 15, p.ink, spacing);
 
-function diamondRule(ctx: CanvasRenderingContext2D, cx: number, y: number, width: number, colour: string) {
+  const gap = width / 2 + 28;
   for (const dir of [-1, 1]) {
-    const grad = ctx.createLinearGradient(cx + dir * 16, 0, cx + (dir * width) / 2, 0);
-    grad.addColorStop(0, colour);
-    grad.addColorStop(1, withAlpha(colour, 0));
+    const grad = ctx.createLinearGradient(cx + dir * gap, 0, cx + dir * (gap + 110), 0);
+    grad.addColorStop(0, p.edge);
+    grad.addColorStop(1, withAlpha(p.edge, 0));
     ctx.strokeStyle = grad;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx + dir * 16, y);
-    ctx.lineTo(cx + (dir * width) / 2, y);
+    ctx.moveTo(cx + dir * gap, y - 7);
+    ctx.lineTo(cx + dir * (gap + 110), y - 7);
     ctx.stroke();
   }
-  diamond(ctx, cx, y, 7, colour);
 }
 
 function pill(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, p: Palette) {
@@ -734,17 +754,6 @@ function rings(ctx: CanvasRenderingContext2D, cx: number, cy: number, colour: st
   }
 }
 
-function diamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, colour: string) {
-  ctx.fillStyle = colour;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - r);
-  ctx.lineTo(cx + r, cy);
-  ctx.lineTo(cx, cy + r);
-  ctx.lineTo(cx - r, cy);
-  ctx.closePath();
-  ctx.fill();
-}
-
 function cameraIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, colour: string) {
   ctx.strokeStyle = colour;
   ctx.lineWidth = 3;
@@ -776,6 +785,15 @@ function initials(name: string): string {
 function joinAnd(words: string[]): string {
   if (words.length <= 1) return (words[0] ?? 'connect').toLowerCase();
   return `${words.slice(0, -1).join(', ').toLowerCase()} & ${(words.at(-1) ?? '').toLowerCase()}`;
+}
+
+/**
+ * The biggest code that fits the height it is given, allowing for the white
+ * card around it. Never bigger than the space — a minimum size that ignored
+ * the space is what pushed the code over the headline on an A4.
+ */
+function fitSquare(space: number, cardFactor: number): number {
+  return Math.max(220, Math.min(700, space / cardFactor));
 }
 
 function clamp(value: number, min: number, max: number): number {

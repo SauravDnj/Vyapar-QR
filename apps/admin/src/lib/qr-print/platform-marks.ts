@@ -21,8 +21,10 @@ export interface PlatformMark {
 }
 
 export const PLATFORM_MARKS: { left: PlatformMark; right: PlatformMark } = {
-  left: { src: '/brand/waloop.png', label: 'WALOOP', aspect: 2.6 },
-  right: { src: '/brand/meta-partner.png', label: 'META', sub: 'Business Partner', aspect: 2.6 },
+  // Aspects are the real artwork's, so each mark keeps its own proportions
+  // instead of being stretched into a shared box.
+  left: { src: '/brand/waloop.png', label: 'WALOOP', aspect: 542 / 348 },
+  right: { src: '/brand/meta-partner.png', label: 'META', sub: 'Business Partner', aspect: 540 / 219 },
 };
 
 export interface LoadedPlatformMarks {
