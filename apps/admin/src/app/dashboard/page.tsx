@@ -85,7 +85,7 @@ function QrCodeSection({ accessToken, status }: { accessToken: string; status: O
                 onChange={(e) => void handleRestyle({ logoEnabled: e.target.checked })}
                 disabled={isRegenerating}
               />
-              Logo in the middle
+              Logo in the saved code image
             </label>
             <button
               disabled={isRegenerating}
@@ -102,7 +102,6 @@ function QrCodeSection({ accessToken, status }: { accessToken: string; status: O
         <QrStudio
           targetUrl={qrCode.targetUrl}
           foreground={qrCode.foregroundColor}
-          withLogo={qrCode.logoEnabled}
           brand={studioBrandFrom(status, LANDING_APP_URL)}
           fileBase={slug}
         />

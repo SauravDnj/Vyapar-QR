@@ -44,33 +44,44 @@ export interface LoadedImage {
  * Loads an image through fetch rather than `<img src>`, so the canvas it is
  * drawn on stays exportable — a cross-origin image drawn directly would
  * "taint" the canvas and every download from it would throw.
+ *
+ * A logo is a few hundred kilobytes and a shop's connection can be slow, so
+ * a slow answer is waited out (30s) and one failure is retried before giving
+ * up. Giving up quietly is what made posters come out with initials instead
+ * of the logo, so the caller is told which happened.
  */
-export async function loadImage(url: string): Promise<LoadedImage | null> {
-  // A logo host that never answers must not hold the designs back for ever.
-  const abort = new AbortController();
-  const timer = window.setTimeout(() => {
-    abort.abort();
-  }, 8000);
-  try {
-    const response = await fetch(url, { signal: abort.signal });
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        resolve(String(reader.result));
-      };
-      reader.onerror = () => {
-        reject(new Error('read failed'));
-      };
-      reader.readAsDataURL(blob);
-    });
-    return { image: await imageFrom(dataUrl), dataUrl };
-  } catch {
-    return null;
-  } finally {
-    window.clearTimeout(timer);
+export async function loadImage(url: string, timeoutMs = 30_000): Promise<LoadedImage | null> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const abort = new AbortController();
+    const timer = window.setTimeout(() => {
+      abort.abort();
+    }, timeoutMs);
+    try {
+      const response = await fetch(url, { signal: abort.signal, cache: 'force-cache' });
+      if (!response.ok) {
+        // A 404 or 403 will not fix itself on a retry.
+        if (response.status >= 400 && response.status < 500) return null;
+        continue;
+      }
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(String(reader.result));
+        };
+        reader.onerror = () => {
+          reject(new Error('read failed'));
+        };
+        reader.readAsDataURL(blob);
+      });
+      return { image: await imageFrom(dataUrl), dataUrl };
+    } catch {
+      // Falls through to the retry.
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
+  return null;
 }
 
 function imageFrom(src: string): Promise<HTMLImageElement> {

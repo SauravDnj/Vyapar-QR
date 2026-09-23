@@ -426,7 +426,6 @@ function QrCodesContent() {
             <QrStudio
               targetUrl={downloading.targetUrl}
               foreground={downloading.foregroundColor}
-              withLogo={downloading.logoEnabled}
               brand={brand}
               label={downloading.label}
               fileBase={downloading.label ?? 'promo'}

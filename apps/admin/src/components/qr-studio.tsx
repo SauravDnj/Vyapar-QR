@@ -74,7 +74,6 @@ const PREVIEW_WIDTH: Record<DesignKind, number> = { standee: 300, poster: 320, s
 export function QrStudio({
   targetUrl,
   foreground,
-  withLogo,
   brand,
   label = null,
   fileBase,
@@ -82,15 +81,20 @@ export function QrStudio({
   /** What the code encodes — the saved QR's own URL, so scans still count. */
   targetUrl: string;
   foreground: string | null;
-  /** Put the logo in the middle of the code. */
-  withLogo: boolean;
   brand: StudioBrand;
   /** A promo code's label, e.g. "Table 5". */
   label?: string | null;
   fileBase: string;
 }) {
   const [kind, setKind] = useState<DesignKind>('standee');
-  const [logo, setLogo] = useState<LoadedImage | null>(null);
+  // Keyed by the URL it was loaded from, so the state can never belong to a
+  // logo that has since been changed.
+  const [logoResult, setLogoResult] = useState<{ url: string; image: LoadedImage | null } | null>(null);
+  const [logoAttempt, setLogoAttempt] = useState(0);
+  // Whether the logo sits in the middle of the code in what gets downloaded.
+  // Starts on whenever there is a logo: a code with the shop's mark in it is
+  // recognised as theirs, and error correction H keeps it scannable.
+  const [logoInCode, setLogoInCode] = useState(true);
   const [badges, setBadges] = useState<BrandBadge[]>([]);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<Format | null>(null);
@@ -118,18 +122,31 @@ export function QrStudio({
   }, [brandKey]);
 
   useEffect(() => {
+    if (!brand.logoUrl) return;
     let cancelled = false;
+    const url = brand.logoUrl;
     void (async () => {
-      const loadedLogo = brand.logoUrl ? await loadImage(brand.logoUrl) : null;
-      if (!cancelled) setLogo(loadedLogo);
+      const loaded = await loadImage(url);
+      if (!cancelled) setLogoResult({ url, image: loaded });
     })();
     return () => {
       cancelled = true;
     };
-  }, [brand.logoUrl]);
+  }, [brand.logoUrl, logoAttempt]);
+
+  const logo = logoResult?.url === brand.logoUrl ? logoResult.image : null;
+  /** 'none' when the business has no logo at all — then the monogram in the
+   * designs is deliberate, not a failure. */
+  const logoState: 'loading' | 'ready' | 'failed' | 'none' = !brand.logoUrl
+    ? 'none'
+    : logoResult?.url !== brand.logoUrl
+      ? 'loading'
+      : logoResult.image
+        ? 'ready'
+        : 'failed';
 
   const spec = DESIGNS.find((design) => design.kind === kind) ?? DESIGNS[0]!;
-  const qrLogo = withLogo && logo ? logo.image : null;
+  const qrLogo = logoInCode && logo ? logo.image : null;
   const ink = foreground ?? '#1c1917';
 
   // Two versions of the same code: the bare one keeps the standard four-module
@@ -188,6 +205,9 @@ export function QrStudio({
   }, [ready, spec, arts, content, qrLogo]);
 
   const formats: Format[] = kind === 'qr' ? ['png', 'jpg', 'svg', 'pdf'] : ['png', 'jpg', 'pdf'];
+  // Downloading while the logo is still on its way is how a poster ends up
+  // with a monogram where the logo should be.
+  const waitingForLogo = logoState === 'loading';
 
   async function download(format: Format) {
     setBusy(format);
@@ -264,6 +284,18 @@ export function QrStudio({
           </div>
         </div>
 
+        <label className={`flex w-fit items-center gap-2 text-sm ${logo ? '' : 'text-muted'}`}>
+          <input
+            type="checkbox"
+            checked={logoInCode && Boolean(logo)}
+            disabled={!logo}
+            onChange={(event) => {
+              setLogoInCode(event.target.checked);
+            }}
+          />
+          Put your logo in the middle of the code
+        </label>
+
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Download</p>
           <div className="flex flex-wrap gap-2">
@@ -271,7 +303,7 @@ export function QrStudio({
               <button
                 key={format}
                 type="button"
-                disabled={!ready || busy !== null}
+                disabled={!ready || busy !== null || waitingForLogo}
                 onClick={() => void download(format)}
                 className={`min-h-10 min-w-[4.5rem] cursor-pointer rounded-md px-4 text-sm font-medium disabled:cursor-default disabled:opacity-50 ${
                   format === formats[0] ? 'bg-accent text-accent-foreground' : 'border border-border-color'
@@ -281,6 +313,22 @@ export function QrStudio({
               </button>
             ))}
           </div>
+          {waitingForLogo ? <p className="text-xs text-muted">Loading your logo…</p> : null}
+          {logoState === 'failed' ? (
+            <p role="alert" className="text-sm text-warning">
+              Your logo couldn’t be loaded, so these designs show your initials instead.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setLogoAttempt((n) => n + 1);
+                }}
+                className="cursor-pointer underline"
+              >
+                Try again
+              </button>
+              , or re-upload it under My Landing Page.
+            </p>
+          ) : null}
           <p className="text-xs text-muted">
             {kind === 'qr'
               ? 'PNG and JPG at 2048 × 2048 px. SVG and PDF are vector — sharp at any size.'
