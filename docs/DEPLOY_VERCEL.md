@@ -214,6 +214,34 @@ Cron runs show up under **Project → Settings → Cron Jobs**.
 
 ---
 
+## Custom domains, and the Cloudflare trap that took the API down
+
+Each app takes its own hostname (`vercel domains add <host> <project>`), then a
+`CNAME` to `cname.vercel-dns.com` at the DNS provider. Vercel issues the
+certificate; if the domain sits there unserved for a while, `vercel certs issue
+<host>` does it on demand.
+
+**Keep the API on a hostname one label deep, or leave it on its `.vercel.app`
+address.** Behind Cloudflare's proxy (the orange cloud), the free Universal SSL
+certificate covers `example.com` and `*.example.com` — one label, no more. A
+two-label API host like `api.app.example.com` then fails its TLS handshake, the
+admin's login fetch dies before it reaches any server, and the sign-in page can
+only say "Something went wrong": no status code ever came back. The ways out,
+in order of least work:
+
+1. Set that DNS record to **DNS only** (grey cloud) so it goes straight to
+   Vercel, which has a valid certificate for it.
+2. Use a one-label host (`api-app.example.com`).
+3. Keep the API on its `.vercel.app` address — what this deployment does.
+
+Whatever the API's address is, it belongs in three places that must agree:
+`NEXT_PUBLIC_API_URL` (admin and landing, read at build time — a change needs a
+redeploy) and `API_PUBLIC_URL` (the API itself, which builds upload and QR
+redirect URLs from it). `CORS_ORIGINS` must list the admin and landing origins,
+and may list both the old and new ones during a move.
+
+---
+
 ## Cron schedule
 
 Vercel's Hobby plan runs cron jobs **at most once a day** and caps how many a
