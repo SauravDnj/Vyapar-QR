@@ -23,13 +23,14 @@ export const SHEETS_EVENT_TYPES: WebhookEventType[] = [
 /**
  * How long one attempt waits for the receiver.
  *
- * A measured Apps Script round trip is 4-5 seconds when warm, and a cold start
- * or a slow sheet write is slower still, so the old 10s limit turned an
- * ordinary slow answer into "No answer within 10s" and lost the record. The
- * customer no longer waits for any of this (see `deliverInBackground`), so the
- * limit can be generous.
+ * A measured Apps Script round trip is 4-5 seconds when warm and 11-22 when
+ * Google is having a bad minute, so the old 10s limit turned an ordinary slow
+ * answer into "No answer within 10s" and lost the record. The customer no
+ * longer waits for any of this (see `inBackground`), so the limit can be
+ * generous — but three attempts plus their backoff must still fit inside the
+ * 60s a function is allowed to run (`vercel.json`).
  */
-const DELIVERY_TIMEOUT_MS = 25_000;
+const DELIVERY_TIMEOUT_MS = 18_000;
 
 /** Attempts per delivery. Google answers a healthy script with an occasional
  * 404 HTML page; a second try a moment later succeeds. */
