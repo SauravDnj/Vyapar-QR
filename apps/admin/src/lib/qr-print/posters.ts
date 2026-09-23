@@ -1,4 +1,5 @@
-import { contrast, drawCover, drawQrArt, mix, type QrArt } from './qr-art';
+import { PLATFORM_MARKS } from './platform-marks';
+import { drawCover, drawQrArt, type QrArt } from './qr-art';
 
 /**
  * The printable designs, drawn on a canvas.
@@ -47,14 +48,16 @@ export interface DesignContent {
   tagline: string;
   /** The page's logo, already loaded; null draws a monogram instead. */
   logo: CanvasImageSource | null;
-  accent: string;
-  /** Short form of the page address, e.g. "qrhub-landing.vercel.app/site/waloop". */
+  /** Short form of the page address, e.g. "qr.waloop.in/site/waloop". */
   address: string;
   /** A promo code's label ("Table 5"), printed as a tag. */
   label: string | null;
   /** What scanning does, in order: "Pay", "Review", "Chat". */
   verbs: string[];
   brands: BrandBadge[];
+  /** The platform's marks along the top: Waloop left, Meta partner right.
+   * Either may be null, and a labelled placeholder is drawn instead. */
+  platform: { left: CanvasImageSource | null; right: CanvasImageSource | null };
 }
 
 /** Where the QR code landed, as fractions of the sheet — the preview lays its
@@ -96,7 +99,7 @@ export function drawDesign(
   ctx.save();
   ctx.scale(scale, scale);
   ctx.textBaseline = 'alphabetic';
-  const palette = paletteFor(content.accent);
+  const palette = PALETTE;
   const kit: Kit = { ctx, scale, palette, art, qrLogo, content, H };
 
   let qr: QrPlacement;
@@ -121,34 +124,43 @@ export function drawDesign(
 
 interface Palette {
   accent: string;
-  /** The accent darkened until it carries small text on white. */
+  /** The blue darkened until it carries small text on white. */
   ink: string;
   deep: string;
   tint: string;
   edge: string;
-  /** Text that sits on the accent. */
+  /** Text that sits on the blue. */
   onAccent: string;
-  /** Gold-ish light used in the logo ring and highlights. */
+  /** The lighter blue used in the logo ring and highlights. */
   shine: string;
+  /** Facebook blue, for the second stop of a gradient. */
+  sky: string;
   /** Corner marks and small fills on white: the accent, unless it is too
    * pale to see there. */
   mark: string;
 }
 
-function paletteFor(accent: string): Palette {
-  let ink = mix(accent, '#2b1a02', 0.18);
-  for (let step = 0; step < 6 && contrast(ink, '#ffffff') < 4.8; step += 1) ink = mix(ink, '#1c1208', 0.25);
-  return {
-    accent,
-    ink,
-    deep: mix(accent, '#120b02', 0.42),
-    tint: mix(accent, '#ffffff', 0.9),
-    edge: mix(accent, '#ffffff', 0.78),
-    onAccent: contrast('#ffffff', accent) >= 3 ? '#ffffff' : TEXT,
-    shine: mix(accent, '#fff4d6', 0.62),
-    mark: contrast(accent, '#ffffff') >= 2.2 ? accent : mix(accent, '#2b1a02', 0.35),
-  };
-}
+/**
+ * The print template's own colours: Meta blue with Facebook blue and a light
+ * sky behind it — the same blues the product uses on screen.
+ *
+ * Fixed, not taken from each business's accent colour, because these sheets
+ * carry the platform's marks at the top and have to look like one family
+ * wherever they are printed. `ink` is the blue darkened until 12px text on
+ * white clears 4.5:1.
+ */
+export const BRAND = {
+  accent: '#0866ff',
+  ink: '#0b46b8',
+  deep: '#062c86',
+  sky: '#1877f2',
+  tint: '#eaf2ff',
+  edge: '#bcd6ff',
+  onAccent: '#ffffff',
+  shine: '#8fc0ff',
+} as const;
+
+const PALETTE: Palette = { ...BRAND, mark: BRAND.accent };
 
 interface Kit {
   ctx: CanvasRenderingContext2D;
@@ -169,8 +181,9 @@ function drawStandee(kit: Kit): QrPlacement {
   ctx.fillRect(0, 0, W, H);
   softGlow(ctx, 500, 360, 620, p.tint);
 
-  // The arch: accent from edge to edge, curving down to cradle the logo.
-  const archBottom = 300;
+  // The blue band: edge to edge, curving down to cradle the logo. Deeper at
+  // the sides, Facebook blue through the middle.
+  const archBottom = 330;
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(0, 0);
@@ -178,43 +191,55 @@ function drawStandee(kit: Kit): QrPlacement {
   ctx.lineTo(W, archBottom - 30);
   ctx.quadraticCurveTo(500, archBottom + 110, 0, archBottom - 30);
   ctx.closePath();
-  const band = ctx.createLinearGradient(0, 0, W, archBottom);
-  band.addColorStop(0, p.accent);
+  const band = ctx.createLinearGradient(0, 0, 0, archBottom + 110);
+  band.addColorStop(0, p.sky);
+  band.addColorStop(0.55, p.accent);
   band.addColorStop(1, p.deep);
   ctx.fillStyle = band;
   ctx.fill();
+  // A soft highlight behind the logo, so the band reads as lit from above.
+  softGlow(ctx, 500, 40, 520, withAlpha('#ffffff', 0.18));
   ctx.clip();
-  rings(ctx, 500, archBottom + 40, p.onAccent, 0.09);
+  rings(ctx, 500, archBottom + 40, p.onAccent, 0.1);
   ctx.restore();
 
-  spaced(ctx, content.label ? content.label.toUpperCase() : 'WELCOME', 500, 92, `600 24px ${BODY_FONT}`, withAlpha(p.onAccent, 0.82), 6);
-  diamondRule(ctx, 500, 122, 150, withAlpha(p.onAccent, 0.55));
+  platformRow(kit, 56, 62, true);
+  spaced(
+    ctx,
+    content.label ? content.label.toUpperCase() : 'SCAN ME',
+    500,
+    182,
+    `600 24px ${BODY_FONT}`,
+    withAlpha(p.onAccent, 0.9),
+    6,
+  );
+  diamondRule(ctx, 500, 212, 150, withAlpha(p.onAccent, 0.6));
 
-  logoDisc(kit, 500, archBottom + 50, 104);
+  logoDisc(kit, 500, archBottom + 46, 100);
 
-  let y = archBottom + 50 + 104 + 86;
-  y = nameBlock(ctx, content.businessName, 500, y, 840, 80, 50, TEXT);
+  let y = archBottom + 46 + 100 + 82;
+  y = nameBlock(ctx, content.businessName, 500, y, 840, 76, 48, TEXT);
   if (content.tagline) {
-    y += 10;
-    y = fitOneLine(ctx, content.tagline, 500, y + 30, 820, `500 {s}px ${BODY_FONT}`, 27, 19, MUTED) + 4;
+    y = fitOneLine(ctx, content.tagline, 500, y + 40, 820, `500 {s}px ${BODY_FONT}`, 26, 18, MUTED);
   }
 
-  y += 52;
+  y += 50;
   eyebrow(ctx, `SCAN TO ${content.verbs.join(' · ').toUpperCase()}`, 500, y, p);
 
-  // The code takes whatever height is left once everything under it is
-  // placed: the pill (overlapping the card), the logo row and the address.
+  // Everything under the code is placed first — the pill that overlaps the
+  // card, the app logos, the address — and the code is then centred in the
+  // band that is left, which is what puts it in the middle of the sheet.
   const addressY = H - 46;
-  const below = 40 + 56 + (content.brands.length > 0 ? 64 : 0) + 18;
-  const room = addressY - below - (y + 34);
-  const qrSize = clamp(room / 1.075 - 20, 400, 620);
-  const qrTop = y + 34 + qrSize * 0.075 + 12;
+  const brandsY = content.brands.length > 0 ? addressY - 62 : addressY;
+  const top = y + 30;
+  const bottom = brandsY - (content.brands.length > 0 ? 54 : 34) - 34;
+  const qrSize = clamp((bottom - top) / 1.22, 380, 680);
+  const qrTop = top + (bottom - top - qrSize * 1.22) / 2 + qrSize * 0.075;
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize);
-  const pillY = qrTop + qrSize + qrSize * 0.075;
-  pill(ctx, 'Scan with your phone camera', 500, pillY, p);
+  pill(ctx, 'Scan with your phone camera', 500, qrTop + qrSize + qrSize * 0.075, p);
 
   if (content.brands.length > 0) {
-    brandRow(ctx, content.brands, 500, (pillY + 32 + addressY - 26) / 2, 40, 880);
+    brandRow(ctx, content.brands, 500, brandsY, 40, 880);
   }
   fitOneLine(ctx, content.address, 500, addressY, 860, `500 {s}px ${BODY_FONT}`, 19, 13, SOFT);
 
@@ -237,7 +262,7 @@ function drawPoster(kit: Kit): QrPlacement {
   ctx.strokeStyle = p.accent;
   ctx.lineWidth = 4;
   ctx.strokeRect(34, 34, W - 68, H - 68);
-  ctx.strokeStyle = withAlpha(p.accent, 0.45);
+  ctx.strokeStyle = withAlpha(p.sky, 0.45);
   ctx.lineWidth = 1.5;
   ctx.strokeRect(48, 48, W - 96, H - 96);
   for (const [cx, cy] of [
@@ -250,10 +275,11 @@ function drawPoster(kit: Kit): QrPlacement {
     diamond(ctx, cx, cy, 5, '#ffffff');
   }
 
-  if (content.label) tag(ctx, content.label, 500, 104, p);
+  // The platform's marks sit inside the frame, above everything else.
+  platformRow(kit, 74, 60, false);
+  if (content.label) tag(ctx, content.label, 500, 196, p);
 
-  // A promo label sits above the logo, so the logo moves down to make room.
-  const logoY = content.label ? 226 : 178;
+  const logoY = content.label ? 282 : 230;
   logoDisc(kit, 500, logoY, 70);
   let y = logoY + 70 + 72;
   y = nameBlock(ctx, content.businessName, 500, y, 780, 66, 42, TEXT);
@@ -275,7 +301,7 @@ function drawPoster(kit: Kit): QrPlacement {
   const stepsY = stepsTextY - 66;
   const top = y + 46;
   const bottom = stepsY - 70;
-  const qrSize = clamp((bottom - top) / 1.15, 300, 600);
+  const qrSize = clamp((bottom - top) / 1.15, 300, 660);
   const qrTop = top + (bottom - top - qrSize * 1.15) / 2 + qrSize * 0.075;
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize);
 
@@ -340,6 +366,75 @@ function drawSticker(kit: Kit): QrPlacement {
 }
 
 /* ─── Shared pieces ────────────────────────────────────────────────────── */
+
+/**
+ * The platform's marks across the top: Waloop on the left, the Meta partner
+ * badge on the right, each on a white chip so a coloured logo reads against
+ * the blue. Until the image files exist, the chip holds its name instead, so
+ * the sheet is never missing a corner.
+ */
+function platformRow(kit: Kit, y: number, height: number, onColour: boolean) {
+  const { ctx, palette: p, content } = kit;
+  const width = height * PLATFORM_MARKS.left.aspect;
+  const inset = 64;
+  const slots = [
+    { mark: PLATFORM_MARKS.left, image: content.platform.left, x: inset },
+    { mark: PLATFORM_MARKS.right, image: content.platform.right, x: W - inset - width },
+  ];
+
+  for (const slot of slots) {
+    ctx.fillStyle = onColour ? withAlpha('#ffffff', 0.96) : '#ffffff';
+    ctx.strokeStyle = onColour ? withAlpha('#ffffff', 0.5) : p.edge;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(slot.x, y, width, height, height * 0.32);
+    ctx.fill();
+    ctx.stroke();
+
+    const pad = height * 0.18;
+    if (slot.image) {
+      drawContain(ctx, slot.image, slot.x + pad, y + pad, width - pad * 2, height - pad * 2);
+      continue;
+    }
+    // Placeholder: the name, and a hairline that says this is a slot.
+    const hasSub = Boolean(slot.mark.sub);
+    fitOneLine(
+      ctx,
+      slot.mark.label,
+      slot.x + width / 2,
+      y + height * (hasSub ? 0.46 : 0.62),
+      width - pad * 3,
+      `700 {s}px ${BODY_FONT}`,
+      Math.round(height * 0.3),
+      11,
+      p.ink,
+      2,
+    );
+    if (slot.mark.sub) {
+      fitOneLine(
+        ctx,
+        slot.mark.sub,
+        slot.x + width / 2,
+        y + height * 0.78,
+        width - pad * 2,
+        `500 {s}px ${BODY_FONT}`,
+        Math.round(height * 0.2),
+        9,
+        MUTED,
+      );
+    }
+  }
+}
+
+/** Like CSS `object-fit: contain` — a logo must not be cropped. */
+function drawContain(ctx: CanvasRenderingContext2D, image: CanvasImageSource, x: number, y: number, w: number, h: number) {
+  const size = image instanceof HTMLImageElement ? { width: image.naturalWidth, height: image.naturalHeight } : { width: 0, height: 0 };
+  if (!size.width || !size.height) return;
+  const scale = Math.min(w / size.width, h / size.height);
+  const drawW = size.width * scale;
+  const drawH = size.height * scale;
+  ctx.drawImage(image, x + (w - drawW) / 2, y + (h - drawH) / 2, drawW, drawH);
+}
 
 /** The QR on its white card, with corner marks. Returns its placement. */
 function qrCard(kit: Kit, x: number, y: number, size: number, { onColour = false } = {}): QrPlacement {
@@ -487,8 +582,8 @@ function pill(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: numbe
   const width = ctx.measureText(text).width + 110;
   const height = 64;
   const grad = ctx.createLinearGradient(0, cy - height / 2, 0, cy + height / 2);
-  grad.addColorStop(0, p.accent);
-  grad.addColorStop(1, mix(p.accent, '#000000', 0.16));
+  grad.addColorStop(0, p.sky);
+  grad.addColorStop(1, p.accent);
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.roundRect(cx - width / 2, cy - height / 2, width, height, height / 2);

@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { fileSlug, loadBrandBadges, loadDesignFonts, loadImage, saveBlob, type LoadedImage } from '../lib/qr-print/assets';
 import { canvasToBlob, pdfFromCanvas, pdfFromQrArt } from '../lib/qr-print/pdf';
-import { DESIGNS, drawDesign, sheetHeight, type BrandBadge, type DesignKind, type DesignSpec } from '../lib/qr-print/posters';
-import { buildQrArt, contrast, mix, qrArtToSvg } from '../lib/qr-print/qr-art';
+import { loadPlatformMarks, type LoadedPlatformMarks } from '../lib/qr-print/platform-marks';
+import { BRAND, DESIGNS, drawDesign, sheetHeight, type BrandBadge, type DesignKind, type DesignSpec } from '../lib/qr-print/posters';
+import { buildQrArt, qrArtToSvg } from '../lib/qr-print/qr-art';
 
 import type { OnboardingStatus } from '../lib/onboarding-api';
 import type { BrandName } from '@vyaparqr/ui';
@@ -96,6 +97,7 @@ export function QrStudio({
   // recognised as theirs, and error correction H keeps it scannable.
   const [logoInCode, setLogoInCode] = useState(true);
   const [badges, setBadges] = useState<BrandBadge[]>([]);
+  const [platform, setPlatform] = useState<LoadedPlatformMarks>({ left: null, right: null });
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState<Format | null>(null);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
@@ -108,12 +110,14 @@ export function QrStudio({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [, loadedBadges] = await Promise.all([
+      const [, loadedBadges, marks] = await Promise.all([
         loadDesignFonts(),
         loadBrandBadges(brandKey ? (brandKey.split(',') as BrandName[]) : []),
+        loadPlatformMarks(),
       ]);
       if (cancelled) return;
       setBadges(loadedBadges);
+      setPlatform(marks);
       setReady(true);
     })();
     return () => {
@@ -152,25 +156,28 @@ export function QrStudio({
   // Two versions of the same code: the bare one keeps the standard four-module
   // margin; on a poster the white card around it supplies most of that margin.
   const arts = useMemo(() => {
-    const accentInk = contrast(brand.accent, '#ffffff') >= 3.2 ? brand.accent : mix(brand.accent, '#1c1208', 0.45);
+    // The finder squares take the template's blue, not the business's own
+    // accent — the printed sheet is one design, and a pale accent would make
+    // the corners of the code hard for a camera to find.
+    const accentInk = BRAND.ink;
     return {
       bare: buildQrArt(targetUrl, { foreground: ink, background: '#ffffff', withLogo: Boolean(qrLogo) }),
       card: buildQrArt(targetUrl, { foreground: ink, background: '#ffffff', eye: accentInk, withLogo: Boolean(qrLogo), quiet: 2 }),
     };
-  }, [targetUrl, ink, brand.accent, qrLogo]);
+  }, [targetUrl, ink, qrLogo]);
 
   const content = useMemo(
     () => ({
       businessName: brand.businessName,
       tagline: brand.tagline,
       logo: logo?.image ?? null,
-      accent: brand.accent,
       address: brand.address,
       label,
       verbs: brand.verbs,
       brands: badges,
+      platform: { left: platform.left?.image ?? null, right: platform.right?.image ?? null },
     }),
-    [brand, logo, badges, label],
+    [brand, logo, badges, label, platform],
   );
 
   function render(target: HTMLCanvasElement, design: DesignSpec, pixelWidth: number) {
@@ -274,7 +281,7 @@ export function QrStudio({
                   kind === design.kind ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border-color hover:border-accent/50'
                 }`}
               >
-                <DesignGlyph kind={design.kind} accent={brand.accent} />
+                <DesignGlyph kind={design.kind} accent={BRAND.accent} />
                 <span className="flex min-w-0 flex-col">
                   <span className="text-sm font-medium">{design.name}</span>
                   <span className="text-xs text-muted">{design.use}</span>
