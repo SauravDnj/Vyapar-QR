@@ -46,47 +46,95 @@ export interface LoadedImage {
  * "taint" the canvas and every download from it would throw.
  *
  * A logo is a few hundred kilobytes and a shop's connection can be slow, so
- * a slow answer is waited out (30s) and one failure is retried before giving
- * up. Giving up quietly is what made posters come out with initials instead
- * of the logo, so the caller is told which happened.
+ * a slow answer is waited out (30s). Giving up quietly is what made posters
+ * come out with initials instead of the logo, so it tries three ways before
+ * it does:
+ *
+ * 1. a normal fetch, from the browser's cache if it has the file;
+ * 2. a fresh fetch that skips every cache. Uploads are served as immutable
+ *    for a year, so a copy cached before the API sent CORS headers (or cached
+ *    by the landing page's plain `<img>`) would otherwise fail this page's
+ *    CORS check for a year — the query string makes it a new URL to the CDN
+ *    as well as to the browser;
+ * 3. an `<img crossorigin>` load, copied onto a canvas.
  */
 export async function loadImage(url: string, timeoutMs = 30_000): Promise<LoadedImage | null> {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const fresh = `${url}${url.includes('?') ? '&' : '?'}print=${String(Date.now())}`;
+  const attempts: [string, RequestCache][] = [
+    [url, 'force-cache'],
+    [fresh, 'reload'],
+  ];
+  for (const [target, cache] of attempts) {
     const abort = new AbortController();
     const timer = window.setTimeout(() => {
       abort.abort();
     }, timeoutMs);
     try {
-      const response = await fetch(url, { signal: abort.signal, cache: 'force-cache' });
-      if (!response.ok) {
-        // A 404 or 403 will not fix itself on a retry.
-        if (response.status >= 400 && response.status < 500) return null;
-        continue;
-      }
-      const blob = await response.blob();
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve(String(reader.result));
-        };
-        reader.onerror = () => {
-          reject(new Error('read failed'));
-        };
-        reader.readAsDataURL(blob);
-      });
-      return { image: await imageFrom(dataUrl), dataUrl };
+      const response = await fetch(target, { signal: abort.signal, cache, mode: 'cors', credentials: 'omit' });
+      // A 404 will not fix itself on a retry.
+      if (response.status === 404) return null;
+      if (!response.ok) continue;
+      const dataUrl = await blobToDataUrl(await response.blob());
+      return await settle(dataUrl);
     } catch {
-      // Falls through to the retry.
+      // Falls through to the next way.
     } finally {
       window.clearTimeout(timer);
     }
   }
-  return null;
+  try {
+    const image = await imageFrom(fresh, true);
+    return await settle(rasterise(image).toDataURL('image/png'));
+  } catch {
+    return null;
+  }
 }
 
-function imageFrom(src: string): Promise<HTMLImageElement> {
+/**
+ * A decoded image with a real size. An SVG saved without width and height
+ * decodes with a natural size of 0 × 0, which every drawing helper treats as
+ * "nothing to draw" — the logo disc came out blank. Those are drawn onto a
+ * square canvas first so they have one.
+ */
+async function settle(dataUrl: string): Promise<LoadedImage> {
+  const image = await imageFrom(dataUrl);
+  if (image.naturalWidth && image.naturalHeight) return { image, dataUrl };
+  const sized = rasterise(image).toDataURL('image/png');
+  return { image: await imageFrom(sized), dataUrl: sized };
+}
+
+function rasterise(image: HTMLImageElement): HTMLCanvasElement {
+  const width = image.naturalWidth || 1024;
+  const height = image.naturalHeight || 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d')?.drawImage(image, 0, 0, width, height);
+  return canvas;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(String(reader.result));
+    };
+    reader.onerror = () => {
+      reject(new Error('read failed'));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** A logo picked from the device: no network, so nothing to go wrong. */
+export async function loadImageFile(file: File): Promise<LoadedImage> {
+  return settle(await blobToDataUrl(file));
+}
+
+function imageFrom(src: string, crossOrigin = false): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    if (crossOrigin) image.crossOrigin = 'anonymous';
     image.onload = () => {
       resolve(image);
     };

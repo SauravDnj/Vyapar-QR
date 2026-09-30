@@ -1,5 +1,7 @@
 import { PLATFORM_MARKS } from './platform-marks';
-import { drawCover, drawQrArt, type QrArt } from './qr-art';
+import { contrast, drawCover, drawQrArt, mix, type QrArt } from './qr-art';
+
+import type { Palette } from './print-themes';
 
 /**
  * The printable designs, drawn on a canvas.
@@ -55,7 +57,7 @@ export interface DesignContent {
   /** What scanning does, in order: "Pay", "Review", "Chat". */
   verbs: string[];
   brands: BrandBadge[];
-  /** The platform's marks along the top: Waloop left, Meta partner right.
+  /** The platform's marks along the top: Waloop left, Meta Verified right.
    * Either may be null, and a labelled placeholder is drawn instead. */
   platform: { left: CanvasImageSource | null; right: CanvasImageSource | null };
 }
@@ -70,9 +72,6 @@ export interface QrPlacement {
 
 export const DISPLAY_FONT = '"Cormorant", "Cormorant Garamond", Georgia, serif';
 export const BODY_FONT = '"Montserrat", ui-sans-serif, system-ui, sans-serif';
-
-const TEXT = '#1c1917';
-const MUTED = '#57534e';
 
 /** Units per sheet width. */
 const W = 1000;
@@ -92,13 +91,13 @@ export function drawDesign(
   art: QrArt,
   qrLogo: CanvasImageSource | null,
   content: DesignContent,
+  palette: Palette,
 ): QrPlacement {
   const scale = pixelWidth / W;
   const H = sheetHeight(spec);
   ctx.save();
   ctx.scale(scale, scale);
   ctx.textBaseline = 'alphabetic';
-  const palette = PALETTE;
   const kit: Kit = { ctx, scale, palette, art, qrLogo, content, H };
 
   let qr: QrPlacement;
@@ -121,46 +120,6 @@ export function drawDesign(
   return { x: qr.x / W, y: qr.y / H, size: qr.size / W };
 }
 
-interface Palette {
-  accent: string;
-  /** The blue darkened until it carries small text on white. */
-  ink: string;
-  deep: string;
-  tint: string;
-  edge: string;
-  /** Text that sits on the blue. */
-  onAccent: string;
-  /** The lighter blue used in the logo ring and highlights. */
-  shine: string;
-  /** Facebook blue, for the second stop of a gradient. */
-  sky: string;
-  /** Corner marks and small fills on white: the accent, unless it is too
-   * pale to see there. */
-  mark: string;
-}
-
-/**
- * The print template's own colours: Meta blue with Facebook blue and a light
- * sky behind it — the same blues the product uses on screen.
- *
- * Fixed, not taken from each business's accent colour, because these sheets
- * carry the platform's marks at the top and have to look like one family
- * wherever they are printed. `ink` is the blue darkened until 12px text on
- * white clears 4.5:1.
- */
-export const BRAND = {
-  accent: '#0866ff',
-  ink: '#0b46b8',
-  deep: '#062c86',
-  sky: '#1877f2',
-  tint: '#eaf2ff',
-  edge: '#bcd6ff',
-  onAccent: '#ffffff',
-  shine: '#8fc0ff',
-} as const;
-
-const PALETTE: Palette = { ...BRAND, mark: BRAND.accent };
-
 interface Kit {
   ctx: CanvasRenderingContext2D;
   scale: number;
@@ -176,49 +135,34 @@ interface Kit {
 function drawStandee(kit: Kit): QrPlacement {
   const { ctx, palette: p, content, H } = kit;
 
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
+  paperGround(kit);
 
-  // 1. Who made this — small, at the very top, on white.
+  // 1. Who made this — small, at the very top, on the paper.
   const headerEnd = partnerHeader(kit, 150);
 
-  // 2. Whose shop this is — the one band of colour, ending in a curve that
-  //    the logo sits over, so the eye goes name first, then code.
-  const bandBottom = 560;
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(0, headerEnd);
-  ctx.lineTo(W, headerEnd);
-  ctx.lineTo(W, bandBottom - 34);
-  ctx.quadraticCurveTo(500, bandBottom + 46, 0, bandBottom - 34);
-  ctx.closePath();
-  const band = ctx.createLinearGradient(0, headerEnd, 0, bandBottom);
-  band.addColorStop(0, p.sky);
-  band.addColorStop(1, p.deep);
-  ctx.fillStyle = band;
-  ctx.fill();
-  ctx.clip();
-  softGlow(ctx, 500, headerEnd, 460, withAlpha('#ffffff', 0.16));
-  ctx.restore();
+  // 2. Whose shop this is — the one band of colour, edged in the trim, that
+  //    the logo sits on, so the eye goes name first, then code.
+  const bandBottom = 570;
+  heroBand(kit, headerEnd + 8, bandBottom);
 
-  logoDisc(kit, 500, headerEnd + 132, 92);
-
-  const y = nameBlock(ctx, content.businessName, 500, headerEnd + 132 + 92 + 78, 800, 66, 42, p.onAccent);
+  logoDisc(kit, 500, headerEnd + 140, 86);
+  const y = nameBlock(ctx, content.businessName, 500, headerEnd + 140 + 86 + 74, 820, 64, 40, nameColour(p));
   if (content.tagline) {
-    fitOneLine(ctx, content.tagline, 500, y + 38, 780, `500 {s}px ${BODY_FONT}`, 24, 17, withAlpha(p.onAccent, 0.88));
+    fitOneLine(ctx, content.tagline.toUpperCase(), 500, y + 40, 800, `600 {s}px ${BODY_FONT}`, 21, 14, withAlpha(p.onBand, 0.9), 3);
   }
 
   // 3. What scanning does, in one line under the band.
-  const eyebrowY = bandBottom + 74;
+  const eyebrowY = bandBottom + 84;
   eyebrow(ctx, content.label ? content.label.toUpperCase() : `SCAN TO ${content.verbs.join(' · ').toUpperCase()}`, 500, eyebrowY, p);
 
   // 4. The code: the subject of the sheet, centred in everything left over.
   const footerTop = H - 150;
-  const brandsY = content.brands.length > 0 ? footerTop - 66 : footerTop;
+  const brandsY = content.brands.length > 0 ? footerTop - 70 : footerTop;
   const top = eyebrowY + 34;
   const bottom = brandsY - (content.brands.length > 0 ? 56 : 30);
   const qrSize = fitSquare(bottom - top, 1.26);
   const qrTop = top + (bottom - top - qrSize * 1.26) / 2 + qrSize * 0.075;
+  sideOrnaments(kit, qrTop + qrSize / 2, 300);
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize);
   pill(ctx, 'Scan with your phone camera', 500, qrTop + qrSize + qrSize * 0.075, p);
 
@@ -236,40 +180,24 @@ function drawStandee(kit: Kit): QrPlacement {
 function drawPoster(kit: Kit): QrPlacement {
   const { ctx, palette: p, content, H } = kit;
 
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-
+  paperGround(kit);
   const headerEnd = partnerHeader(kit, 150);
 
   // The band is shallower than the standee's — an A4 is read from further
   // away, so the code gets the room instead.
-  const bandBottom = headerEnd + (content.tagline ? 330 : 290);
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(0, headerEnd);
-  ctx.lineTo(W, headerEnd);
-  ctx.lineTo(W, bandBottom - 30);
-  ctx.quadraticCurveTo(500, bandBottom + 44, 0, bandBottom - 30);
-  ctx.closePath();
-  const band = ctx.createLinearGradient(0, headerEnd, 0, bandBottom);
-  band.addColorStop(0, p.sky);
-  band.addColorStop(1, p.deep);
-  ctx.fillStyle = band;
-  ctx.fill();
-  ctx.clip();
-  softGlow(ctx, 500, headerEnd, 520, withAlpha('#ffffff', 0.16));
-  ctx.restore();
+  const bandBottom = headerEnd + (content.tagline ? 350 : 310) + (content.label ? 50 : 0);
+  heroBand(kit, headerEnd + 8, bandBottom);
 
-  if (content.label) tag(ctx, content.label, 500, headerEnd + 54, p);
+  if (content.label) tag(ctx, content.label, 500, headerEnd + 70, p);
 
-  const discY = headerEnd + (content.label ? 172 : 124);
-  logoDisc(kit, 500, discY, 76);
-  const y = nameBlock(ctx, content.businessName, 500, discY + 76 + 66, 800, 58, 38, p.onAccent);
+  const discY = headerEnd + (content.label ? 190 : 140);
+  logoDisc(kit, 500, discY, 74);
+  const y = nameBlock(ctx, content.businessName, 500, discY + 74 + 66, 820, 58, 36, nameColour(p));
   if (content.tagline) {
-    fitOneLine(ctx, content.tagline, 500, y + 36, 780, `500 {s}px ${BODY_FONT}`, 22, 16, withAlpha(p.onAccent, 0.88));
+    fitOneLine(ctx, content.tagline.toUpperCase(), 500, y + 38, 800, `600 {s}px ${BODY_FONT}`, 19, 13, withAlpha(p.onBand, 0.9), 3);
   }
 
-  const headlineY = bandBottom + 96;
+  const headlineY = bandBottom + 104;
   const headline = `Scan to ${joinAnd(content.verbs.slice(0, 2))}`;
   fitOneLine(ctx, headline, 500, headlineY, 820, `600 {s}px ${DISPLAY_FONT}`, 84, 54, p.ink);
 
@@ -277,35 +205,41 @@ function drawPoster(kit: Kit): QrPlacement {
   // always fit — and the code takes the middle.
   const footerTop = H - 132;
   const hasBrands = content.brands.length > 0;
-  const brandsY = hasBrands ? footerTop - 58 : footerTop;
+  const brandsY = hasBrands ? footerTop - 62 : footerTop;
   const stepsTextY = brandsY - (hasBrands ? 68 : 36);
   const stepsY = stepsTextY - 58;
   const top = headlineY + 34;
-  const bottom = stepsY - 44;
+  const bottom = stepsY - 48;
   const qrSize = fitSquare(bottom - top, 1.15);
   const qrTop = top + (bottom - top - qrSize * 1.15) / 2 + qrSize * 0.075;
+  sideOrnaments(kit, qrTop + qrSize / 2, 340);
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize);
 
   // How to, in three steps — for the customer who has never scanned a code.
   const steps = ['Open your camera', 'Point it at the code', `Tap to ${content.verbs[0]?.toLowerCase() ?? 'open'}`];
   steps.forEach((text, index) => {
     const cx = 500 + (index - 1) * 280;
-    ctx.fillStyle = p.accent;
+    ctx.fillStyle = p.primary;
     ctx.beginPath();
     ctx.arc(cx, stepsY, 28, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = p.onAccent;
+    ctx.strokeStyle = p.trim;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, stepsY, 34, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = p.onBand;
     ctx.font = `700 26px ${BODY_FONT}`;
     ctx.textAlign = 'center';
     ctx.fillText(String(index + 1), cx, stepsY + 9);
-    fitOneLine(ctx, text, cx, stepsTextY, 250, `600 {s}px ${BODY_FONT}`, 21, 15, TEXT);
+    fitOneLine(ctx, text, cx, stepsTextY, 250, `600 {s}px ${BODY_FONT}`, 21, 15, p.text);
     if (index < steps.length - 1) {
       ctx.strokeStyle = p.edge;
       ctx.lineWidth = 2;
       ctx.setLineDash([2, 8]);
       ctx.beginPath();
-      ctx.moveTo(cx + 48, stepsY);
-      ctx.lineTo(cx + 232, stepsY);
+      ctx.moveTo(cx + 52, stepsY);
+      ctx.lineTo(cx + 228, stepsY);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -322,40 +256,162 @@ function drawSticker(kit: Kit): QrPlacement {
   const { ctx, palette: p, content, H } = kit;
 
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, p.accent);
-  bg.addColorStop(1, p.deep);
+  bg.addColorStop(0, p.bandTop);
+  bg.addColorStop(1, p.bandBottom);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
-  softGlow(ctx, 500, 120, 560, withAlpha('#ffffff', 0.16));
+  softGlow(ctx, 500, 120, 560, '#ffffff', 0.14);
   ctx.save();
-  rings(ctx, 500, 500, p.onAccent, 0.07);
+  rings(ctx, 500, 500, p.trim, 0.12);
   ctx.restore();
+  // A trim frame inset from the edge, like foil round a printed card.
+  ctx.strokeStyle = p.trim;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.roundRect(28, 28, W - 56, H - 56, 34);
+  ctx.stroke();
 
   const title = content.label ? `${content.businessName} · ${content.label}` : content.businessName;
-  const titleEnd = nameBlock(ctx, title, 500, 100, 860, 66, 40, p.onAccent);
+  const titleEnd = nameBlock(ctx, title, 500, 112, 840, 64, 40, nameColour(p));
 
   // A name that needs two lines pushes the code down; the code shrinks to fit.
-  const qrSize = clamp((H - 222 - (titleEnd + 40)) / 1.075, 440, 570);
-  const qrTop = titleEnd + 40 + qrSize * 0.075;
+  const qrSize = clamp((H - 232 - (titleEnd + 44)) / 1.075, 420, 560);
+  const qrTop = titleEnd + 44 + qrSize * 0.075;
   const qr = qrCard(kit, 500 - qrSize / 2, qrTop, qrSize, { onColour: true });
   const after = qrTop + qrSize + qrSize * 0.075;
 
-  spaced(ctx, 'SCAN ME', 500, after + 82, `700 50px ${BODY_FONT}`, p.onAccent, 14);
+  spaced(ctx, 'SCAN ME', 500, after + 82, `700 50px ${BODY_FONT}`, p.onBand, 14);
   const verbs = content.verbs.join(' · ');
-  fitOneLine(ctx, verbs, 500, after + 134, 800, `500 {s}px ${BODY_FONT}`, 24, 16, withAlpha(p.onAccent, 0.82));
+  fitOneLine(ctx, verbs, 500, after + 132, 800, `500 {s}px ${BODY_FONT}`, 24, 16, withAlpha(p.onBand, 0.82));
   return qr;
+}
+
+/* ─── Theme pieces ─────────────────────────────────────────────────────── */
+
+/** The paper, with a faint light in the middle so it isn't flat. */
+function paperGround(kit: Kit) {
+  const { ctx, palette: p, H } = kit;
+  ctx.fillStyle = p.paper;
+  ctx.fillRect(0, 0, W, H);
+  softGlow(ctx, 500, H * 0.55, 700, '#ffffff', 0.55);
+}
+
+/**
+ * The band of colour behind the business's name. Its top edge arches up and
+ * its bottom edge dips, and both are edged in the theme's trim — a metallic
+ * gradient, the way foil is printed on a card — with a finer second line
+ * under the bottom one.
+ */
+function heroBand(kit: Kit, top: number, bottom: number) {
+  const { ctx, palette: p } = kit;
+  const arch = 30;
+  const dip = 44;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, top + arch);
+  ctx.quadraticCurveTo(500, top - arch, W, top + arch);
+  ctx.lineTo(W, bottom - dip);
+  ctx.quadraticCurveTo(500, bottom + dip, 0, bottom - dip);
+  ctx.closePath();
+  const band = ctx.createLinearGradient(0, top, 0, bottom);
+  band.addColorStop(0, p.bandTop);
+  band.addColorStop(0.55, p.primary);
+  band.addColorStop(1, p.bandBottom);
+  ctx.fillStyle = band;
+  ctx.fill();
+  ctx.clip();
+  const glowY = top + (bottom - top) * 0.36;
+  softGlow(ctx, 500, glowY, 420, '#ffffff', 0.2);
+  rings(ctx, 500, glowY, p.trim, 0.07);
+  ctx.restore();
+
+  const foil = ctx.createLinearGradient(0, 0, W, 0);
+  foil.addColorStop(0, p.trim);
+  foil.addColorStop(0.3, p.trimLight);
+  foil.addColorStop(0.5, p.trim);
+  foil.addColorStop(0.72, p.trimLight);
+  foil.addColorStop(1, p.trim);
+  ctx.strokeStyle = foil;
+  ctx.lineCap = 'butt';
+  const curve = (y0: number, bend: number, width: number) => {
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(0, y0);
+    ctx.quadraticCurveTo(500, y0 + bend, W, y0);
+    ctx.stroke();
+  };
+  curve(top + arch, -arch * 2, 6);
+  curve(bottom - dip + 4, dip * 2, 9);
+  curve(bottom - dip + 22, dip * 2, 2.5);
+}
+
+/** The name on the band takes a pale tint of the trim, as gold foil on
+ * maroon does — unless that wouldn't read, then plain white or ink. */
+function nameColour(p: Palette): string {
+  const foil = mix(p.trim, '#ffffff', 0.62);
+  return contrast(foil, p.primary) >= 4.5 && contrast(foil, p.bandBottom) >= 4.5 ? foil : p.onBand;
+}
+
+/**
+ * Faint line-drawn lotuses half off each side of the sheet, level with the
+ * code — texture for the empty margins, too pale to compete with it.
+ */
+function sideOrnaments(kit: Kit, cy: number, size: number) {
+  const { ctx, palette: p } = kit;
+  ctx.save();
+  ctx.strokeStyle = withAlpha(p.trim, 0.34);
+  ctx.lineWidth = 2;
+  for (const [cx, dir] of [
+    [0, 1],
+    [W, -1],
+  ] as const) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((dir * Math.PI) / 2);
+    lotus(ctx, size);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/** A lotus of pointed petals opening upward from the origin. */
+function lotus(ctx: CanvasRenderingContext2D, size: number) {
+  const petals = 7;
+  for (let layer = 0; layer < 2; layer += 1) {
+    const length = size * (layer === 0 ? 0.62 : 0.4);
+    const width = size * (layer === 0 ? 0.15 : 0.11);
+    for (let i = 0; i < petals; i += 1) {
+      ctx.save();
+      ctx.rotate(((i - (petals - 1) / 2) * Math.PI) / (petals + 1));
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(width, -length * 0.5, 0, -length);
+      ctx.quadraticCurveTo(-width, -length * 0.5, 0, 0);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -length * 0.14);
+      ctx.lineTo(0, -length * 0.76);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.08, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 /* ─── Shared pieces ────────────────────────────────────────────────────── */
 
 /**
- * The partner header: the two marks along the very top of the sheet, on
- * white, with a hairline under them.
+ * The partner header: the two marks along the very top of the sheet, on the
+ * paper.
  *
- * They sit on white rather than on the colour, because both marks are
- * multi-coloured artwork and only white keeps them true. The hairline is
- * what separates "who made this" from "whose shop this is" — the reason the
- * old version read as clutter is that the two were sharing one band.
+ * They sit on the paper rather than on the colour, because both marks are
+ * multi-coloured artwork and only a light ground keeps them true. The band's
+ * foil-edged arch below is what separates "who made this" from "whose shop
+ * this is" — the reason an older version read as clutter is that the two
+ * were sharing one band.
  *
  * Returns the y the sheet's own content can start at.
  */
@@ -381,25 +437,14 @@ function partnerHeader(kit: Kit, height: number): number {
     fitOneLine(ctx, right.mark.label, W - inset - slotH, top + slotH * 0.72, slotH * 2, `700 {s}px ${BODY_FONT}`, Math.round(slotH * 0.5), 12, p.ink, 2);
   }
 
-  const y = height;
-  const rule = ctx.createLinearGradient(inset, 0, W - inset, 0);
-  rule.addColorStop(0, withAlpha(p.accent, 0));
-  rule.addColorStop(0.5, p.edge);
-  rule.addColorStop(1, withAlpha(p.accent, 0));
-  ctx.strokeStyle = rule;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(inset, y);
-  ctx.lineTo(W - inset, y);
-  ctx.stroke();
-  return y;
+  return height;
 }
 
 /**
  * The foot of the sheet: "Powered by <Waloop>" on the left, "Made in India"
- * with a small flag on the right, on a tinted strip whose top edge dips in
- * the middle — the same curve the blue band above ends with, so the sheet is
- * bracketed by one shape instead of ending in a plain line.
+ * with a small flag on the right, on a tinted strip whose top edge is a foil
+ * curve dipping in the middle — the same curve the band above ends with, so
+ * the sheet is bracketed by one shape instead of ending in a plain line.
  */
 function footerStrip(kit: Kit, top: number) {
   const { ctx, palette: p, H } = kit;
@@ -414,6 +459,18 @@ function footerStrip(kit: Kit, top: number) {
   ctx.fillStyle = p.tint;
   ctx.fill();
 
+  const foil = ctx.createLinearGradient(0, 0, W, 0);
+  foil.addColorStop(0, p.trim);
+  foil.addColorStop(0.35, p.trimLight);
+  foil.addColorStop(0.65, p.trim);
+  foil.addColorStop(1, p.trimLight);
+  ctx.strokeStyle = foil;
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(0, top);
+  ctx.quadraticCurveTo(500, top + dip * 2, W, top);
+  ctx.stroke();
+
   const mid = (top + dip + H - 18) / 2 + 6;
   const inset = 72;
 
@@ -422,7 +479,7 @@ function footerStrip(kit: Kit, top: number) {
   // inside it would be about three units tall: unreadable in print.
   ctx.font = `600 22px ${BODY_FONT}`;
   ctx.textAlign = 'left';
-  ctx.fillStyle = MUTED;
+  ctx.fillStyle = p.muted;
   const poweredWidth = ctx.measureText('Powered by ').width;
   ctx.fillText('Powered by ', inset, mid + 7);
   ctx.font = `700 23px ${BODY_FONT}`;
@@ -432,13 +489,13 @@ function footerStrip(kit: Kit, top: number) {
   // Right: the flag, then the words, ending flush with the left inset.
   ctx.font = `600 22px ${BODY_FONT}`;
   ctx.textAlign = 'right';
-  ctx.fillStyle = MUTED;
+  ctx.fillStyle = p.muted;
   const madeWidth = ctx.measureText('Made in India').width;
   ctx.fillText('Made in India', W - inset, mid + 7);
   indiaFlag(ctx, W - inset - madeWidth - 42, mid - 11, 32, 22);
 
-  // The sheet ends on the blue it started with.
-  ctx.fillStyle = p.accent;
+  // The sheet ends on the colour its band is.
+  ctx.fillStyle = p.primary;
   ctx.fillRect(0, H - 12, W, 12);
 }
 
@@ -461,9 +518,15 @@ function indiaFlag(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
+function imageSize(image: CanvasImageSource): { width: number; height: number } {
+  if (image instanceof HTMLImageElement) return { width: image.naturalWidth, height: image.naturalHeight };
+  if (image instanceof HTMLCanvasElement || image instanceof ImageBitmap) return { width: image.width, height: image.height };
+  return { width: 0, height: 0 };
+}
+
 /** Like CSS `object-fit: contain` — a logo must not be cropped. */
 function drawContain(ctx: CanvasRenderingContext2D, image: CanvasImageSource, x: number, y: number, w: number, h: number) {
-  const size = image instanceof HTMLImageElement ? { width: image.naturalWidth, height: image.naturalHeight } : { width: 0, height: 0 };
+  const size = imageSize(image);
   if (!size.width || !size.height) return;
   const scale = Math.min(w / size.width, h / size.height);
   const drawW = size.width * scale;
@@ -478,19 +541,25 @@ function qrCard(kit: Kit, x: number, y: number, size: number, { onColour = false
   const card = { x: x - pad, y: y - pad, w: size + pad * 2, h: size + pad * 2 };
 
   ctx.save();
-  ctx.shadowColor = onColour ? 'rgba(10, 6, 0, 0.35)' : withAlpha(p.deep, 0.22);
-  ctx.shadowBlur = 46 * scale;
-  ctx.shadowOffsetY = 18 * scale;
+  ctx.shadowColor = onColour ? 'rgba(10, 6, 0, 0.35)' : withAlpha(p.bandBottom, 0.12);
+  ctx.shadowBlur = (onColour ? 46 : 26) * scale;
+  ctx.shadowOffsetY = (onColour ? 18 : 10) * scale;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.roundRect(card.x, card.y, card.w, card.h, 38);
   ctx.fill();
   ctx.restore();
+  // A foil edge round the card, and a hairline inside it.
+  ctx.strokeStyle = p.trim;
+  ctx.lineWidth = onColour ? 4 : 3;
+  ctx.beginPath();
+  ctx.roundRect(card.x, card.y, card.w, card.h, 38);
+  ctx.stroke();
   if (!onColour) {
     ctx.strokeStyle = p.edge;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(card.x, card.y, card.w, card.h, 38);
+    ctx.roundRect(card.x + 9, card.y + 9, card.w - 18, card.h - 18, 30);
     ctx.stroke();
   }
 
@@ -531,15 +600,20 @@ function logoDisc(kit: Kit, cx: number, cy: number, r: number) {
   ctx.fill();
   ctx.restore();
 
+  // A foil ring round the white rim, and a finer one inside it.
   const ring = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
-  ring.addColorStop(0, p.accent);
-  ring.addColorStop(0.4, p.shine);
-  ring.addColorStop(0.72, p.accent);
-  ring.addColorStop(1, p.shine);
+  ring.addColorStop(0, p.trim);
+  ring.addColorStop(0.4, p.trimLight);
+  ring.addColorStop(0.72, p.trim);
+  ring.addColorStop(1, p.trimLight);
   ctx.strokeStyle = ring;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 8;
   ctx.beginPath();
-  ctx.arc(cx, cy, r + 3, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r + 14, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.save();
@@ -549,7 +623,16 @@ function logoDisc(kit: Kit, cx: number, cy: number, r: number) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
   if (content.logo) {
-    drawCover(ctx, content.logo, cx - r, cy - r, r * 2, r * 2);
+    // A square logo fills the circle, as it does on the landing page; a wide
+    // or tall one is fitted inside it instead, so no letters are cut off.
+    const { width, height } = imageSize(content.logo);
+    const aspect = width && height ? width / height : 1;
+    if (aspect > 0.85 && aspect < 1.18) {
+      drawCover(ctx, content.logo, cx - r, cy - r, r * 2, r * 2);
+    } else {
+      const box = r * 1.5;
+      drawContain(ctx, content.logo, cx - box / 2, cy - box / 2, box, box);
+    }
   } else {
     ctx.fillStyle = p.tint;
     ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
@@ -586,8 +669,8 @@ function eyebrow(ctx: CanvasRenderingContext2D, text: string, cx: number, y: num
   const gap = width / 2 + 28;
   for (const dir of [-1, 1]) {
     const grad = ctx.createLinearGradient(cx + dir * gap, 0, cx + dir * (gap + 110), 0);
-    grad.addColorStop(0, p.edge);
-    grad.addColorStop(1, withAlpha(p.edge, 0));
+    grad.addColorStop(0, p.trim);
+    grad.addColorStop(1, withAlpha(p.trim, 0));
     ctx.strokeStyle = grad;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -602,14 +685,17 @@ function pill(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: numbe
   const width = ctx.measureText(text).width + 110;
   const height = 64;
   const grad = ctx.createLinearGradient(0, cy - height / 2, 0, cy + height / 2);
-  grad.addColorStop(0, p.sky);
-  grad.addColorStop(1, p.accent);
+  grad.addColorStop(0, p.bandTop);
+  grad.addColorStop(1, p.bandBottom);
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.roundRect(cx - width / 2, cy - height / 2, width, height, height / 2);
   ctx.fill();
-  cameraIcon(ctx, cx - width / 2 + 44, cy, 15, p.onAccent);
-  ctx.fillStyle = p.onAccent;
+  ctx.strokeStyle = p.trim;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  cameraIcon(ctx, cx - width / 2 + 44, cy, 15, p.onBand);
+  ctx.fillStyle = p.onBand;
   ctx.textAlign = 'left';
   ctx.fillText(text, cx - width / 2 + 74, cy + 9);
 }
@@ -735,9 +821,12 @@ function wrap(ctx: CanvasRenderingContext2D, words: string[], maxWidth: number):
   return lines;
 }
 
-function softGlow(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, colour: string) {
+/** A radial light, fading from `alpha` to nothing. The colour is a hex and the
+ * alpha separate: fading an rgba() through `withAlpha` parsed it as a hex and
+ * ended the gradient on transparent black, which greyed the paper. */
+function softGlow(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, colour: string, alpha: number) {
   const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  glow.addColorStop(0, colour);
+  glow.addColorStop(0, withAlpha(colour, alpha));
   glow.addColorStop(1, withAlpha(colour, 0));
   ctx.fillStyle = glow;
   ctx.fillRect(cx - r, cy - r, r * 2, r * 2);

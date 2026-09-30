@@ -146,7 +146,16 @@ export function drawQrArt(
     ctx.beginPath();
     ctx.arc(cx, cy, inner, 0, Math.PI * 2);
     ctx.clip();
-    drawCover(ctx, logo, cx - inner, cy - inner, inner * 2, inner * 2);
+    // A square logo fills the circle; a wide or tall one is fitted inside it,
+    // so a wordmark isn't cut down to its middle letters.
+    const { width, height } = sourceSize(logo);
+    const aspect = width && height ? width / height : 1;
+    if (aspect > 0.85 && aspect < 1.18) {
+      drawCover(ctx, logo, cx - inner, cy - inner, inner * 2, inner * 2);
+    } else {
+      const fit = Math.min((inner * 1.8) / width, (inner * 1.8) / height);
+      ctx.drawImage(logo, cx - (width * fit) / 2, cy - (height * fit) / 2, width * fit, height * fit);
+    }
     ctx.restore();
   }
   ctx.restore();

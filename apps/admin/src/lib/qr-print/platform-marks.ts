@@ -2,7 +2,7 @@ import { loadImage, type LoadedImage } from './assets';
 
 /**
  * The platform's own two marks along the top of every printed sheet: Waloop
- * on the left, the Meta partner badge on the right.
+ * on the left, the Meta Verified badge on the right.
  *
  * They are files under `public/brand/`, not artwork in code, so replacing
  * them is dropping in a new PNG. Until a file is there the sheet draws a
@@ -24,7 +24,7 @@ export const PLATFORM_MARKS: { left: PlatformMark; right: PlatformMark } = {
   // Aspects are the real artwork's, so each mark keeps its own proportions
   // instead of being stretched into a shared box.
   left: { src: '/brand/waloop.png', label: 'WALOOP', aspect: 542 / 348 },
-  right: { src: '/brand/meta-partner.png', label: 'META', sub: 'Business Partner', aspect: 540 / 219 },
+  right: { src: '/brand/meta-verified.png', label: 'META', sub: 'Verified', aspect: 1168 / 348 },
 };
 
 export interface LoadedPlatformMarks {

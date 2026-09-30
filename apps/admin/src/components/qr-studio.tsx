@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { fileSlug, loadBrandBadges, loadDesignFonts, loadImage, saveBlob, type LoadedImage } from '../lib/qr-print/assets';
+import { fileSlug, loadBrandBadges, loadDesignFonts, loadImage, loadImageFile, saveBlob, type LoadedImage } from '../lib/qr-print/assets';
 import { canvasToBlob, pdfFromCanvas, pdfFromQrArt } from '../lib/qr-print/pdf';
 import { loadPlatformMarks, type LoadedPlatformMarks } from '../lib/qr-print/platform-marks';
-import { BRAND, DESIGNS, drawDesign, sheetHeight, type BrandBadge, type DesignKind, type DesignSpec } from '../lib/qr-print/posters';
+import { DESIGNS, drawDesign, sheetHeight, type BrandBadge, type DesignKind, type DesignSpec } from '../lib/qr-print/posters';
+import { DEFAULT_PRINT_THEME, PRINT_THEMES, isHex, paletteFrom, type PrintColours } from '../lib/qr-print/print-themes';
 import { buildQrArt, qrArtToSvg } from '../lib/qr-print/qr-art';
 
 import type { OnboardingStatus } from '../lib/onboarding-api';
@@ -99,6 +100,10 @@ export function QrStudio({
   const [badges, setBadges] = useState<BrandBadge[]>([]);
   const [platform, setPlatform] = useState<LoadedPlatformMarks>({ left: null, right: null });
   const [ready, setReady] = useState(false);
+  const [look, setLook] = useState<SavedLook>(readSavedLook);
+  // A logo picked here, for print only — used when the page's own logo won't
+  // load, or when the owner wants a different one on paper.
+  const [printLogo, setPrintLogo] = useState<LoadedImage | null>(null);
   const [busy, setBusy] = useState<Format | null>(null);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -138,16 +143,41 @@ export function QrStudio({
     };
   }, [brand.logoUrl, logoAttempt]);
 
-  const logo = logoResult?.url === brand.logoUrl ? logoResult.image : null;
+  const pageLogo = logoResult?.url === brand.logoUrl ? logoResult.image : null;
+  const logo = printLogo ?? pageLogo;
   /** 'none' when the business has no logo at all — then the monogram in the
    * designs is deliberate, not a failure. */
-  const logoState: 'loading' | 'ready' | 'failed' | 'none' = !brand.logoUrl
-    ? 'none'
-    : logoResult?.url !== brand.logoUrl
-      ? 'loading'
-      : logoResult.image
-        ? 'ready'
-        : 'failed';
+  const logoState: 'loading' | 'ready' | 'failed' | 'none' = printLogo
+    ? 'ready'
+    : !brand.logoUrl
+      ? 'none'
+      : logoResult?.url !== brand.logoUrl
+        ? 'loading'
+        : logoResult.image
+          ? 'ready'
+          : 'failed';
+
+  const palette = useMemo(() => paletteFrom(look.colours), [look.colours]);
+
+  function chooseLook(next: SavedLook) {
+    setLook(next);
+    setNotice(null);
+    try {
+      window.localStorage.setItem(LOOK_KEY, JSON.stringify(next));
+    } catch {
+      // Private mode: the choice lasts for this visit only.
+    }
+  }
+
+  async function pickPrintLogo(file: File | undefined) {
+    if (!file) return;
+    try {
+      setPrintLogo(await loadImageFile(file));
+      setLogoInCode(true);
+    } catch {
+      setNotice({ tone: 'error', text: 'That file couldn’t be read as an image. Try a PNG or JPG.' });
+    }
+  }
 
   const spec = DESIGNS.find((design) => design.kind === kind) ?? DESIGNS[0]!;
   const qrLogo = logoInCode && logo ? logo.image : null;
@@ -156,15 +186,14 @@ export function QrStudio({
   // Two versions of the same code: the bare one keeps the standard four-module
   // margin; on a poster the white card around it supplies most of that margin.
   const arts = useMemo(() => {
-    // The finder squares take the template's blue, not the business's own
-    // accent — the printed sheet is one design, and a pale accent would make
-    // the corners of the code hard for a camera to find.
-    const accentInk = BRAND.ink;
+    // The finder squares take the theme's colour, darkened by the palette
+    // until a camera can find them on white.
+    const accentInk = palette.mark;
     return {
       bare: buildQrArt(targetUrl, { foreground: ink, background: '#ffffff', withLogo: Boolean(qrLogo) }),
       card: buildQrArt(targetUrl, { foreground: ink, background: '#ffffff', eye: accentInk, withLogo: Boolean(qrLogo), quiet: 2 }),
     };
-  }, [targetUrl, ink, qrLogo]);
+  }, [targetUrl, ink, qrLogo, palette.mark]);
 
   const content = useMemo(
     () => ({
@@ -187,7 +216,7 @@ export function QrStudio({
     target.height = Math.round((pixelWidth * sheetHeight(design)) / 1000);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, target.width, target.height);
-    return drawDesign(ctx, design, pixelWidth, design.kind === 'qr' ? arts.bare : arts.card, qrLogo, content);
+    return drawDesign(ctx, design, pixelWidth, design.kind === 'qr' ? arts.bare : arts.card, qrLogo, content, palette);
   }
 
   // The preview: drawn at the screen's density, with the scan line laid over
@@ -209,7 +238,7 @@ export function QrStudio({
     }
     // `render` reads only what is listed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, spec, arts, content, qrLogo]);
+  }, [ready, spec, arts, content, qrLogo, palette]);
 
   const formats: Format[] = kind === 'qr' ? ['png', 'jpg', 'svg', 'pdf'] : ['png', 'jpg', 'pdf'];
   // Downloading while the logo is still on its way is how a poster ends up
@@ -281,7 +310,7 @@ export function QrStudio({
                   kind === design.kind ? 'border-accent bg-accent/5 ring-1 ring-accent' : 'border-border-color hover:border-accent/50'
                 }`}
               >
-                <DesignGlyph kind={design.kind} accent={BRAND.accent} />
+                <DesignGlyph kind={design.kind} accent={palette.primary} />
                 <span className="flex min-w-0 flex-col">
                   <span className="text-sm font-medium">{design.name}</span>
                   <span className="text-xs text-muted">{design.use}</span>
@@ -290,6 +319,21 @@ export function QrStudio({
             ))}
           </div>
         </div>
+
+        {kind === 'qr' ? null : <LookPicker look={look} onChange={chooseLook} />}
+
+        <LogoRow
+          logo={logo}
+          state={logoState}
+          fromDevice={printLogo !== null}
+          onPick={(file) => void pickPrintLogo(file)}
+          onClear={() => {
+            setPrintLogo(null);
+          }}
+          onRetry={() => {
+            setLogoAttempt((n) => n + 1);
+          }}
+        />
 
         <label className={`flex w-fit items-center gap-2 text-sm ${logo ? '' : 'text-muted'}`}>
           <input
@@ -321,21 +365,6 @@ export function QrStudio({
             ))}
           </div>
           {waitingForLogo ? <p className="text-xs text-muted">Loading your logo…</p> : null}
-          {logoState === 'failed' ? (
-            <p role="alert" className="text-sm text-warning">
-              Your logo couldn’t be loaded, so these designs show your initials instead.{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  setLogoAttempt((n) => n + 1);
-                }}
-                className="cursor-pointer underline"
-              >
-                Try again
-              </button>
-              , or re-upload it under My Landing Page.
-            </p>
-          ) : null}
           <p className="text-xs text-muted">
             {kind === 'qr'
               ? 'PNG and JPG at 2048 × 2048 px. SVG and PDF are vector — sharp at any size.'
@@ -348,6 +377,245 @@ export function QrStudio({
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The colour look the sheets print in: a preset theme, or 'custom'. */
+interface SavedLook {
+  themeId: string;
+  colours: PrintColours;
+}
+
+const LOOK_KEY = 'vyaparqr.print-look';
+
+/** The last look picked on this device, or the default theme. */
+function readSavedLook(): SavedLook {
+  const fallback = { themeId: DEFAULT_PRINT_THEME.id, colours: DEFAULT_PRINT_THEME.colours };
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(LOOK_KEY) ?? 'null') as Partial<SavedLook> | null;
+    const colours = saved?.colours;
+    if (saved?.themeId && colours && isHex(colours.primary) && isHex(colours.trim) && isHex(colours.paper)) {
+      return { themeId: saved.themeId, colours };
+    }
+  } catch {
+    // Unreadable or blocked storage: start from the default.
+  }
+  return fallback;
+}
+
+const COLOUR_FIELDS: { key: keyof PrintColours; label: string; hint: string }[] = [
+  { key: 'primary', label: 'Main colour', hint: 'The band and the code’s corners' },
+  { key: 'trim', label: 'Trim', hint: 'The gold-style lines and rings' },
+  { key: 'paper', label: 'Background', hint: 'The sheet itself' },
+];
+
+/**
+ * Theme cards, then the three colours behind whichever is picked. Changing a
+ * colour turns the look into "Custom", starting from the theme it was on, so
+ * a small tweak never means starting over.
+ */
+function LookPicker({ look, onChange }: { look: SavedLook; onChange: (next: SavedLook) => void }) {
+  const isCustom = look.themeId === 'custom';
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium" id="qs-theme-label">
+          Colour theme
+        </p>
+        {isCustom ? (
+          <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">Custom colours</span>
+        ) : null}
+      </div>
+      <div role="radiogroup" aria-labelledby="qs-theme-label" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {PRINT_THEMES.map((theme) => {
+          const selected = look.themeId === theme.id;
+          return (
+            <button
+              key={theme.id}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => {
+                onChange({ themeId: theme.id, colours: theme.colours });
+              }}
+              className={`flex min-h-11 cursor-pointer flex-col gap-2 rounded-lg border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                selected ? 'border-accent ring-1 ring-accent' : 'border-border-color hover:border-accent/50'
+              }`}
+            >
+              <ThemeSwatch colours={theme.colours} />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm font-medium">{theme.name}</span>
+                <span className="truncate text-xs text-muted">{theme.mood}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <fieldset className="flex flex-col gap-2 rounded-lg border border-border-color p-3">
+        <legend className="px-1 text-xs font-medium text-muted">Fine-tune the colours</legend>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {COLOUR_FIELDS.map((field) => (
+            <ColourField
+              key={field.key}
+              label={field.label}
+              hint={field.hint}
+              value={look.colours[field.key]}
+              onChange={(value) => {
+                onChange({ themeId: 'custom', colours: { ...look.colours, [field.key]: value } });
+              }}
+            />
+          ))}
+        </div>
+        <p className="text-xs text-muted">
+          Text and the code’s corners are darkened automatically if a colour is too light to read or scan.
+        </p>
+      </fieldset>
+    </div>
+  );
+}
+
+/** A miniature of the sheet: paper, the band with its trim, and a code. */
+function ThemeSwatch({ colours }: { colours: PrintColours }) {
+  return (
+    <svg viewBox="0 0 120 56" className="h-14 w-full rounded-md" aria-hidden="true" preserveAspectRatio="none">
+      <rect width="120" height="56" fill={colours.paper} />
+      <path d="M0 6 Q60 -2 120 6 V26 Q60 40 0 26 Z" fill={colours.primary} />
+      <path d="M0 27.5 Q60 41.5 120 27.5" fill="none" stroke={colours.trim} strokeWidth="2.2" />
+      <circle cx="60" cy="15" r="6" fill="#fff" stroke={colours.trim} strokeWidth="1.5" />
+      <rect x="49" y="36" width="22" height="16" rx="2.5" fill="#fff" stroke={colours.trim} strokeWidth="1" />
+      <rect x="52" y="39" width="4" height="4" fill={colours.primary} />
+      <rect x="64" y="39" width="4" height="4" fill={colours.primary} />
+      <rect x="52" y="45" width="4" height="4" fill={colours.primary} />
+    </svg>
+  );
+}
+
+/** A native colour picker with the hex beside it, which can be typed too. */
+function ColourField({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (value: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    // A theme card was picked: show its colour, not what was being typed.
+    setLastValue(value);
+    setDraft(value);
+  }
+  const id = `qs-colour-${label.toLowerCase().replace(/\s+/g, '-')}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-xs font-medium">
+        {label}
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          id={id}
+          type="color"
+          value={value}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+          className="h-11 w-11 shrink-0 cursor-pointer rounded-md border border-border-color bg-transparent p-0.5"
+        />
+        <input
+          type="text"
+          inputMode="text"
+          spellCheck={false}
+          aria-label={`${label} hex code`}
+          value={draft}
+          maxLength={7}
+          onChange={(event) => {
+            const next = event.target.value.startsWith('#') ? event.target.value : `#${event.target.value}`;
+            setDraft(next);
+            if (isHex(next)) onChange(next.toLowerCase());
+          }}
+          onBlur={() => {
+            setDraft(value);
+          }}
+          className="h-11 w-full min-w-0 rounded-md border border-border-color bg-transparent px-2 font-mono text-sm uppercase"
+        />
+      </div>
+      <p className="text-xs text-muted">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * Which logo the sheets print, and a way to pick one from the device when the
+ * page's own logo won't load — the monogram is never the only way out.
+ */
+function LogoRow({
+  logo,
+  state,
+  fromDevice,
+  onPick,
+  onClear,
+  onRetry,
+}: {
+  logo: LoadedImage | null;
+  state: 'loading' | 'ready' | 'failed' | 'none';
+  fromDevice: boolean;
+  onPick: (file: File | undefined) => void;
+  onClear: () => void;
+  onRetry: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const message = fromDevice
+    ? 'Using the logo you picked, for these prints only.'
+    : state === 'ready'
+      ? 'Your page’s logo.'
+      : state === 'loading'
+        ? 'Loading your logo…'
+        : state === 'failed'
+          ? 'Your logo couldn’t be loaded, so the designs show your initials.'
+          : 'No logo on your page yet, so the designs show your initials.';
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium">Logo</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border-color bg-white">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo.dataUrl} alt="" className="h-full w-full object-contain" />
+          ) : (
+            <span className="text-xs text-muted">{state === 'loading' ? '…' : 'Aa'}</span>
+          )}
+        </span>
+        <p role={state === 'failed' ? 'alert' : undefined} className={`min-w-0 flex-1 text-sm ${state === 'failed' ? 'text-warning' : 'text-muted'}`}>
+          {message}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {state === 'failed' && !fromDevice ? (
+            <button type="button" onClick={onRetry} className="min-h-10 cursor-pointer rounded-md border border-border-color px-3 text-sm">
+              Try again
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="min-h-10 cursor-pointer rounded-md border border-border-color px-3 text-sm"
+          >
+            {logo ? 'Use a different logo' : 'Upload logo'}
+          </button>
+          {fromDevice ? (
+            <button type="button" onClick={onClear} className="min-h-10 cursor-pointer rounded-md px-3 text-sm text-muted underline">
+              Use page logo
+            </button>
+          ) : null}
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          className="hidden"
+          onChange={(event) => {
+            onPick(event.target.files?.[0]);
+            event.target.value = '';
+          }}
+        />
+      </div>
+      <p className="text-xs text-muted">To change the logo on your page as well, upload it under My Landing Page.</p>
     </div>
   );
 }
