@@ -98,7 +98,15 @@ export class GoogleSheetsService {
   async appendFeedbackRow(
     sheetId: string,
     tabName: string,
-    row: { rating: number; text: string | null; type: string; customerNotes: string | null; submittedAt: Date },
+    row: {
+      rating: number;
+      text: string | null;
+      type: string;
+      customerNotes: string | null;
+      customerName: string | null;
+      customerPhone: string | null;
+      submittedAt: Date;
+    },
   ): Promise<void> {
     if (!this.sheets) {
       throw new Error('Google Sheets client is not configured');
@@ -106,11 +114,23 @@ export class GoogleSheetsService {
 
     await this.sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${tabName}!A:E`,
+      range: `${tabName}!A:G`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        values: [[row.submittedAt.toISOString(), row.rating, row.text ?? '', row.type, row.customerNotes ?? '']],
+        values: [
+          [
+            row.submittedAt.toISOString(),
+            row.rating,
+            row.text ?? '',
+            row.type,
+            row.customerNotes ?? '',
+            row.customerName ?? '',
+            // A leading apostrophe keeps a number as text under USER_ENTERED,
+            // so 919820011223 isn't shown as 9.19820E+11.
+            row.customerPhone ? `'${row.customerPhone}` : '',
+          ],
+        ],
       },
     });
   }

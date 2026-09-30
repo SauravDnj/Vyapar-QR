@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as QRCode from 'qrcode';
@@ -450,9 +452,12 @@ export class ReviewsService {
       variant: dto.variant,
       locality: blankToNull(config?.localityHint) ?? localityFromAddress(landingPage?.contentJson),
       keywords: splitKeywords(config?.seoKeywords),
+      // Fresh per request, so the same chips never give two customers the
+      // same review — with or without AI.
+      seed: randomInt(0, 1_000_000),
     };
 
-    const generated = await this.groqService.chatComplete(buildReviewMessages(input), 220, dto.variant ? 0.95 : 0.7);
+    const generated = await this.groqService.chatComplete(buildReviewMessages(input), 220, dto.variant ? 0.95 : 0.85);
     const draft = generated ? cleanGeneratedReview(generated) : '';
     if (draft) {
       return { draft, source: 'ai' };
@@ -534,12 +539,26 @@ export class ReviewsService {
     const feedbackText = routedToGoogle ? null : (dto.feedbackText ?? null);
 
     const response = await this.prisma.reviewFunnelResponse.create({
-      data: { clientId: client.id, ratingGiven: dto.rating, routedToGoogle, feedbackText },
+      data: {
+        clientId: client.id,
+        ratingGiven: dto.rating,
+        routedToGoogle,
+        feedbackText,
+        customerName: blankToNull(dto.name),
+        customerPhone: blankToNull(dto.phone),
+      },
     });
 
     if (!routedToGoogle) {
       await this.alertOwnerOfLowRating(client.businessName, client.user.email, dto.rating, feedbackText, client.googleReviewConfig?.feedbackWhatsappNumber ?? null);
-      const row = { rating: dto.rating, text: feedbackText, type: 'Private feedback', customerNotes: null };
+      const row = {
+        rating: dto.rating,
+        text: feedbackText,
+        type: 'Private feedback',
+        customerNotes: null,
+        customerName: response.customerName ?? null,
+        customerPhone: response.customerPhone ?? null,
+      };
       await this.logToSheet(client.googleReviewConfig, row);
       await this.webhooksService.dispatch(client.id, 'feedback.received', feedbackPayload(response, row));
     }
@@ -578,9 +597,11 @@ export class ReviewsService {
     const reviewText = blankToNull(dto.reviewText);
     const customerNotes = blankToNull(dto.customerNotes);
     const aiDrafted = Boolean(dto.aiDrafted && reviewText);
+    const customerName = blankToNull(dto.name) ?? response.customerName ?? null;
+    const customerPhone = blankToNull(dto.phone) ?? response.customerPhone ?? null;
     await this.prisma.reviewFunnelResponse.update({
       where: { id: response.id },
-      data: { reviewText, customerNotes, aiDrafted, handedOffAt: new Date() },
+      data: { reviewText, customerNotes, aiDrafted, customerName, customerPhone, handedOffAt: new Date() },
     });
 
     const row = {
@@ -588,6 +609,8 @@ export class ReviewsService {
       text: reviewText,
       type: aiDrafted ? 'Google review (AI-written)' : 'Google review',
       customerNotes,
+      customerName,
+      customerPhone,
     };
     await this.logToSheet(client.googleReviewConfig, row);
     /* The service-account path above needs a Google Cloud project and a key
@@ -612,7 +635,14 @@ export class ReviewsService {
    * must never block the customer's submission. */
   private async logToSheet(
     config: GoogleReviewConfig | null | undefined,
-    row: { rating: number; text: string | null; type: string; customerNotes: string | null },
+    row: {
+      rating: number;
+      text: string | null;
+      type: string;
+      customerNotes: string | null;
+      customerName: string | null;
+      customerPhone: string | null;
+    },
   ): Promise<void> {
     const sheetId = config?.feedbackSheetId ?? config?.sheetId ?? null;
     const tab = config?.feedbackSheetTab;

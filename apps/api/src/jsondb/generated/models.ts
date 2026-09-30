@@ -307,6 +307,8 @@ export interface ReviewFunnelResponse {
   reviewText: string | null;
   aiDrafted: boolean;
   handedOffAt: Date | null;
+  customerName: string | null;
+  customerPhone: string | null;
   createdAt: Date;
 }
 

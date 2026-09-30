@@ -29,6 +29,17 @@ export class ReviewHandoffDto {
   @IsBoolean()
   aiDrafted?: boolean;
 
+  /** Optional: who the customer is, shown in the owner's sheet. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

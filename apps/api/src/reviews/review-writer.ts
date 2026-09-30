@@ -24,7 +24,27 @@ export interface ReviewWriterInput {
   /** What the business sells, from its own settings. Only ever used to pick
    * wording for something the customer already said. */
   keywords?: string[];
+  /**
+   * A random number per request, so two customers who tap the same chips
+   * don't get the same review. It picks the writing style and, without AI,
+   * each sentence of the template independently. Twenty near-identical
+   * reviews in a week is exactly the pattern Google filters out.
+   */
+  seed?: number;
 }
+
+/**
+ * Ways to shape the same facts. One is picked per draft, so the wording
+ * varies in structure, not just in synonyms.
+ */
+export const REVIEW_STYLES = [
+  'Open with what stood out most to them, then say how the visit went overall.',
+  'Open with a short overall verdict, then give the one or two details behind it.',
+  'Write it the way they would recommend the place to a friend.',
+  'Keep it brief and direct: two short sentences.',
+  'Walk through the visit in order, from arriving to leaving, in three sentences.',
+  'Lead with what they came for, then how it turned out.',
+] as const;
 
 /**
  * Which of the business's own service words the customer's message supports.
@@ -59,6 +79,7 @@ export function matchedKeywords(input: ReviewWriterInput): string[] {
 
 export function buildReviewMessages(input: ReviewWriterInput): GroqChatMessage[] {
   const highlights = cleanHighlights(input.highlights);
+  const style = pick(REVIEW_STYLES, Math.abs((input.seed ?? 0) + (input.variant ?? 0)));
   return [
     {
       role: 'system',
@@ -74,6 +95,9 @@ export function buildReviewMessages(input: ReviewWriterInput): GroqChatMessage[]
         '- If an area is given, work it in once and only once ("...in Jayanagar").',
         '- Service words are suggested wording for what the customer already said. If their notes do not support one, leave it out.',
         '- Never stuff keywords. It has to read like one person describing one visit.',
+        '- Call what they bought or used by its everyday name, the words people type into search.',
+        '- Make one sentence a plain answer to what a searcher or an AI assistant would ask about this place (is it good for what they came for, what stands out) — using only what the customer said.',
+        '- Vary your wording: do not start with "I had a great experience" or other stock openings.',
         '- No emojis, hashtags, markdown, or surrounding quotation marks. Output only the review text.',
       ].join('\n'),
     },
@@ -88,6 +112,7 @@ export function buildReviewMessages(input: ReviewWriterInput): GroqChatMessage[]
         `My rating: ${String(input.rating)}/5`,
         `What stood out: ${highlights.length > 0 ? highlights.join(', ') : '(none picked)'}`,
         `My own words: ${blankToNull(input.notes) ?? '(nothing written)'}`,
+        `Style: ${style}`,
         input.variant
           ? `Write a fresh version, worded differently from before (version ${String(input.variant + 1)}).`
           : '',
@@ -114,7 +139,7 @@ export function cleanGeneratedReview(text: string): string {
  * phrasing by `variant` so "Try another" still does something.
  */
 export function composeReviewWithoutAi(input: ReviewWriterInput): string {
-  const variant = Math.abs(input.variant ?? 0);
+  const variant = Math.abs((input.variant ?? 0) + (input.seed ?? 0));
   const name = input.businessName.trim();
   const notes = sentence(input.notes ?? '');
   const highlights = cleanHighlights(input.highlights).map((item) => item.toLowerCase());
@@ -130,43 +155,69 @@ export function composeReviewWithoutAi(input: ReviewWriterInput): string {
   // customer's visit, so the template may add it where the AI may not.
   const place = blankToNull(input.locality) ? `${name} in ${(input.locality ?? '').trim()}` : name;
 
+  // Each sentence is picked on its own step through `variant`, so the pools
+  // multiply: 6 openers × 5 lead-ins × 6 closers is 180 wordings of the same
+  // facts before any two drafts match.
   const openers =
     input.rating >= 5
       ? [
           `Had a wonderful experience at ${place}.`,
           `Really enjoyed my visit to ${place}.`,
           `${place} is a place I'd happily recommend.`,
+          `Very happy I chose ${place}.`,
+          `Couldn't have asked for a better visit to ${place}.`,
+          `${place} got everything right for me.`,
         ]
       : [
           `Had a good experience at ${place}.`,
           `Nice experience at ${place}.`,
           `Enjoyed my visit to ${place}.`,
+          `Pleased with my visit to ${place}.`,
+          `${place} did a good job.`,
+          `A good visit to ${place} overall.`,
         ];
+  const leadIns = ['Loved the', 'Really liked the', 'Special mention for the', 'Impressed by the', 'Big thumbs up for the'];
   const closers =
     input.rating >= 5
-      ? ['Highly recommended!', 'Will definitely be coming back.', 'Would recommend it to anyone.']
-      : ['Would recommend.', 'Worth a visit.', 'Would visit again.'];
+      ? [
+          'Highly recommended!',
+          'Will definitely be coming back.',
+          'Would recommend it to anyone.',
+          'Already planning my next visit.',
+          'Five stars from me.',
+          'Recommending it to my family and friends.',
+        ]
+      : ['Would recommend.', 'Worth a visit.', 'Would visit again.', 'Happy to recommend it.', 'Good choice overall.', 'Will come back.'];
 
   const parts = [pick(openers, variant)];
   if (notes) {
     parts.push(notes);
   }
   if (highlights.length > 0) {
-    parts.push(
-      `${pick(['Loved the', 'Really liked the', 'Special mention for the'], variant)} ${joinList(highlights)}.`,
-    );
+    parts.push(`${pick(leadIns, Math.floor(variant / 6))} ${joinList(highlights)}.`);
   }
   // Only ever a service the customer's own words already pointed at — and
   // only when those words aren't already in the review, or the template would
   // say "filter coffee" twice in three sentences, which is the keyword
-  // stuffing this is supposed to avoid.
+  // stuffing this is supposed to avoid. Some wordings answer the question a
+  // searcher asks ("good for bridal sets?"), which is what answer engines lift.
   const said = notes.toLowerCase();
   const keywords = matchedKeywords(input)
     .map((item) => item.toLowerCase())
     .filter((keyword) => !keyword.split(/\s+/).some((word) => word.length > 3 && said.includes(word)));
   if (keywords.length > 0) {
+    const list = joinList(keywords);
     parts.push(
-      `${pick(['Happy with the', 'Really pleased with the', 'No complaints about the'], variant)} ${joinList(keywords)}.`,
+      pick(
+        [
+          `Happy with the ${list}.`,
+          `Really pleased with the ${list}.`,
+          `No complaints about the ${list}.`,
+          `If you're looking for ${list}, this is a good place to go.`,
+          `A good choice for ${list}.`,
+        ],
+        Math.floor(variant / 3),
+      ),
     );
   }
   if (!notes && highlights.length === 0) {
@@ -176,12 +227,14 @@ export function composeReviewWithoutAi(input: ReviewWriterInput): string {
           'Everything was handled well.',
           'Good service from start to finish.',
           'A pleasant visit overall.',
+          'Friendly, quick and well organised.',
+          'Everything went smoothly.',
         ],
-        variant,
+        Math.floor(variant / 2),
       ),
     );
   }
-  parts.push(pick(closers, variant));
+  parts.push(pick(closers, Math.floor(variant / 30)));
   return parts.join(' ');
 }
 

@@ -33,7 +33,7 @@ the Reviews tab              landing page             the Reviews tab
 |---|---|
 | **Leads** | ID · Name · Phone · Source · Status · Notes · Tags · Created |
 | **Payments** | ID · Amount (₹) · Paid with · Status · Customer · Phone · Note · Lead ID · Confirmed · Created |
-| **Feedback** | ID · Rating · Type · Feedback / review · Customer notes · Received |
+| **Feedback** | ID · Rating · Type · Feedback / review · Customer notes · Received · Customer · Phone |
 | **Reviews** | Name · Rating (1-5) · Review · Date — *you* fill this one; Vyapar QR reads it |
 
 **Reviews work both ways.** The three tabs above are written *to*. The `Reviews` tab is read *from*: put your Google reviews there (name, rating, the text, the date) and they appear on your landing page — press **Get reviews from sheet** in the dashboard, and the nightly sync keeps it current. Rows without a name, or with a rating outside 1-5, are skipped. Reading is signed the same way as writing, with a timestamp that expires after ten minutes, so the URL alone gives nobody your reviews.
@@ -118,8 +118,8 @@ const TABS = {
   },
   feedback: {
     name: 'Feedback',
-    columns: ['id', 'rating', 'type', 'text', 'customerNotes', 'createdAt'],
-    headers: ['ID', 'Rating', 'Type', 'Feedback / review', 'Customer notes', 'Received'],
+    columns: ['id', 'rating', 'type', 'text', 'customerNotes', 'createdAt', 'customerName', 'customerPhone'],
+    headers: ['ID', 'Rating', 'Type', 'Feedback / review', 'Customer notes', 'Received', 'Customer', 'Phone'],
   },
 };
 
@@ -273,7 +273,10 @@ function upsert(tab, items) {
 function sheetFor(tab) {
   const book = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = book.getSheetByName(tab.name);
-  if (sheet) return sheet;
+  if (sheet) {
+    addMissingHeaders(sheet, tab);
+    return sheet;
+  }
 
   sheet = book.insertSheet(tab.name);
   sheet.getRange(1, 1, 1, tab.headers.length).setValues([tab.headers]).setFontWeight('bold');
@@ -284,6 +287,20 @@ function sheetFor(tab) {
     }
   });
   return sheet;
+}
+
+// A tab made by an older version of this script is missing the newer
+// columns' headings (Customer and Phone on Feedback); add them in place.
+function addMissingHeaders(sheet, tab) {
+  const have = Math.max(sheet.getLastColumn(), 1);
+  if (have >= tab.headers.length) return;
+  const missing = tab.headers.slice(have);
+  sheet.getRange(1, have + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+  tab.columns.forEach(function (column, i) {
+    if (i >= have && TEXT_COLUMNS.indexOf(column) !== -1) {
+      sheet.getRange(1, i + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+    }
+  });
 }
 
 function toCell(column, value) {
@@ -305,7 +322,6 @@ function logTest() {
 function reply(value) {
   return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
 }
-
 ```
 
 ---
@@ -322,6 +338,8 @@ The dashboard shows the result of the last delivery next to the connection. Most
 | **No answer within 10s** | Apps Script was slow to start, or the sheet is very large | Usually passes on the next event. Run **Sync existing data** to fill any gap |
 | Test works, but new rows never appear | The script was edited without deploying a new version | Deploy a new version (below) |
 | Phone numbers show as `9.19E+11` | The tab was created by hand | Delete the tab and let the script create it, or format the Phone column as *Plain text* |
+
+**Connected before October 2026?** Your Feedback tab has no *Customer* and *Phone* columns. Copy the script again from the dashboard, paste it over the old one and deploy a new version; the two headings are added to your existing tab the next time a review arrives, and your old rows are untouched.
 
 **Changing the script?** Saving is not enough. Every change needs **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy**. The URL stays the same.
 

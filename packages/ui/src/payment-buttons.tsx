@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { PlatformLogo } from './brand-logos';
+import { CustomerDetailsFields, readRememberedCustomer, rememberCustomer, type CustomerDetails } from './customer-details';
 import { Icon } from './icon';
 
 import type { PaymentMethodType, PublicPaymentMethod } from '@vyaparqr/types';
@@ -143,7 +144,115 @@ async function cancelClaim(slug: string, claimId: string) {
   });
 }
 
+/** The name and number the customer adds after paying — see customer-details.tsx. */
+async function attachCustomer(slug: string, claimId: string, details: CustomerDetails) {
+  const response = await fetch(`${API_URL}/public/landing/${slug}/payment/claim/${claimId}/customer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: details.name.trim() || undefined, phone: details.phone.trim() || undefined }),
+  });
+  if (!response.ok) {
+    throw new Error('Request failed');
+  }
+}
+
 type ClaimState = 'idle' | 'sending' | 'sent' | 'needs-manual-send' | 'error';
+
+/**
+ * Who paid, added to the owner's Payments sheet row. Optional, after the
+ * payment, never before it.
+ *
+ * A customer who has given their details on this phone before has them sent
+ * straight away and sees them, with Edit — nothing to type. Everyone else
+ * gets the two fields, which the phone's autofill fills in one tap.
+ */
+function PaidByDetails({ slug, claimId, method }: { slug: string; claimId: string; method: PaymentMethodType }) {
+  const [details, setDetails] = useState<CustomerDetails>({ name: '', phone: '' });
+  const [state, setState] = useState<'editing' | 'saving' | 'saved' | 'error'>('editing');
+
+  useEffect(() => {
+    const remembered = readRememberedCustomer();
+    if (!remembered.name && !remembered.phone) return;
+    setDetails(remembered);
+    setState('saving');
+    attachCustomer(slug, claimId, remembered).then(
+      () => {
+        setState('saved');
+      },
+      () => {
+        setState('editing');
+      },
+    );
+  }, [slug, claimId]);
+
+  async function save() {
+    if (!details.name.trim() && !details.phone.trim()) return;
+    setState('saving');
+    try {
+      await attachCustomer(slug, claimId, details);
+      rememberCustomer(details);
+      setState('saved');
+    } catch {
+      setState('error');
+    }
+  }
+
+  if (state === 'saved') {
+    return (
+      <p className="flex flex-wrap items-center justify-center gap-x-2 text-center text-xs" style={MUTED}>
+        <span>
+          Saved as <span className="font-medium">{[details.name.trim(), details.phone.trim()].filter(Boolean).join(' · ')}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setState('editing');
+          }}
+          className="min-h-8 cursor-pointer underline underline-offset-2"
+        >
+          Edit
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-2 border-t pt-3"
+      style={{ borderColor: 'var(--t-border, #e5e7eb)' }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+    >
+      <p className="text-xs" style={MUTED}>
+        Optional: add your name and number so the business knows who paid.
+      </p>
+      <CustomerDetailsFields
+        idPrefix={`paid-${method}`}
+        value={details}
+        onChange={setDetails}
+        inputClassName="min-h-11 w-full border px-3 py-2 text-sm"
+        inputStyle={CARD}
+        labelClassName="text-xs font-medium"
+        labelStyle={MUTED}
+      />
+      <button
+        type="submit"
+        disabled={state === 'saving' || (!details.name.trim() && !details.phone.trim())}
+        className="flex min-h-11 cursor-pointer items-center justify-center px-4 py-2.5 text-sm font-medium transition-opacity duration-200 hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+        style={ACCENT_BUTTON}
+      >
+        {state === 'saving' ? 'Saving…' : 'Save my details'}
+      </button>
+      {state === 'error' ? (
+        <p className="text-center text-xs font-medium text-red-700" role="alert">
+          Couldn&apos;t save that. Try again.
+        </p>
+      ) : null}
+    </form>
+  );
+}
 
 function AmountPayCard({
   slug,
@@ -387,6 +496,8 @@ function AmountPayCard({
                   Send the confirmation on WhatsApp
                 </a>
               ) : null}
+
+              {slug && claimId ? <PaidByDetails slug={slug} claimId={claimId} method={method} /> : null}
 
               <div className="flex items-center justify-center gap-4 pt-1">
                 <button

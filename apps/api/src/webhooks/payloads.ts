@@ -46,6 +46,8 @@ export interface FeedbackPayload extends Record<string, unknown> {
   type: string;
   text: string;
   customerNotes: string;
+  customerName: string;
+  customerPhone: string;
   createdAt: string;
 }
 
@@ -101,7 +103,13 @@ export function paymentPayload(claim: PaymentClaim): PaymentPayload {
 
 export function feedbackPayload(
   response: ReviewFunnelResponse,
-  row: { type: string; text: string | null; customerNotes: string | null },
+  row: {
+    type: string;
+    text: string | null;
+    customerNotes: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
+  },
 ): FeedbackPayload {
   return {
     id: response.id,
@@ -109,6 +117,8 @@ export function feedbackPayload(
     type: row.type,
     text: text(row.text),
     customerNotes: text(row.customerNotes),
+    customerName: text(row.customerName ?? response.customerName),
+    customerPhone: text(row.customerPhone ?? response.customerPhone),
     createdAt: iso(response.createdAt),
   };
 }

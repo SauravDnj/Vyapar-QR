@@ -46,6 +46,9 @@ class FakeSheet {
   getMaxRows() {
     return 1000;
   }
+  getLastColumn() {
+    return this.rows.reduce((widest, row) => Math.max(widest, row.length), 0);
+  }
   setFrozenRows(n: number) {
     this.frozen = n;
   }

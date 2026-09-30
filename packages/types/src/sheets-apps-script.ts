@@ -64,8 +64,8 @@ const TABS = {
   },
   feedback: {
     name: 'Feedback',
-    columns: ['id', 'rating', 'type', 'text', 'customerNotes', 'createdAt'],
-    headers: ['ID', 'Rating', 'Type', 'Feedback / review', 'Customer notes', 'Received'],
+    columns: ['id', 'rating', 'type', 'text', 'customerNotes', 'createdAt', 'customerName', 'customerPhone'],
+    headers: ['ID', 'Rating', 'Type', 'Feedback / review', 'Customer notes', 'Received', 'Customer', 'Phone'],
   },
 };
 
@@ -219,7 +219,10 @@ function upsert(tab, items) {
 function sheetFor(tab) {
   const book = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = book.getSheetByName(tab.name);
-  if (sheet) return sheet;
+  if (sheet) {
+    addMissingHeaders(sheet, tab);
+    return sheet;
+  }
 
   sheet = book.insertSheet(tab.name);
   sheet.getRange(1, 1, 1, tab.headers.length).setValues([tab.headers]).setFontWeight('bold');
@@ -230,6 +233,20 @@ function sheetFor(tab) {
     }
   });
   return sheet;
+}
+
+// A tab made by an older version of this script is missing the newer
+// columns' headings (Customer and Phone on Feedback); add them in place.
+function addMissingHeaders(sheet, tab) {
+  const have = Math.max(sheet.getLastColumn(), 1);
+  if (have >= tab.headers.length) return;
+  const missing = tab.headers.slice(have);
+  sheet.getRange(1, have + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+  tab.columns.forEach(function (column, i) {
+    if (i >= have && TEXT_COLUMNS.indexOf(column) !== -1) {
+      sheet.getRange(1, i + 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+    }
+  });
 }
 
 function toCell(column, value) {

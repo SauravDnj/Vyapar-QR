@@ -473,6 +473,12 @@ model ReviewFunnelResponse {
   reviewText     String?   @map("review_text") @db.Text
   aiDrafted      Boolean   @default(false) @map("ai_drafted")
   handedOffAt    DateTime? @map("handed_off_at")
+  /**
+   * Optional, typed by the customer on the review page: who they are, so the
+   * owner's sheet shows a name and number next to the rating.
+   */
+  customerName   String?   @map("customer_name")
+  customerPhone  String?   @map("customer_phone")
   createdAt      DateTime @default(now()) @map("created_at")
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)

@@ -115,6 +115,38 @@ describe('review writer — service words and area (SEO)', () => {
   });
 });
 
+describe('review writer — a different review every time', () => {
+  const base = {
+    businessName: 'Shree Gold Jewellers',
+    rating: 5 as const,
+    locality: 'Jayanagar',
+    highlights: ['Staff', 'Quality'],
+    notes: 'bought a bridal set',
+    keywords: ['bridal gold sets'],
+  };
+
+  it('gives the same chips many different wordings across seeds', () => {
+    const drafts = new Set(Array.from({ length: 40 }, (_, seed) => composeReviewWithoutAi({ ...base, seed: seed * 7 })));
+    expect(drafts.size).toBeGreaterThanOrEqual(20);
+  });
+
+  it('keeps the facts and names the area once whatever the seed', () => {
+    for (let seed = 0; seed < 60; seed += 1) {
+      const review = composeReviewWithoutAi({ ...base, seed });
+      expect(review).toContain('Bought a bridal set.');
+      expect(review.match(/Jayanagar/g)).toHaveLength(1);
+      expect(review.toLowerCase().match(/bridal/g)).toHaveLength(1);
+    }
+  });
+
+  it('gives the model a writing style and the answer-engine rule', () => {
+    const [system, user] = buildReviewMessages({ ...base, seed: 3 });
+    expect(user.content).toMatch(/^Style: /m);
+    expect(system.content).toMatch(/AI assistant/);
+    expect(system.content).toMatch(/ONLY what is in their notes/);
+  });
+});
+
 describe('review writer — no stuffing', () => {
   const base = {
     businessName: 'Shree Gold Jewellers',

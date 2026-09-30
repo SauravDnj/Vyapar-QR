@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { CustomerDetailsFields, rememberCustomer, useCustomerDetails } from './customer-details';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 
 type Step = 'rate' | 'feedback' | 'write' | 'posted' | 'thanks';
@@ -113,6 +115,7 @@ export function ReviewFunnel({
   const [error, setError] = useState<string | null>(null);
   const [inAppBrowser, setInAppBrowser] = useState(false);
   const [isBack, setIsBack] = useState(false);
+  const [customer, setCustomer] = useCustomerDetails();
 
   // Opened after mount, not during render: the sheet is a portal, so starting
   // it open on the server produced markup the client didn't match and React
@@ -273,6 +276,7 @@ export function ReviewFunnel({
    */
   function handlePostOnGoogle() {
     const text = finalText();
+    rememberCustomer(customer);
     // Clipboard writes are only allowed as a direct result of a tap.
     void copyText(text).then((ok) => {
       setCopied(ok);
@@ -290,6 +294,8 @@ export function ReviewFunnel({
           customerNotes:
             [highlights.join(', '), notes.trim()].filter(Boolean).join(' — ') || undefined,
           aiDrafted: aiDrafted && reviewText.trim().length > 0,
+          name: customer.name.trim() || undefined,
+          phone: customer.phone.trim() || undefined,
           website,
         }),
       }).catch(() => undefined);
@@ -304,8 +310,11 @@ export function ReviewFunnel({
       await postJson(`/public/landing/${clientSlug}/review-funnel`, {
         rating,
         feedbackText: feedbackText.trim() || undefined,
+        name: customer.name.trim() || undefined,
+        phone: customer.phone.trim() || undefined,
         website,
       });
+      rememberCustomer(customer);
       setStep('thanks');
     } catch {
       setError('Something went wrong. Please try again.');
@@ -517,6 +526,19 @@ export function ReviewFunnel({
                         </label>
                       ) : null}
 
+                      <div className="flex flex-col gap-2 rounded-xl border border-[#e8eaed] p-3">
+                        <p className="text-xs text-[#5f6368]">
+                          Optional — so {businessName ?? 'the owner'} knows who you are. Only they see this.
+                        </p>
+                        <CustomerDetailsFields
+                          idPrefix="review-customer"
+                          value={customer}
+                          onChange={setCustomer}
+                          inputClassName="min-h-11 rounded-lg border border-[#dadce0] px-3 py-2 text-sm outline-none focus:border-[#1a73e8]"
+                          labelClassName="text-xs font-medium text-[#3c4043]"
+                        />
+                      </div>
+
                       {error ? <p className="text-center text-sm text-[#d93025]">{error}</p> : null}
 
                       {inAppBrowser ? (
@@ -690,6 +712,18 @@ export function ReviewFunnel({
                         placeholder="What could be better?"
                         className="rounded-lg border border-[#dadce0] px-3 py-2 text-sm outline-none focus:border-[#1a73e8]"
                       />
+                      <div className="flex flex-col gap-2 rounded-xl border border-[#e8eaed] p-3">
+                        <p className="text-xs text-[#5f6368]">
+                          Optional — so {businessName ?? 'the owner'} knows who you are. So they can make it right.
+                        </p>
+                        <CustomerDetailsFields
+                          idPrefix="feedback-customer"
+                          value={customer}
+                          onChange={setCustomer}
+                          inputClassName="min-h-11 rounded-lg border border-[#dadce0] px-3 py-2 text-sm outline-none focus:border-[#1a73e8]"
+                          labelClassName="text-xs font-medium text-[#3c4043]"
+                        />
+                      </div>
                       <button
                         onClick={() => void handleFeedbackSubmit()}
                         disabled={isSubmitting}

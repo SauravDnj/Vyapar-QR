@@ -12,6 +12,17 @@ export class SubmitFunnelDto {
   @IsString()
   feedbackText?: string;
 
+  /** Optional: who the customer is, shown in the owner's sheet. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phone?: string;
+
   /** Honeypot — must stay hidden via CSS on the real form, never shown to
    * real users. Non-empty ⇒ the service silently returns success without
    * writing a row; never reveal to the bot that it was caught. */
