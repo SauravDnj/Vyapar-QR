@@ -42,7 +42,9 @@ export const REVIEW_STYLES = [
   'Open with a short overall verdict, then give the one or two details behind it.',
   'Write it the way they would recommend the place to a friend.',
   'Keep it brief and direct: two short sentences.',
-  'Walk through the visit in order, from arriving to leaving, in three sentences.',
+  // Not "walk through the visit": asked for a sequence, the model filled it
+  // with arrivals and greetings nobody mentioned.
+  'Say what they came for, then how it went, using only the details they gave.',
   'Lead with what they came for, then how it turned out.',
 ] as const;
 
