@@ -3,7 +3,6 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { GROQ_CONFIG, type GroqConfig } from './groq-config.provider';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const DEFAULT_MAX_TOKENS = 300;
 
 export interface GroqChatMessage {
@@ -19,6 +18,10 @@ export interface GroqChatMessage {
  * missing `GROQ_API_KEY`, an API error, or an empty response — so a
  * flaky/unset AI provider always degrades to "no AI output" for whichever
  * feature called it, rather than breaking that feature's core flow. */
+function isReasoningModel(model: string): boolean {
+  return /^(openai\/gpt-oss|qwen\/qwen3)/.test(model);
+}
+
 @Injectable()
 export class GroqService {
   private readonly logger = new Logger(GroqService.name);
@@ -39,7 +42,17 @@ export class GroqService {
       const response = await fetch(GROQ_CHAT_URL, {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature }),
+        body: JSON.stringify({
+          model: this.config.model,
+          messages,
+          max_tokens: maxTokens,
+          temperature,
+          // Reasoning models (gpt-oss, qwen3) think before answering, and that
+          // thinking counts against max_tokens: at a review's 220 it can use
+          // the whole budget and return nothing. Keep it short and out of
+          // the reply. Other models reject these fields, so only send them here.
+          ...(isReasoningModel(this.config.model) ? { reasoning_effort: 'low', include_reasoning: false } : {}),
+        }),
       });
 
       if (!response.ok) {
