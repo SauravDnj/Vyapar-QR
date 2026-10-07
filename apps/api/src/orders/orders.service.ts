@@ -41,6 +41,25 @@ export class OrdersService {
     return { data, total, page: query.page, pageSize: query.pageSize };
   }
 
+  /**
+   * What the admin's new-order alert polls. Small on purpose — it runs every
+   * few seconds on every open dashboard tab: how many orders are waiting, and
+   * any placed after `since` (the newest one the tab has already seen).
+   */
+  async live(clientId: string, since: Date | null) {
+    const [pendingCount, newOrders] = await Promise.all([
+      this.prisma.order.count({ where: { clientId, status: 'pending' } }),
+      since
+        ? this.prisma.order.findMany({
+            where: { clientId, createdAt: { gt: since } },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+          })
+        : Promise.resolve([]),
+    ]);
+    return { pendingCount, newOrders, serverTime: new Date().toISOString() };
+  }
+
   async findOneOrThrow(clientId: string, orderId: string): Promise<Order> {
     const order = await this.prisma.order.findFirst({ where: { id: orderId, clientId } });
     if (!order) {

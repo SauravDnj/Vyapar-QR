@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { EmailService } from '../email/email.service';
@@ -14,8 +14,24 @@ import type { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 import type { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import type { PlanFeatures } from '@vyaparqr/types';
 
+/** Trimmed text, or null when nothing but whitespace was typed. */
+function blankToNull(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/** What the customer's phone gets back: enough to show "Order #12 sent" and
+ * to poll for its status. */
+export interface PlacedOrder {
+  id: string;
+  orderNumber: number;
+  totalAmount: string;
+}
+
 @Injectable()
 export class MenuService {
+  private readonly logger = new Logger(MenuService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly webhooksService: WebhooksService,
@@ -150,10 +166,17 @@ export class MenuService {
    * Every item is re-fetched by id, scoped to this client and currently
    * available, and `totalAmount` is computed purely from that server-side
    * read — the request body's role is only "which item ids, how many". */
-  async placeOrder(slug: string, dto: PlaceOrderDto): Promise<void> {
+  async placeOrder(slug: string, dto: PlaceOrderDto): Promise<PlacedOrder | null> {
     if (dto.website) {
       // Honeypot tripped — silent success, no row written, no signal back to the bot.
-      return;
+      return null;
+    }
+
+    const orderType = dto.orderType ?? null;
+    const tableNumber = orderType === 'dine_in' ? blankToNull(dto.tableNumber) : null;
+    const deliveryAddress = orderType === 'delivery' ? blankToNull(dto.deliveryAddress) : null;
+    if (orderType === 'delivery' && !deliveryAddress) {
+      throw new BadRequestException('Enter a delivery address.');
     }
 
     const client = await this.prisma.client.findUnique({
@@ -189,6 +212,10 @@ export class MenuService {
       itemsJson.push({ menuItemId: item.id, name: item.name, unitPrice: item.priceRupees.toString(), quantity: requested.quantity });
     }
 
+    // A count, not a counter row: two orders landing in the same instant can
+    // share a number, which is harmless — the uuid stays the real identity.
+    const orderNumber = (await this.prisma.order.count({ where: { clientId: client.id } })) + 1;
+
     const order = await this.prisma.order.create({
       data: {
         clientId: client.id,
@@ -196,12 +223,49 @@ export class MenuService {
         customerPhone: dto.customerPhone.trim(),
         itemsJson,
         totalAmount,
-        notes: dto.notes?.trim() ?? null,
+        notes: blankToNull(dto.notes),
+        orderNumber,
+        orderType,
+        tableNumber,
+        deliveryAddress,
       },
     });
 
+    // The order is saved; from here on nothing may fail the request. A
+    // failed alert used to surface as a 500, the customer tapped "Place
+    // order" again, and the shop got the same order twice.
+    try {
+      await this.alertOwner(client, order, itemsJson);
+    } catch (error) {
+      this.logger.error(`Order ${order.id} saved, but alerting the owner failed`, error instanceof Error ? error.stack : undefined);
+    }
+
+    return { id: order.id, orderNumber, totalAmount: order.totalAmount.toString() };
+  }
+
+  /** The public status poll behind "Order #12 — being prepared". Scoped by
+   * slug as well as id, and returns nothing a stranger could use: the id is
+   * an unguessable uuid the customer's phone was just given. */
+  async getPublicOrderStatus(slug: string, orderId: string) {
+    const client = await this.prisma.client.findUnique({ where: { slug }, select: { id: true } });
+    const order = client && await this.prisma.order.findFirst({
+      where: { id: orderId, clientId: client.id },
+      select: { orderNumber: true, status: true, totalAmount: true, orderType: true, tableNumber: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+    return { ...order, totalAmount: order.totalAmount.toString() };
+  }
+
+  private async alertOwner(
+    client: { id: string; businessName: string; user: { email: string } },
+    order: { id: string; customerName: string; totalAmount: { toString(): string }; createdAt: Date; orderNumber: number | null },
+    itemsJson: { name: string; quantity: number; unitPrice: string; menuItemId: string }[],
+  ): Promise<void> {
     await this.webhooksService.dispatch(client.id, 'order.created', {
       id: order.id,
+      orderNumber: order.orderNumber,
       customerName: order.customerName,
       totalAmount: order.totalAmount.toString(),
       createdAt: order.createdAt.toISOString(),
@@ -222,7 +286,7 @@ export class MenuService {
       this.prisma.googleReviewConfig.findUnique({ where: { clientId: client.id }, select: { feedbackWhatsappNumber: true } }),
     ]);
     const ownerPhone = reviewConfig?.feedbackWhatsappNumber ?? null;
-    const alertMessage = `New order from ${order.customerName} (₹${order.totalAmount.toString()}) — ${String(itemsJson.length)} item(s). Check your dashboard to confirm.`;
+    const alertMessage = `New order #${String(order.orderNumber)} from ${order.customerName} (₹${order.totalAmount.toString()}) — ${String(itemsJson.length)} item(s). Check your dashboard to confirm.`;
 
     if (ownerPhone && whatsappSettings?.isEnabled) {
       await this.whatsappService.sendAndRecord(client.id, ownerPhone, alertMessage);

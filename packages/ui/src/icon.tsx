@@ -36,6 +36,7 @@ const PATHS = {
   heart: 'M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.8C19.5 15.4 12 20 12 20Z',
   'user-plus': 'M10 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M3 20.5a7 7 0 0 1 13.5-2.5 M19 8v6 M16 11h6',
   close: 'M6 6l12 12 M18 6 6 18',
+  'chevron-left': 'M14.5 6l-6 6 6 6',
   'chevron-right': 'M9.5 6l6 6-6 6',
   'arrow-up-right': 'M7 17 17 7 M8.5 7H17v8.5',
 } as const;

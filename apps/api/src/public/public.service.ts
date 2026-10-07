@@ -257,8 +257,12 @@ export class PublicService {
     return this.menuService.listActiveForPublic(client.id);
   }
 
-  placeOrder(slug: string, dto: PlaceOrderDto): Promise<void> {
+  placeOrder(slug: string, dto: PlaceOrderDto) {
     return this.menuService.placeOrder(slug, dto);
+  }
+
+  getOrderStatus(slug: string, orderId: string) {
+    return this.menuService.getPublicOrderStatus(slug, orderId);
   }
 
   async getLandingPageBySlug(slug: string, locale?: string): Promise<PublicLandingPageResult> {

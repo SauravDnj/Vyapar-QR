@@ -628,6 +628,14 @@ enum OrderStatus {
   cancelled
 }
 
+/** How the customer will get their order. Null on orders placed before
+ * ordering asked. */
+enum OrderType {
+  dine_in
+  takeaway
+  delivery
+}
+
 /**
  * A client's orderable menu, grouped into categories. Same relational-list
  * shape as GalleryImage/PaymentMethod (clientId + displayOrder) rather than
@@ -684,6 +692,14 @@ model Order {
   totalAmount   Decimal     @map("total_amount") @db.Decimal(10, 2)
   status        OrderStatus @default(pending)
   notes         String?     @db.Text
+  /** Short per-business number ("#12") the counter and the customer can say
+   * out loud — the uuid is for machines. Null on orders placed before it. */
+  orderNumber     Int?       @map("order_number")
+  orderType       OrderType? @map("order_type")
+  /** Dine-in only: the table the customer is sitting at, as they typed it. */
+  tableNumber     String?    @map("table_number")
+  /** Delivery only. */
+  deliveryAddress String?    @map("delivery_address") @db.Text
   createdAt     DateTime    @default(now()) @map("created_at")
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)

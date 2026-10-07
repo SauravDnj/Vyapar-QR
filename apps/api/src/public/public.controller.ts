@@ -213,8 +213,16 @@ export class PublicController {
 
   @Post('landing/:slug/orders')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  placeOrder(@Param('slug') slug: string, @Body() dto: PlaceOrderDto) {
-    return this.publicService.placeOrder(slug, dto);
+  async placeOrder(@Param('slug') slug: string, @Body() dto: PlaceOrderDto) {
+    // A honeypot hit gets the same shape back, so a bot can't tell.
+    return (await this.publicService.placeOrder(slug, dto)) ?? { id: '', orderNumber: 0, totalAmount: '0' };
+  }
+
+  /** Polled by the customer's phone after ordering, to show "Accepted",
+   * "Ready" and so on without them having to ask. */
+  @Get('landing/:slug/orders/:id')
+  getOrderStatus(@Param('slug') slug: string, @Param('id') id: string) {
+    return this.publicService.getOrderStatus(slug, id);
   }
 }
 

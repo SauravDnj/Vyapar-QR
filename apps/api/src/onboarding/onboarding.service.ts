@@ -301,7 +301,14 @@ export class OnboardingService {
     const existingContent = (landingPage.contentJson as ThemeContent | undefined) ?? {};
     const content: ThemeContent = {
       ...existingContent,
-      menu: { heading: dto.heading ?? '', fileUrl: dto.fileUrl ?? '' },
+      // A field the request leaves out keeps its saved value: the theme
+      // editor sends heading + file, the Orders settings send only the order
+      // types, and neither may wipe the other's.
+      menu: {
+        heading: dto.heading ?? existingContent.menu?.heading ?? '',
+        fileUrl: dto.fileUrl ?? existingContent.menu?.fileUrl ?? '',
+        orderTypes: dto.orderTypes ?? existingContent.menu?.orderTypes ?? '',
+      },
     };
 
     await this.prisma.landingPage.update({

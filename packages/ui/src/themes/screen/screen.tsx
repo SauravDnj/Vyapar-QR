@@ -268,7 +268,7 @@ function PanelBody({ panel, screen, props }: { panel: PanelKey; screen: Screen; 
       ) : null;
 
     case 'order':
-      return <MenuOrder slug={slug} />;
+      return <MenuOrder slug={slug} orderTypes={content.menu?.orderTypes} />;
 
     case 'gallery':
       return <GalleryGrid images={props.galleryImages ?? []} />;

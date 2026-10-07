@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, Matches } from 'class-validator';
 
 export class MenuSectionDto {
   @IsOptional()
@@ -8,4 +8,11 @@ export class MenuSectionDto {
   @IsOptional()
   @IsString()
   fileUrl?: string;
+
+  /** Comma-separated order types the shop accepts, e.g. "dine_in,takeaway".
+   * Empty means the default: dine-in and takeaway. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^((dine_in|takeaway|delivery)(,(dine_in|takeaway|delivery))*)?$/, { message: 'Unknown order type.' })
+  orderTypes?: string;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { NotificationBell } from '../../components/notification-bell';
+import { OrderAlertsProvider } from '../../components/order-alerts';
 import { DashboardShell, type NavSection } from '../../components/ui/dashboard-shell';
 import { useAuth } from '../../context/auth-context';
 
@@ -50,8 +51,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, logout } = useAuth();
 
   return (
-    <DashboardShell navSections={NAV_SECTIONS} headerExtra={<NotificationBell />} user={user} onLogout={logout}>
-      {children}
-    </DashboardShell>
+    <OrderAlertsProvider>
+      <DashboardShell navSections={NAV_SECTIONS} headerExtra={<NotificationBell />} user={user} onLogout={logout}>
+        {children}
+      </DashboardShell>
+    </OrderAlertsProvider>
   );
 }

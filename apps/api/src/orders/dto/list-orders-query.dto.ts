@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export enum OrderStatusFilter {
   pending = 'pending',
@@ -20,6 +20,7 @@ export class ListOrdersQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(200)
   pageSize = 20;
 
   @IsOptional()

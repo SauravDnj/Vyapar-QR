@@ -30,6 +30,14 @@ export class OrdersController {
     return this.ordersService.list(clientId, query);
   }
 
+  /** Polled by the dashboard's new-order alert. `since` is an ISO time;
+   * anything unparseable just means "nothing new yet". */
+  @Get('live')
+  live(@CurrentClientId() clientId: string, @Query('since') since?: string) {
+    const parsed = since ? new Date(since) : null;
+    return this.ordersService.live(clientId, parsed && !Number.isNaN(parsed.getTime()) ? parsed : null);
+  }
+
   @Patch(':id/status')
   updateStatus(@CurrentClientId() clientId: string, @Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
     return this.ordersService.updateStatus(clientId, id, dto.status);

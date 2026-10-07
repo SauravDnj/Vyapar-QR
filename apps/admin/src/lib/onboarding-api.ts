@@ -150,8 +150,15 @@ export function saveSocialAndReview(
   return onboardingFetch<OnboardingStatus>('/onboarding/social-review', accessToken, 'POST', data);
 }
 
-export function saveMenuSection(accessToken: string, data: { heading?: string; fileUrl?: string }) {
-  return onboardingFetch<{ menu: { heading: string; fileUrl: string } }>('/onboarding/menu', accessToken, 'POST', data);
+/** Fields left out keep their saved value. `orderTypes` is a comma list of
+ * dine_in / takeaway / delivery; empty means dine-in and takeaway. */
+export function saveMenuSection(accessToken: string, data: { heading?: string; fileUrl?: string; orderTypes?: string }) {
+  return onboardingFetch<{ menu: { heading: string; fileUrl: string; orderTypes: string } }>(
+    '/onboarding/menu',
+    accessToken,
+    'POST',
+    data,
+  );
 }
 
 export function addGalleryImage(accessToken: string, imageUrl: string) {

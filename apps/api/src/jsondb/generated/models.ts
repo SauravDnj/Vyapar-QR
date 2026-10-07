@@ -135,6 +135,13 @@ export const OrderStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type OrderType = 'dine_in' | 'takeaway' | 'delivery';
+export const OrderType = {
+  dine_in: 'dine_in',
+  takeaway: 'takeaway',
+  delivery: 'delivery',
+} as const;
+
 export type PaymentClaimStatus = 'claimed' | 'confirmed' | 'cancelled';
 export const PaymentClaimStatus = {
   claimed: 'claimed',
@@ -412,6 +419,10 @@ export interface Order {
   totalAmount: number;
   status: OrderStatus;
   notes: string | null;
+  orderNumber: number | null;
+  orderType: OrderType | null;
+  tableNumber: string | null;
+  deliveryAddress: string | null;
   createdAt: Date;
 }
 
