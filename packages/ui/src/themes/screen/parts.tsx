@@ -1,4 +1,6 @@
-import { preconnect } from 'react-dom';
+import { preconnect, preload } from 'react-dom';
+
+import { useImageSrc, useThemeRuntime } from './runtime';
 
 import type { PaymentMethodType, PublicPaymentMethod } from '@vyaparqr/types';
 
@@ -22,9 +24,11 @@ const BASE_CSS = `
 .qs-clamp-1{-webkit-line-clamp:1}.qs-clamp-2{-webkit-line-clamp:2}
 .qs-press{transition:transform .16s ease,background-color .2s ease,opacity .2s ease}
 .qs-press:active{transform:scale(.96)}
-.qs-rise{animation:qs-rise .75s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0) * 75ms + 60ms)}
-.qs-pop{animation:qs-pop .6s cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i,0) * 60ms + 260ms)}
-@keyframes qs-rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+/* Short on purpose: this runs right after a QR scan, and a long staggered
+   fade reads as a page that is still loading. */
+.qs-rise{animation:qs-rise .4s cubic-bezier(.16,1,.3,1) both;animation-delay:calc(var(--i,0) * 35ms)}
+.qs-pop{animation:qs-pop .4s cubic-bezier(.34,1.56,.64,1) both;animation-delay:calc(var(--i,0) * 35ms + 80ms)}
+@keyframes qs-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes qs-pop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:none}}
 @keyframes qs-spin{to{transform:rotate(1turn)}}
 @keyframes qs-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
@@ -63,12 +67,15 @@ const BASE_CSS = `
 
 /** Hoists the shared styles, the theme's own styles and its web fonts. */
 export function ThemeAssets({ id, css, fontsHref }: { id: string; css: string; fontsHref: string }) {
-  preconnect('https://fonts.googleapis.com');
-  preconnect('https://fonts.gstatic.com', { crossOrigin: 'anonymous' });
+  const { fontsHosted } = useThemeRuntime();
+  if (!fontsHosted) {
+    preconnect('https://fonts.googleapis.com');
+    preconnect('https://fonts.gstatic.com', { crossOrigin: 'anonymous' });
+  }
 
   return (
     <>
-      <link rel="stylesheet" href={fontsHref} precedence="default" />
+      {fontsHosted ? null : <link rel="stylesheet" href={fontsHref} precedence="default" />}
       <style href="qs-base" precedence="default">
         {BASE_CSS}
       </style>
@@ -81,8 +88,14 @@ export function ThemeAssets({ id, css, fontsHref }: { id: string; css: string; f
 
 /** Uploaded logo, or the business's initials when there isn't one. */
 export function Logo({ url, initials, className }: { url: string; initials: string; className?: string }) {
+  const imageSrc = useImageSrc();
   if (url) {
-    return <img src={url} alt="" className={`h-full w-full object-cover ${className ?? ''}`} decoding="async" />;
+    // 384 covers the largest logo a theme draws (132px) on a 3x screen.
+    const src = imageSrc(url, 384);
+    preload(src, { as: 'image', fetchPriority: 'high' });
+    return (
+      <img src={src} alt="" className={`h-full w-full object-cover ${className ?? ''}`} fetchPriority="high" decoding="async" />
+    );
   }
   return (
     <span aria-hidden="true" className={`flex h-full w-full items-center justify-center ${className ?? ''}`}>

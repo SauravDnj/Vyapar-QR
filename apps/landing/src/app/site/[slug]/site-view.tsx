@@ -1,4 +1,5 @@
 import { ThemeRenderer } from '@vyaparqr/ui';
+import { Cormorant, Montserrat } from 'next/font/google';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
@@ -41,6 +42,27 @@ export const siteViewport: Viewport = {
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
+
+/*
+ * The theme's fonts, served from this site rather than Google Fonts. A phone
+ * that has just scanned a QR code otherwise has to open connections to two
+ * more servers and fetch a render-blocking stylesheet before any text can be
+ * drawn. Both are variable fonts, so each is a single preloaded file. The
+ * theme reads them through these CSS variables.
+ */
+const cormorant = Cormorant({ subsets: ['latin'], display: 'swap', variable: '--vq-font-cormorant' });
+const montserrat = Montserrat({ subsets: ['latin'], display: 'swap', variable: '--vq-font-montserrat' });
+
+/**
+ * Uploads are sent through this app's image optimizer, so the phone gets a
+ * resized WebP from the page's own origin instead of the full original file
+ * from the API's. Not locally: the optimizer refuses to fetch from localhost.
+ */
+const isLocalApi = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(API_URL);
+const THEME_RUNTIME = {
+  fontsHosted: true,
+  optimizedImagePrefix: isLocalApi ? undefined : `${API_URL}/uploads/`,
+};
 
 type PublicLandingPageResponse =
   | { status: 'suspended'; businessName: string }
@@ -111,7 +133,7 @@ export async function SiteView({ slug, lang }: { slug: string; lang?: string }) 
   // viewport; on a wider screen it becomes a phone-sized device in the middle,
   // so a business checking its page on a laptop sees what customers see.
   return (
-    <main className="qr-stage">
+    <main className={`qr-stage ${cormorant.variable} ${montserrat.variable}`}>
       <Suspense fallback={null}>
         <ScanTracker slug={slug} />
       </Suspense>
@@ -123,6 +145,7 @@ export async function SiteView({ slug, lang }: { slug: string; lang?: string }) 
         <div className="qr-screen">
           <ThemeRenderer
             themeName={page.themeName}
+            runtime={THEME_RUNTIME}
             slug={slug}
             businessName={page.businessName}
             content={page.content}

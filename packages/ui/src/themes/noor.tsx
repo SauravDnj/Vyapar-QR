@@ -1,12 +1,14 @@
 'use client';
 
 import { BANNER_IMAGE, BANNER_OVERLAY, buttonGrid, parseButtonColumns, parseButtonSize } from '@vyaparqr/types';
+import { preload } from 'react-dom';
 
 import { PlatformLogo } from '../brand-logos';
 import { Icon } from '../icon';
 
 import { directionsUrl, readableOn } from './screen/model';
 import { Logo, Stars, ThemeAssets } from './screen/parts';
+import { useImageSrc } from './screen/runtime';
 import { ActionIcon, actionIcon, ScreenAction, ScreenSheet, trackClick, useScreen } from './screen/screen';
 
 import type { BrandName } from '../brand-logos';
@@ -63,7 +65,7 @@ const BANNER_ASPECT = `${String(BANNER_IMAGE.aspect)} / 1`;
 const BANNER_FADE = `${String(Math.round(BANNER_OVERLAY.fadeFrom * 100))}%`;
 
 const CSS = `
-.qs-noor{--qs-display:"Cormorant",ui-serif,Georgia,serif;--qs-body:"Montserrat",ui-sans-serif,system-ui,sans-serif;
+.qs-noor{--qs-display:var(--vq-font-cormorant,"Cormorant"),ui-serif,Georgia,serif;--qs-body:var(--vq-font-montserrat,"Montserrat"),ui-sans-serif,system-ui,sans-serif;
   --nr-line:#e7e5e4;
   --nr-line-soft:#f0efed;
   --nr-card:#ffffff;
@@ -274,6 +276,15 @@ export function NoorTheme(props: ThemeRenderProps) {
   const { model, dock } = screen;
   const accent = props.accentColor ?? GOLD;
   const bannerUrl = props.content.hero?.backgroundImageUrl ?? '';
+  const imageSrc = useImageSrc();
+  // The banner runs the full width of the phone (plus its bleed), so 1080 is
+  // sharp on a 3x screen. The ambient copy behind it is blurred by 36px, so a
+  // small one looks identical and costs a fraction of the bytes.
+  const bannerSrc = bannerUrl ? imageSrc(bannerUrl, 1080) : '';
+  const ambientSrc = bannerUrl ? imageSrc(bannerUrl, 256) : '';
+  if (bannerSrc) {
+    preload(bannerSrc, { as: 'image', fetchPriority: 'high' });
+  }
   const layout = props.content.layout ?? {};
   const buttonSize = parseButtonSize(layout.size);
   const grid = buttonGrid(model.actions.length, parseButtonColumns(layout.columns));
@@ -312,7 +323,7 @@ export function NoorTheme(props: ThemeRenderProps) {
       <div className="nr-art" aria-hidden="true">
         {bannerUrl ? (
           <div className="nr-ambient">
-            <img src={bannerUrl} alt="" decoding="async" />
+            <img src={ambientSrc} alt="" decoding="async" />
           </div>
         ) : null}
         <span className="nr-hair" />
@@ -340,7 +351,7 @@ export function NoorTheme(props: ThemeRenderProps) {
 
         {bannerUrl ? (
           <div className="nr-banner qs-rise" style={{ '--i': 0 } as CSSProperties}>
-            <img src={bannerUrl} alt="" loading="eager" decoding="async" />
+            <img src={bannerSrc} alt="" loading="eager" fetchPriority="high" decoding="async" />
           </div>
         ) : null}
 

@@ -1,7 +1,9 @@
 import { DEFAULT_THEME_NAME } from '@vyaparqr/types';
 
 import { NoorTheme } from './noor';
+import { ThemeRuntimeProvider } from './screen/runtime';
 
+import type { ThemeRuntime } from './screen/runtime';
 import type { ThemeRenderProps } from '@vyaparqr/types';
 
 const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
@@ -17,7 +19,18 @@ const THEMES: Record<string, (props: ThemeRenderProps) => React.JSX.Element> = {
  * `db:sync-themes` moves it — falls back to the default rather than breaking a
  * live business's page.
  */
-export function ThemeRenderer({ themeName, ...props }: { themeName: string } & ThemeRenderProps) {
+export function ThemeRenderer({
+  themeName,
+  runtime,
+  ...props
+}: { themeName: string; runtime?: ThemeRuntime } & ThemeRenderProps) {
   const Theme = THEMES[themeName] ?? THEMES[DEFAULT_THEME_NAME] ?? NoorTheme;
-  return <Theme {...props} />;
+  if (!runtime) {
+    return <Theme {...props} />;
+  }
+  return (
+    <ThemeRuntimeProvider value={runtime}>
+      <Theme {...props} />
+    </ThemeRuntimeProvider>
+  );
 }

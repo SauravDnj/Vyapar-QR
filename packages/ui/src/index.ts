@@ -15,6 +15,7 @@ export * from './coupons-list';
 export * from './menu-order';
 export * from './booking-slots-widget';
 export * from './themes/registry';
+export type { ThemeRuntime } from './themes/screen/runtime';
 export { Icon } from './icon';
 export { NoorTheme } from './themes/noor';
 export { countActionButtons } from './themes/screen/model';

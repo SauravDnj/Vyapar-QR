@@ -180,7 +180,7 @@ export function GooglePayMark({ className }: MarkProps) {
         x="23.5"
         y="17"
         fill="#5F6368"
-        fontFamily="Montserrat, ui-sans-serif, system-ui, sans-serif"
+        style={{ fontFamily: 'var(--vq-font-montserrat, Montserrat), ui-sans-serif, system-ui, sans-serif' }}
         fontSize="13"
         fontWeight="500"
       >
@@ -202,7 +202,7 @@ export function PhonePeMark({ className }: MarkProps) {
         y="17.5"
         textAnchor="middle"
         fill="#FFF"
-        fontFamily="Montserrat, ui-sans-serif, system-ui, sans-serif"
+        style={{ fontFamily: 'var(--vq-font-montserrat, Montserrat), ui-sans-serif, system-ui, sans-serif' }}
         fontSize="15"
         fontWeight="600"
       >
@@ -219,7 +219,7 @@ export function PaytmMark({ className }: MarkProps) {
       <text
         x="1"
         y="17"
-        fontFamily="Montserrat, ui-sans-serif, system-ui, sans-serif"
+        style={{ fontFamily: 'var(--vq-font-montserrat, Montserrat), ui-sans-serif, system-ui, sans-serif' }}
         fontSize="14.5"
         fontWeight="700"
         letterSpacing="-.4"
@@ -241,7 +241,7 @@ export function UpiMark({ className }: MarkProps) {
         x="17.5"
         y="17"
         fill="#0C0A09"
-        fontFamily="Montserrat, ui-sans-serif, system-ui, sans-serif"
+        style={{ fontFamily: 'var(--vq-font-montserrat, Montserrat), ui-sans-serif, system-ui, sans-serif' }}
         fontSize="13"
         fontWeight="700"
         letterSpacing=".4"
