@@ -5,6 +5,12 @@ import type { Metadata, Viewport } from 'next';
 
 export const revalidate = 300;
 
+/** Same as the landing page: an empty list makes this ISR rather than
+ * rendered on every request. */
+export function generateStaticParams(): { slug: string }[] {
+  return [];
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4100';
 
 export const viewport: Viewport = {
