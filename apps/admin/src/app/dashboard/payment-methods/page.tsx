@@ -168,14 +168,25 @@ function PaymentMethodsContent() {
     rowsRef.current = rows;
   }, [rows]);
 
-  /** Reads the QR and, when the UPI ID field is empty, fills it from the QR. */
-  const checkQr = useCallback(async (type: PaymentMethodType, source: Blob | string) => {
+  /**
+   * Reads the QR and puts its UPI ID in the input.
+   *
+   * `upload`: the owner just picked this QR, so it is the source of truth and
+   * its UPI ID replaces whatever was typed. `saved`: an image loaded with the
+   * page only fills an empty box — a typed ID that differs stays, with the
+   * mismatch warning, because the owner may have meant it.
+   */
+  const checkQr = useCallback(async (type: PaymentMethodType, source: Blob | string, origin: 'upload' | 'saved') => {
     setChecks((prev) => ({ ...prev, [type]: { kind: 'checking' } }));
     const reading = await readUpiQr(source);
     setChecks((prev) => ({ ...prev, [type]: reading }));
-    if (reading.kind !== 'upi' || rowsRef.current[type].upiId.trim()) return;
+    if (reading.kind !== 'upi') return;
+    const current = normaliseUpiId(rowsRef.current[type].upiId);
+    if (current === reading.upiId) return;
+    if (origin === 'saved' && current) return;
     setRows((prev) => ({ ...prev, [type]: { ...prev[type], upiId: reading.upiId } }));
     setAutoFilled((filled) => ({ ...filled, [type]: true }));
+    setConfirmMismatch(false);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -194,7 +205,7 @@ function PaymentMethodsContent() {
       // Check what is already saved too — a wrong ID typed before this check
       // existed is exactly the case it was built for.
       for (const [type, row] of Object.entries(loaded) as [PaymentMethodType, Row][]) {
-        if (row.qrImageUrl) void checkQr(type, row.qrImageUrl);
+        if (row.qrImageUrl) void checkQr(type, row.qrImageUrl, 'saved');
       }
     } finally {
       setIsLoading(false);
@@ -215,7 +226,7 @@ function PaymentMethodsContent() {
   async function handleUpload(type: PaymentMethodType, file: File) {
     if (!accessToken) return;
     // Read the picked file locally while it uploads — no round trip needed.
-    void checkQr(type, file);
+    void checkQr(type, file, 'upload');
     try {
       const url = await uploadImage(accessToken, file);
       updateRow(type, { qrImageUrl: url });

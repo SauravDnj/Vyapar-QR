@@ -22,6 +22,7 @@ import {
   type OnboardingStatus,
   type OnboardingTheme,
 } from '../../lib/onboarding-api';
+import { normaliseUpiId, readUpiQr, type QrReading } from '../../lib/read-upi-qr';
 
 import type { PaymentMethodType, SocialPlatform, ThemeContent, ThemeField, ThemeSectionKey } from '@vyaparqr/types';
 
@@ -105,6 +106,46 @@ interface PaymentRow {
   /** What was saved, so an untouched row keeps its account type (set on the
    * Payment methods page from the QR) instead of re-saving it as unknown. */
   saved?: { upiId: string; qrImageUrl: string; upiAccountType: 'personal' | 'merchant' | null };
+  /** What the uploaded QR contains; set while/after reading a fresh upload. */
+  qr?: QrReading | { kind: 'checking' };
+}
+
+/** One line under the QR input saying what we found in the image. */
+function QrStatus({ qr, upiId }: { qr: PaymentRow['qr']; upiId: string }) {
+  if (!qr) return null;
+  if (qr.kind === 'checking') return <p className="text-xs text-muted">Reading the QR…</p>;
+  if (qr.kind === 'no-qr') {
+    return (
+      <p role="alert" className="rounded bg-danger-bg px-2 py-1.5 text-xs text-danger">
+        No QR code found in this image. Upload the payment QR from your UPI app (Profile → My QR).
+      </p>
+    );
+  }
+  if (qr.kind === 'not-upi') {
+    return (
+      <p role="alert" className="rounded bg-warning-bg px-2 py-1.5 text-xs text-warning">
+        This QR isn&apos;t a UPI payment QR.
+      </p>
+    );
+  }
+  if (qr.kind === 'unreadable') {
+    return <p className="text-xs text-muted">Couldn&apos;t read this image — type the UPI ID above.</p>;
+  }
+  if (normaliseUpiId(upiId) !== qr.upiId) {
+    return (
+      <p className="text-xs text-warning">
+        Your QR pays <span className="font-mono">{qr.upiId}</span> — the UPI ID above is different.
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-success">
+      UPI ID filled in from your QR{qr.payeeName ? ` (pays “${qr.payeeName}”)` : ''}.
+      {qr.accountType === 'personal'
+        ? ' It’s a personal ID, so customers will copy it and pay in their app — a business UPI QR gives one-tap Pay.'
+        : ' Business account — one-tap Pay works.'}
+    </p>
+  );
 }
 
 interface SocialRow {
@@ -218,10 +259,20 @@ function OnboardingWizard() {
 
   async function handleQrUpload(index: number, file: File) {
     if (!accessToken) return;
+    const patch = (change: Partial<PaymentRow>) => {
+      setPayments((prev) => prev.map((p, i) => (i === index ? { ...p, ...change } : p)));
+    };
+    patch({ qr: { kind: 'checking' } });
+    // Read the picked file locally while it uploads. A freshly uploaded QR is
+    // the source of truth, so its UPI ID goes straight into the input.
+    void readUpiQr(file).then((qr) => {
+      patch(qr.kind === 'upi' ? { qr, upiId: qr.upiId } : { qr });
+    });
     try {
       const url = await uploadImage(accessToken, file);
-      setPayments((prev) => prev.map((p, i) => (i === index ? { ...p, qrImageUrl: url } : p)));
+      patch({ qrImageUrl: url });
     } catch {
+      patch({ qr: undefined });
       setError('QR image upload failed.');
     }
   }
@@ -301,11 +352,12 @@ function OnboardingWizard() {
       .filter((p) => p.upiId || p.qrImageUrl)
       .map((p) => {
         const unchanged = p.saved && p.saved.upiId === p.upiId && p.saved.qrImageUrl === p.qrImageUrl;
+        const fromQr = p.qr?.kind === 'upi' && p.qr.upiId === normaliseUpiId(p.upiId) ? p.qr.accountType : undefined;
         return {
           type: p.type,
-          upiId: p.upiId || undefined,
+          upiId: p.upiId ? normaliseUpiId(p.upiId) : undefined,
           qrImageUrl: p.qrImageUrl || undefined,
-          upiAccountType: unchanged ? (p.saved?.upiAccountType ?? undefined) : undefined,
+          upiAccountType: fromQr ?? (unchanged ? (p.saved?.upiAccountType ?? undefined) : undefined),
         };
       });
     if (methods.length === 0) {
@@ -476,23 +528,32 @@ function OnboardingWizard() {
                 <option value="paytm">Paytm</option>
                 <option value="other">Other</option>
               </select>
-              <input
-                placeholder="UPI ID (e.g. business@okhdfcbank) — optional"
-                value={payment.upiId}
-                onChange={(e) => setPayments((prev) => prev.map((p, i) => (i === index ? { ...p, upiId: e.target.value } : p)))}
-                className="rounded border border-border-color px-3 py-2"
-              />
               <label className="flex flex-col gap-1 text-sm text-gray-600">
-                QR image — optional if UPI ID is set
+                QR image — upload it and the UPI ID fills in by itself
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handleQrUpload(index, file);
+                    e.target.value = '';
                   }}
                 />
               </label>
+              {payment.qrImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={payment.qrImageUrl} alt="Uploaded payment QR" className="h-24 w-24 self-start rounded border border-border-color object-contain" />
+              ) : null}
+              <input
+                placeholder="UPI ID (e.g. business@okhdfcbank) — optional"
+                value={payment.upiId}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                onChange={(e) => setPayments((prev) => prev.map((p, i) => (i === index ? { ...p, upiId: e.target.value } : p)))}
+                className="rounded border border-border-color px-3 py-2 font-mono"
+              />
+              <QrStatus qr={payment.qr} upiId={payment.upiId} />
               {payments.length > 1 && (
                 <button
                   type="button"
