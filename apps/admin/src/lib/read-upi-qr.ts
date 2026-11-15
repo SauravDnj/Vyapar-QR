@@ -10,14 +10,14 @@ import jsQR from 'jsqr';
  * truth (the UPI app printed it), so we read it and compare.
  */
 export type QrReading =
-  | { kind: 'upi'; upiId: string; payeeName: string | null }
+  | { kind: 'upi'; upiId: string; payeeName: string | null; accountType: 'personal' | 'merchant' }
   | { kind: 'not-upi' }
   | { kind: 'no-qr' }
   | { kind: 'unreadable' };
 
 /** Case and stray whitespace don't make a different UPI ID. */
 export function normaliseUpiId(value: string): string {
-  return value.replace(/[\s​-‍﻿]/g, '').toLowerCase();
+  return value.replace(/[\s\u200B-\u200D\uFEFF]/g, '').toLowerCase();
 }
 
 function parseUpiPayload(text: string): QrReading {
@@ -46,7 +46,14 @@ function parseUpiPayload(text: string): QrReading {
   if (!pa || !/^[\w.-]+@[\w.-]+$/.test(normaliseUpiId(pa))) {
     return { kind: 'not-upi' };
   }
-  return { kind: 'upi', upiId: normaliseUpiId(pa), payeeName: fields.get('pn')?.trim() || null };
+  // `mc` is the merchant category code. A business QR carries a real one
+  // (5411 grocery, 5812 restaurant…); a personal QR has `0000` or none.
+  // UPI apps refuse website-started payments to personal IDs — the customer
+  // sees "exceeded the bank limit" or "declined for security reasons" — so
+  // the landing page needs to know which kind this is.
+  const mc = fields.get('mc')?.trim() ?? '';
+  const accountType = /^\d{4}$/.test(mc) && mc !== '0000' ? 'merchant' : 'personal';
+  return { kind: 'upi', upiId: normaliseUpiId(pa), payeeName: fields.get('pn')?.trim() || null, accountType };
 }
 
 /** Tries a few sizes: posters carry a small QR on a big canvas, phone

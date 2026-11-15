@@ -247,6 +247,7 @@ export interface PaymentMethod {
   type: PaymentMethodType;
   qrImageUrl: string | null;
   upiId: string | null;
+  upiAccountType: string | null;
   displayOrder: number;
 }
 

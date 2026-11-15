@@ -102,6 +102,9 @@ interface PaymentRow {
   type: PaymentMethodType;
   upiId: string;
   qrImageUrl: string;
+  /** What was saved, so an untouched row keeps its account type (set on the
+   * Payment methods page from the QR) instead of re-saving it as unknown. */
+  saved?: { upiId: string; qrImageUrl: string; upiAccountType: 'personal' | 'merchant' | null };
 }
 
 interface SocialRow {
@@ -167,7 +170,14 @@ function OnboardingWizard() {
       setSelectedThemeId(status.landingPage.themeId);
     }
     if (status.paymentMethods.length > 0) {
-      setPayments(status.paymentMethods.map((m) => ({ type: m.type, upiId: m.upiId ?? '', qrImageUrl: m.qrImageUrl ?? '' })));
+      setPayments(
+        status.paymentMethods.map((m) => ({
+          type: m.type,
+          upiId: m.upiId ?? '',
+          qrImageUrl: m.qrImageUrl ?? '',
+          saved: { upiId: m.upiId ?? '', qrImageUrl: m.qrImageUrl ?? '', upiAccountType: m.upiAccountType ?? null },
+        })),
+      );
     }
     if (status.socialLinks.length > 0) {
       setSocials(status.socialLinks.map((s) => ({ platform: s.platform, value: s.value })));
@@ -289,7 +299,15 @@ function OnboardingWizard() {
     if (!accessToken) return;
     const methods = payments
       .filter((p) => p.upiId || p.qrImageUrl)
-      .map((p) => ({ type: p.type, upiId: p.upiId || undefined, qrImageUrl: p.qrImageUrl || undefined }));
+      .map((p) => {
+        const unchanged = p.saved && p.saved.upiId === p.upiId && p.saved.qrImageUrl === p.qrImageUrl;
+        return {
+          type: p.type,
+          upiId: p.upiId || undefined,
+          qrImageUrl: p.qrImageUrl || undefined,
+          upiAccountType: unchanged ? (p.saved?.upiAccountType ?? undefined) : undefined,
+        };
+      });
     if (methods.length === 0) {
       setError('Add at least one payment method (UPI ID or QR image).');
       return;

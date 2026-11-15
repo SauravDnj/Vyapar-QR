@@ -40,6 +40,28 @@ function mismatchOf(row: Row, check: QrCheck | undefined): string | null {
   return normaliseUpiId(row.upiId) === check.upiId ? null : check.upiId;
 }
 
+type AccountType = 'personal' | 'merchant';
+
+/**
+ * The account type to save: read from the QR when the QR is for this very UPI
+ * ID; otherwise what was saved before, if the ID and image are untouched
+ * (e.g. the image couldn't be fetched this time); otherwise unknown.
+ */
+function accountTypeFor(row: Row, check: QrCheck | undefined, saved: SavedMethod | undefined): AccountType | undefined {
+  if (!row.upiId.trim()) return undefined;
+  if (check?.kind === 'upi') {
+    return normaliseUpiId(row.upiId) === check.upiId ? check.accountType : undefined;
+  }
+  if (saved && saved.upiId === row.upiId && saved.qrImageUrl === row.qrImageUrl) {
+    return saved.upiAccountType ?? undefined;
+  }
+  return undefined;
+}
+
+interface SavedMethod extends Row {
+  upiAccountType: AccountType | null;
+}
+
 function QrNotice({
   row,
   check,
@@ -101,10 +123,27 @@ function QrNotice({
   }
 
   return (
-    <p className="text-xs text-success">
-      {autoFilled ? 'UPI ID filled in from your QR — save to apply.' : 'UPI ID matches your QR.'}
-      {check.payeeName ? ` Pays “${check.payeeName}”.` : ''}
-    </p>
+    <>
+      <p className="text-xs text-success">
+        {autoFilled ? 'UPI ID filled in from your QR — save to apply.' : 'UPI ID matches your QR.'}
+        {check.payeeName ? ` Pays “${check.payeeName}”.` : ''}
+        {check.accountType === 'merchant' ? ' Business account — one-tap Pay works.' : ''}
+      </p>
+      {check.accountType === 'personal' ? (
+        <div role="alert" className="flex flex-col gap-1.5 rounded-md bg-warning-bg px-3 py-2 text-xs text-warning">
+          <p className="font-semibold">This is a personal UPI ID.</p>
+          <p>
+            Google Pay, PhonePe and banks block payments to personal IDs that start from a website — customers see
+            &ldquo;exceeded the bank limit&rdquo; or &ldquo;declined for security reasons&rdquo;, whatever the amount.
+            Until you switch, your page asks customers to copy your UPI ID and pay it inside their app, which works.
+          </p>
+          <p>
+            For one-tap Pay, get a free business UPI QR from PhonePe Business, Google Pay for Business, Paytm for
+            Business or BharatPe, and upload it here.
+          </p>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -118,6 +157,7 @@ function PaymentMethodsContent() {
   });
   const [checks, setChecks] = useState<Partial<Record<PaymentMethodType, QrCheck>>>({});
   const [autoFilled, setAutoFilled] = useState<Partial<Record<PaymentMethodType, boolean>>>({});
+  const [saved, setSaved] = useState<Partial<Record<PaymentMethodType, SavedMethod>>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [confirmMismatch, setConfirmMismatch] = useState(false);
@@ -143,10 +183,14 @@ function PaymentMethodsContent() {
     try {
       const status = await getOnboardingStatus(accessToken);
       const loaded: Partial<Record<PaymentMethodType, Row>> = {};
+      const savedMethods: Partial<Record<PaymentMethodType, SavedMethod>> = {};
       for (const method of status.paymentMethods as OnboardingPaymentMethod[]) {
-        loaded[method.type] = { qrImageUrl: method.qrImageUrl ?? '', upiId: method.upiId ?? '' };
+        const row = { qrImageUrl: method.qrImageUrl ?? '', upiId: method.upiId ?? '' };
+        loaded[method.type] = row;
+        savedMethods[method.type] = { ...row, upiAccountType: method.upiAccountType ?? null };
       }
       setRows((prev) => ({ ...prev, ...loaded }));
+      setSaved(savedMethods);
       // Check what is already saved too — a wrong ID typed before this check
       // existed is exactly the case it was built for.
       for (const [type, row] of Object.entries(loaded) as [PaymentMethodType, Row][]) {
@@ -205,8 +249,17 @@ function PaymentMethodsContent() {
         type,
         qrImageUrl: rows[type].qrImageUrl || undefined,
         upiId: rows[type].upiId ? normaliseUpiId(rows[type].upiId) : undefined,
+        upiAccountType: accountTypeFor(rows[type], checks[type], saved[type]),
       }));
       await savePaymentMethods(accessToken, methods);
+      setSaved(
+        Object.fromEntries(
+          methods.map((m) => [
+            m.type,
+            { qrImageUrl: m.qrImageUrl ?? '', upiId: m.upiId ?? '', upiAccountType: m.upiAccountType ?? null },
+          ]),
+        ),
+      );
       setAutoFilled({});
       setConfirmMismatch(false);
       setMessage('Saved.');
@@ -236,6 +289,7 @@ function PaymentMethodsContent() {
           const isConnected = Boolean(row.qrImageUrl || row.upiId);
           const hasProblem =
             Boolean(mismatchOf(row, check)) || check?.kind === 'no-qr' || check?.kind === 'not-upi';
+          const isPersonal = accountTypeFor(row, check, saved[type]) === 'personal';
           const fileInput = (
             <input
               type="file"
@@ -252,8 +306,8 @@ function PaymentMethodsContent() {
             <div key={type} className="flex flex-col gap-3 rounded-lg border border-border-color bg-surface p-4" style={{ boxShadow: 'var(--shadow-card)' }}>
               <div className="flex items-center justify-between">
                 <p className="font-medium">{label}</p>
-                <Badge tone={hasProblem ? 'warning' : isConnected ? 'success' : 'neutral'}>
-                  {hasProblem ? 'Check this' : isConnected ? 'Connected' : 'Not set up'}
+                <Badge tone={hasProblem || isPersonal ? 'warning' : isConnected ? 'success' : 'neutral'}>
+                  {hasProblem ? 'Check this' : isPersonal ? 'Personal ID' : isConnected ? 'Connected' : 'Not set up'}
                 </Badge>
               </div>
               <p className="text-xs text-muted">{hint}</p>

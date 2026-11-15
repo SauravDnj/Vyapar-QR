@@ -24,6 +24,7 @@ export interface OnboardingPaymentMethod {
   type: PaymentMethodType;
   qrImageUrl: string | null;
   upiId: string | null;
+  upiAccountType?: 'personal' | 'merchant' | null;
   displayOrder: number;
 }
 
@@ -132,7 +133,7 @@ export function selectTheme(accessToken: string, themeId: string, accentColor?: 
 
 export function savePaymentMethods(
   accessToken: string,
-  methods: { type: PaymentMethodType; qrImageUrl?: string; upiId?: string }[],
+  methods: { type: PaymentMethodType; qrImageUrl?: string; upiId?: string; upiAccountType?: 'personal' | 'merchant' }[],
 ) {
   return onboardingFetch('/onboarding/payment-methods', accessToken, 'POST', { methods });
 }

@@ -14,6 +14,11 @@ export class PaymentMethodInputDto {
   @IsOptional()
   @Matches(UPI_ID_PATTERN, { message: 'upiId must look like name@bank' })
   upiId?: string;
+
+  /** From the uploaded QR's `mc` field: `0000` (or none) means a personal account. */
+  @IsOptional()
+  @IsIn(['personal', 'merchant'])
+  upiAccountType?: 'personal' | 'merchant';
 }
 
 export class SavePaymentMethodsDto {

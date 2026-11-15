@@ -76,7 +76,7 @@ const MUTED = { color: 'var(--t-muted, #4b5563)' };
 
 /** Strips whitespace and invisible characters a pasted UPI ID often carries. */
 export function cleanUpiId(upiId: string): string {
-  return upiId.replace(/[\s​-‍﻿]/g, '').toLowerCase();
+  return upiId.replace(/[\s\u200B-\u200D\uFEFF]/g, '').toLowerCase();
 }
 
 /**
@@ -90,7 +90,7 @@ export function cleanUpiId(upiId: string): string {
  * letters, digits, `.`, `-`, `_` and one `@`, so it never needs encoding.
  */
 function upiParams(upiId: string, businessName: string, amount?: string): string {
-  const name = businessName.replace(/[^\p{L}\p{N} .\-]/gu, '').trim() || 'Merchant';
+  const name = businessName.replace(/[^\p{L}\p{N} .-]/gu, '').trim() || 'Merchant';
   const parts = [`pa=${cleanUpiId(upiId)}`, `pn=${encodeURIComponent(name)}`];
   const parsed = amount ? Number(amount) : NaN;
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -266,21 +266,101 @@ function PaidByDetails({ slug, claimId, method }: { slug: string; claimId: strin
   );
 }
 
+/** Where each app keeps "pay to a UPI ID", in its own words. */
+const PAY_TO_ID_HINT: Record<PaymentMethodType, string> = {
+  gpay: 'tap “Pay UPI ID or number”',
+  phonepe: 'tap “To Bank/UPI ID”, then “UPI ID”',
+  paytm: 'tap “UPI Money Transfer” or “To UPI ID”',
+  other: 'open your UPI app and choose “Pay to UPI ID”',
+};
+
+/**
+ * Paying a personal UPI ID: copy it, open the app, paste.
+ *
+ * UPI apps and banks refuse a payment to a *personal* ID when a website starts
+ * it — the customer sees "exceeded the bank limit" or "declined for security
+ * reasons" whatever the amount. The same ID typed into the app's own "Pay UPI
+ * ID" screen goes through, because the customer started it there. So for
+ * these IDs we don't offer a deep link that cannot work.
+ */
+function ManualPaySteps({
+  method,
+  upiId,
+  amountValid,
+  amount,
+  qrImageUrl,
+  copied,
+  onCopyAndOpen,
+}: {
+  method: PaymentMethodType;
+  upiId: string;
+  amountValid: boolean;
+  amount: string;
+  qrImageUrl?: string | null;
+  copied: boolean;
+  onCopyAndOpen: () => void;
+}) {
+  const label = APP_LABEL[method];
+  const opensApp = Boolean(APP_SCHEME[method]);
+  return (
+    <div className="flex flex-col gap-3">
+      <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm" style={MUTED}>
+        <li>
+          {opensApp ? `Tap below to copy the UPI ID and open ${label}.` : 'Tap below to copy the UPI ID.'}
+        </li>
+        <li>
+          {opensApp ? `In ${label}, ${PAY_TO_ID_HINT[method]}` : PAY_TO_ID_HINT[method]} and paste it.
+        </li>
+        <li>{amountValid ? `Enter ₹${amount} and pay.` : 'Enter the amount and pay.'}</li>
+      </ol>
+
+      <button
+        type="button"
+        onClick={onCopyAndOpen}
+        className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-6 py-3 font-medium transition-opacity duration-200 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+        style={ACCENT_BUTTON}
+      >
+        <Icon name={copied ? 'check' : 'share'} className="size-4" aria-hidden="true" />
+        {copied ? 'UPI ID copied' : opensApp ? `Copy UPI ID & open ${label}` : 'Copy UPI ID'}
+      </button>
+
+      <p className="text-center text-sm">
+        UPI ID: <span className="select-all font-mono font-medium">{upiId}</span>
+      </p>
+      <span aria-live="polite" className="sr-only">
+        {copied ? 'UPI ID copied' : ''}
+      </span>
+
+      {qrImageUrl ? (
+        <details className="text-center text-xs" style={MUTED}>
+          <summary className="min-h-8 cursor-pointer">Paying from another phone? Show the QR</summary>
+          <img src={qrImageUrl} alt={`${label} payment QR code`} className="mx-auto mt-2 size-44 object-contain" />
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function AmountPayCard({
   slug,
   businessName,
   method,
   upiId,
   qrImageUrl,
+  accountType,
 }: {
   slug?: string;
   businessName: string;
   method: PaymentMethodType;
   upiId: string;
   qrImageUrl?: string | null;
+  accountType?: 'personal' | 'merchant' | null;
 }) {
   const label = APP_LABEL[method];
   const [amount, setAmount] = useState('');
+  /** Copy-and-paste instead of a deep link: always for personal IDs, and on
+   * request for any other card whose deep link the customer's app refused. */
+  const [manual, setManual] = useState(accountType === 'personal');
   const [hasOpened, setHasOpened] = useState(false);
   const [noAppFound, setNoAppFound] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -365,6 +445,35 @@ function AmountPayCard({
     }, 1500);
   }
 
+  /** Copies the UPI ID, then opens the app so the customer can paste it. */
+  async function handleCopyAndOpen() {
+    trackClick(slug, `${method}:manual`);
+    // Copy first: opening the app hides the page, and clipboard writes need
+    // the page focused and inside the tap.
+    await copyUpiId();
+    const scheme = APP_SCHEME[method];
+    const touchDevice =
+      typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    if (!scheme || !touchDevice) return;
+    setHasOpened(true);
+    setNoAppFound(false);
+    awaitingReturn.current = true;
+    window.location.href = scheme;
+  }
+
+  /** "Payment failed in the app" — undo any claim and switch to copy-and-paste. */
+  async function switchToManual() {
+    if (slug && claimId) {
+      await cancelClaim(slug, claimId);
+    }
+    awaitingReturn.current = false;
+    setClaimId(null);
+    setClaimState('idle');
+    setHasOpened(false);
+    setNoAppFound(false);
+    setManual(true);
+  }
+
   async function recordPayment() {
     if (!slug || claimState === 'sending' || claimState === 'sent') return;
     const parsed = Number(amount);
@@ -443,16 +552,38 @@ function AmountPayCard({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={handlePay}
-        className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-6 py-3 font-medium transition-opacity duration-200 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
-        style={ACCENT_BUTTON}
-      >
-        {amount ? `Pay ₹${amount} with ${label}` : `Pay with ${label}`}
-      </button>
+      {manual ? (
+        <ManualPaySteps
+          method={method}
+          upiId={upiId}
+          amount={amount}
+          amountValid={amountValid}
+          qrImageUrl={qrImageUrl}
+          copied={copied}
+          onCopyAndOpen={() => void handleCopyAndOpen()}
+        />
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={handlePay}
+            className="flex min-h-11 cursor-pointer items-center justify-center gap-2 px-6 py-3 font-medium transition-opacity duration-200 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={ACCENT_BUTTON}
+          >
+            {amount ? `Pay ₹${amount} with ${label}` : `Pay with ${label}`}
+          </button>
+          <button
+            type="button"
+            onClick={() => void switchToManual()}
+            className="min-h-8 cursor-pointer text-center text-xs underline underline-offset-2"
+            style={MUTED}
+          >
+            Payment failed in the app? Pay by UPI ID instead
+          </button>
+        </>
+      )}
 
-      {noAppFound ? (
+      {noAppFound && !manual ? (
         <div className="flex flex-col items-center gap-3 border-t pt-3" style={{ borderColor: 'var(--t-border, #e5e7eb)' }}>
           <p className="text-center text-sm" style={MUTED}>
             UPI apps only open on a phone. Scan this with your phone&apos;s UPI app,
@@ -577,6 +708,7 @@ export function PaymentButtons({
               method={method.type}
               upiId={method.upiId}
               qrImageUrl={method.qrImageUrl}
+              accountType={method.upiAccountType}
             />
           );
         }

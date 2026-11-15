@@ -352,6 +352,7 @@ export class OnboardingService {
           type: method.type,
           qrImageUrl: method.qrImageUrl ?? null,
           upiId: method.upiId ?? null,
+          upiAccountType: method.upiId ? (method.upiAccountType ?? null) : null,
           displayOrder: index,
         })),
       }),

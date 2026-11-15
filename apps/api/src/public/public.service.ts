@@ -40,7 +40,7 @@ export type PublicLandingPageResult =
       themeName: string;
       seoMeta: unknown;
       content: ThemeContent;
-      paymentMethods: { id: string; type: string; qrImageUrl: string | null; upiId: string | null; displayOrder: number }[];
+      paymentMethods: { id: string; type: string; qrImageUrl: string | null; upiId: string | null; upiAccountType: string | null; displayOrder: number }[];
       socialLinks: { id: string; platform: string; value: string; displayOrder: number }[];
       reviewConfig: { reviewLink: string | null; avgRatingCached: string | null } | null;
       reviews: { id: string; reviewerName: string; rating: number; comment: string | null; reviewDate: string }[];
@@ -314,7 +314,7 @@ export class PublicService {
       activeLocale,
       paymentMethods: client.paymentMethods
         .sort((a, b) => a.displayOrder - b.displayOrder)
-        .map((m) => ({ id: m.id, type: m.type, qrImageUrl: m.qrImageUrl, upiId: m.upiId, displayOrder: m.displayOrder })),
+        .map((m) => ({ id: m.id, type: m.type, qrImageUrl: m.qrImageUrl, upiId: m.upiId, upiAccountType: m.upiAccountType ?? null, displayOrder: m.displayOrder })),
       socialLinks: client.socialLinks
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((s) => ({ id: s.id, platform: s.platform, value: s.value, displayOrder: s.displayOrder })),

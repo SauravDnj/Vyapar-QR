@@ -322,6 +322,10 @@ model PaymentMethod {
   type         PaymentMethodType
   qrImageUrl   String?           @map("qr_image_url") @db.Text
   upiId        String?           @map("upi_id")
+  /// "personal" | "merchant", read from the `mc` field of the uploaded UPI QR
+  /// by the admin; null when unknown. UPI apps block website-started payments
+  /// to personal IDs, so the landing page uses a copy-and-paste flow for them.
+  upiAccountType String?         @map("upi_account_type")
   displayOrder Int               @default(0) @map("display_order")
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)

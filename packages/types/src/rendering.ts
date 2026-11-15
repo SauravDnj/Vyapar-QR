@@ -8,6 +8,8 @@ export interface PublicPaymentMethod {
   type: PaymentMethodType;
   qrImageUrl: string | null;
   upiId: string | null;
+  /** `personal` IDs can't take website-started UPI payments; see payment-buttons. */
+  upiAccountType?: 'personal' | 'merchant' | null;
   displayOrder: number;
 }
 
