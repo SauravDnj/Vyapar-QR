@@ -74,18 +74,30 @@ const CARD = {
 /** `--t-muted` is contrast-verified against every catalog surface. */
 const MUTED = { color: 'var(--t-muted, #4b5563)' };
 
-/** The UPI query string every scheme below shares. */
+/** Strips whitespace and invisible characters a pasted UPI ID often carries. */
+export function cleanUpiId(upiId: string): string {
+  return upiId.replace(/[\s​-‍﻿]/g, '').toLowerCase();
+}
+
+/**
+ * The UPI query string every scheme below shares.
+ *
+ * Built by hand, not with `URLSearchParams`: that encodes the `@` in the UPI
+ * ID as `%40` and spaces as `+`. Google Pay and PhonePe don't reliably decode
+ * either, so they looked up `8758018050%40upi`, found no such account, and
+ * failed with "Receiver's UPI ID or VPA is not available" even though the ID
+ * was right. The NPCI linking spec shows `pa` raw, and a UPI ID can only hold
+ * letters, digits, `.`, `-`, `_` and one `@`, so it never needs encoding.
+ */
 function upiParams(upiId: string, businessName: string, amount?: string): string {
-  const params = new URLSearchParams({
-    pa: upiId,
-    pn: businessName,
-    cu: 'INR',
-  });
+  const name = businessName.replace(/[^\p{L}\p{N} .\-]/gu, '').trim() || 'Merchant';
+  const parts = [`pa=${cleanUpiId(upiId)}`, `pn=${encodeURIComponent(name)}`];
   const parsed = amount ? Number(amount) : NaN;
   if (Number.isFinite(parsed) && parsed > 0) {
-    params.set('am', parsed.toFixed(2));
+    parts.push(`am=${parsed.toFixed(2)}`);
   }
-  return params.toString();
+  parts.push('cu=INR');
+  return parts.join('&');
 }
 
 /**

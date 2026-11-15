@@ -62,7 +62,8 @@ test('client sign-up through published landing page with a working payment link 
     await expect(payButton).toBeVisible();
     const href = await payButton.getAttribute('href');
     expect(href).toContain('upi://pay');
-    expect(href).toContain(`pa=${encodeURIComponent(upiId)}`);
+    // Raw `@`, never `%40` — UPI apps reject the encoded form as an unknown ID.
+    expect(href).toContain(`pa=${upiId.toLowerCase()}`);
   });
 
   const leadName = `E2E Visitor ${String(unique)}`;
